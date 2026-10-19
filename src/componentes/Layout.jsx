@@ -9,8 +9,9 @@ import Suporte from "./Suporte.jsx";
 import TrocarSenha from "./TrocarSenha.jsx";
 import Competencia from "./contabil/Competencia.jsx";
 import { useContabil } from "../lib/useContabil.js";
+import { instalarApp, usePwa } from "../lib/pwa.js";
 
-const VERSAO = "1.0.0-alpha.2";
+const VERSAO = "1.0.0-alpha.3";
 const FECHADAS_PADRAO = { "Outras movimentações": 1, "Cadastros": 1 };
 
 function iniciais(nome) {
@@ -61,6 +62,7 @@ export default function Layout() {
   const [gaveta, setGaveta] = useState(false);   // menu no celular
   const [trocarSenha, setTrocarSenha] = useState(false);
   const { auth } = useAuth();
+  const { instalar } = usePwa();
   useEffect(() => {   // sessão: ao voltar para a aba, confere se ainda vale (12 horas sem usar encerram)
     const f = () => {
       if (document.visibilityState !== "visible" || !auth) return;
@@ -140,6 +142,7 @@ export default function Layout() {
       <div className={"border-t border-line p-3 flex items-center gap-2.5 " + (recolhido ? "flex-col" : "")}>
         <span className="h-9 w-9 shrink-0 rounded-full bg-brand-soft text-brand font-bold text-[13px] inline-flex items-center justify-center" aria-hidden="true">{iniciais(usuario && usuario.nome)}</span>
         {!recolhido && <span className="flex-1 min-w-0 leading-tight"><strong className="block truncate text-[14px]">{usuario && usuario.nome}</strong><span className="block truncate text-[12px] text-muted">{usuario && usuario.email}</span></span>}
+        {instalar && <button type="button" onClick={instalarApp} aria-label="Instalar como aplicativo" title="Instalar como aplicativo (ícone na área de trabalho, abre sem internet)" className="btn-fantasma h-8 w-8 p-0 text-brand"><Icone nome="instalar" /></button>}
         {!(usuario && usuario.teste) && <button type="button" onClick={() => setTrocarSenha(true)} aria-label="Trocar a minha senha" title="Trocar a minha senha" className="btn-fantasma h-8 w-8 p-0"><Icone nome="cadeado" /></button>}
         <button type="button" onClick={() => sair().then(() => navegar("/login", { replace: true }))} aria-label="Sair do sistema" title="Sair" className="btn-fantasma h-8 w-8 p-0"><Icone nome="sair" /></button>
       </div>

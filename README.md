@@ -42,3 +42,16 @@ anterior: mesmos usuários e senha, mesmos lançamentos e dados dos módulos. Co
 
 O GitHub Actions (`.github/workflows/publicar.yml`) roda os testes e compila em todo Pull Request,
 e publica no GitHub Pages quando a `main` muda. Fluxo de branches em [`docs/GIT.md`](docs/GIT.md).
+
+## App instalável (PWA)
+
+No Chrome/Edge aparece o botão de instalar (ícone de seta no rodapé do menu). Instalado, o sistema abre
+pelo ícone na área de trabalho e funciona sem internet (os dados já ficam no navegador).
+
+O `dist/sw.js` é gerado a cada `npm run build` por `pwa/plugin.mjs`, a partir do modelo `pwa/sw.js`, com a
+lista de arquivos e uma versão que muda sozinha quando qualquer arquivo muda. Não precisa trocar número à mão.
+Quem está com o sistema aberto vê "Nova versão disponível · Atualizar". Os caches têm o prefixo `gf-react-`,
+separados dos da versão HTML (que está no mesmo endereço do GitHub Pages).
+
+Se um computador ficar preso numa versão velha: F12 → Application → Service workers → Unregister, e
+Cache storage → apagar os `gf-react-*`. Não use "Clear site data": isso apaga também os dados e os acessos.

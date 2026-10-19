@@ -26,7 +26,8 @@ export const ICONES = {
   menu: "M4 7h16M4 12h16M4 17h16",
   chat: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
   ok: "M5 12l5 5 9-10",
-  externo: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"
+  externo: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
+  instalar: "M12 4v11M7 10l5 5 5-5M5 20h14"
 };
 
 export default function Icone({ nome, className = "" }) {
