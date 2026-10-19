@@ -18,9 +18,9 @@ anterior é arquivada.
 | Conciliação | ⏳ A fazer |
 | Usuários (administração), trocar a minha senha | ✅ React (com confirmações no visual do sistema e "Desfazer" ao desativar) |
 | Ligar os dados à API (lançamentos, cadastros, módulos) | ⏳ A fazer, junto com cada tela |
-| App instalável e modo sem internet (PWA) | ⏳ A fazer |
+| App instalável, abre sem internet, aviso de versão nova (PWA) | ✅ React (`pwa/`: o `sw.js` é gerado a cada build) |
 
-Ordem sugerida: Conciliação → módulos, dos mais
+Ordem sugerida: Conciliação → virada (esta versão vira a oficial) → dados no servidor → módulos, dos mais
 simples (Vencimentos, ISS) aos maiores. Cada parte numa branch `feat/...` com Pull Request.
 
 ## Onde ficam as regras da Integração contábil

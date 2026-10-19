@@ -10,6 +10,7 @@ import Integracao from "./paginas/Integracao.jsx";
 import Conta from "./paginas/Conta.jsx";
 import Cadastro from "./paginas/Cadastro.jsx";
 import { AvisosProvider } from "./componentes/Avisos.jsx";
+import AvisoAtualizacao from "./componentes/AvisoAtualizacao.jsx";
 
 function Protegida({ children }) {
   const { carregando, usuario } = useAuth();
@@ -49,6 +50,7 @@ export default function App() {
           </Route>
         </Routes>
       </HashRouter>
+      <AvisoAtualizacao />
       </AvisosProvider>
     </AuthProvider>
   );
