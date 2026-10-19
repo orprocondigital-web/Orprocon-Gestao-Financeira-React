@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.*
+*.log
+# arquivos de clientes nunca vão para o repositório
+*.xlsx
+*.xlsm
+*.xls
+*.ofx
+*.xml
+*.csv
+*EXTRATO*.txt

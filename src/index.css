@@ -1,0 +1,81 @@
+/* Cores da Orprocon em "R G B" (o Tailwind usa com transparência: bg-brand-fill/20). */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --canvas: 247 245 241;
+  --surface: 255 255 255;
+  --surface-2: 251 249 246;
+  --line: 233 227 217;
+  --line-strong: 216 208 195;
+  --ink: 43 38 32;
+  --ink-2: 73 67 58;
+  --muted: 110 102 91;
+  --brand: 154 98 18;
+  --brand-hover: 122 78 12;
+  --brand-soft: 251 239 217;
+  --brand-fill: 225 154 42;
+  --brand-fill-hover: 207 138 30;
+  --on-fill: 36 31 25;
+  --grafite: 58 52 44;
+  --on-grafite: 244 239 230;
+  --credit: 47 125 79;
+  --debit: 180 35 24;
+  --debit-soft: 251 234 231;
+  --warn: 154 74 7;
+  --warn-soft: 255 241 224;
+  --info: 59 91 169;
+  --info-soft: 233 238 249;
+  --ok-soft: 229 242 234;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --canvas: 20 18 15;
+  --surface: 29 26 22;
+  --surface-2: 36 32 27;
+  --line: 50 44 37;
+  --line-strong: 62 55 46;
+  --ink: 236 228 216;
+  --ink-2: 207 198 184;
+  --muted: 161 152 138;
+  --brand: 242 193 119;
+  --brand-hover: 246 210 154;
+  --brand-soft: 58 44 23;
+  --brand-fill: 233 169 64;
+  --brand-fill-hover: 242 184 90;
+  --on-fill: 26 22 15;
+  --grafite: 42 36 29;
+  --on-grafite: 242 193 119;
+  --credit: 121 207 156;
+  --debit: 244 144 127;
+  --debit-soft: 58 30 26;
+  --warn: 243 168 106;
+  --warn-soft: 58 39 23;
+  --info: 169 188 240;
+  --info-soft: 34 42 64;
+  --ok-soft: 28 46 34;
+  color-scheme: dark;
+}
+
+@layer base {
+  html, body, #raiz { height: 100%; }
+  body { @apply bg-canvas text-ink font-sans antialiased; font-size: 14px; }
+  :focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--brand-fill) / .4); border-radius: 6px; }
+  input, select, textarea { @apply bg-surface text-ink border border-line-strong rounded-lg px-3 h-10 w-full; font: inherit; }
+  textarea { @apply h-auto py-2; }
+  input:focus, select:focus, textarea:focus { @apply border-brand-fill; outline: none; box-shadow: 0 0 0 3px rgb(var(--brand-fill) / .3); }
+  input[type="checkbox"], input[type="radio"] { @apply h-auto w-auto p-0; accent-color: rgb(var(--brand-fill)); }
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg text-sm font-semibold border border-transparent cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primario { @apply btn bg-brand-fill text-on-fill hover:bg-brand-fill-hover; }
+  .btn-contorno { @apply btn bg-surface border-line-strong text-ink hover:border-brand-fill; }
+  .btn-fantasma { @apply btn bg-transparent text-ink-2 hover:bg-surface-2 hover:text-ink; }
+  .btn-perigo { @apply btn bg-transparent text-debit hover:bg-debit-soft; }
+  .btn-sm { @apply h-8 px-3 text-[13px]; }
+  .cartao { @apply bg-surface border border-line rounded-xl; }
+  .ico { @apply w-[18px] h-[18px] shrink-0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .rotulo { @apply text-[13px] font-semibold text-ink; }
+}

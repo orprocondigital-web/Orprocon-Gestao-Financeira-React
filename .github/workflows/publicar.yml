@@ -1,0 +1,47 @@
+# Em todo Pull Request: roda os testes e confere se o sistema compila.
+# Na main: além disso, publica no GitHub Pages (Settings → Pages → Source: GitHub Actions).
+name: Testes e publicação
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # bibliotecas de planilha usadas só nos testes do Controle de horas (no site elas vêm do CDN)
+      - run: npm install --no-save --no-package-lock exceljs@4.4.0 xlsx@0.18.5
+      - run: npm test
+      - run: npm run build
+      - if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  publicar:
+    needs: testes
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

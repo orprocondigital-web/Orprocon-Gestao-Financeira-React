@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestão Financeira – Orprocon</title>
+  <meta name="theme-color" content="#49433A">
+  <link rel="icon" href="./icons/favicon-32-v2.png" type="image/png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon-v2.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    // tema antes de desenhar a página (sem piscar): o escolhido ou o do computador
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("tema"); } catch (e) {}
+      if (t !== "dark" && t !== "light") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
+</head>
+<body>
+  <div id="raiz"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
