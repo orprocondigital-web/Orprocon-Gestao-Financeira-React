@@ -1,0 +1,7 @@
+# Fim de linha igual em Windows e Linux (some o aviso "LF will be replaced by CRLF")
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.xlsx binary
+*.pdf binary

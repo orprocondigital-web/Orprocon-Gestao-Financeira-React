@@ -3,21 +3,14 @@
  * as contas bancárias, unidades, outras movimentações e cadastros da planilha do mês.
  */
 import { Modulos } from "./legado.js";
-import { lerJson } from "./tema.js";
+import { contabil as dados } from "./useContabil.js";
+import { nomeDaFonte } from "./contabil.mjs";
 
-export const MOVIMENTOS = [
-  { id: "mov-dinheiro", label: "Pagamentos em dinheiro" },
-  { id: "mov-juros", label: "Juros recebidos" },
-  { id: "mov-compras", label: "Digitação de compras" }
-];
-export const CADASTROS = [
-  { id: "cad-clientes", label: "Clientes" }, { id: "cad-fornecedores", label: "Fornecedores" },
-  { id: "cad-plano", label: "Plano de contas" }, { id: "cad-custos", label: "Centro de custos" },
-  { id: "cad-bancos", label: "Tabela de bancos" }, { id: "cad-unidades", label: "Tabela de unidades" }
-];
+export { MOVIMENTOS, CADASTROS } from "./contabil.mjs";
+import { MOVIMENTOS, CADASTROS } from "./contabil.mjs";
 const ICONE_MODULO = { "mod-icms": "icms", "mod-ibs-cbs": "ibs", "mod-iss": "iss", "mod-vencimentos": "venc", "mod-em-dia": "emdia", "mod-horas": "horas" };
 
-export function nomeDaConta(b) { return b.sheetName || ((b.bank ? b.bank + " " : "") + b.label); }
+export const nomeDaConta = nomeDaFonte;
 
 /** Seções do menu para a pessoa logada. pode(area) vem do login. */
 export function montarMenu(pode, ehAdmin) {
@@ -26,12 +19,12 @@ export function montarMenu(pode, ehAdmin) {
   const integracao = pode("integracao");
   const contabil = [];
   if (integracao) {
-    const bancos = lerJson("system_banks", []);
-    const unidades = lerJson("system_units", []);
+    const bancos = dados.bancos();
+    const unidades = dados.unidades();
     contabil.push({
       id: "master", label: "Integração contábil", para: "/integracao", icone: "master",
       partes: [
-        { titulo: "Bancos", itens: bancos.map((b) => ({ id: b.id, label: b.label, grupo: b.bank || "", para: "/conta/" + b.id, icone: "banco", title: nomeDaConta(b) })), vazio: "Nenhuma conta cadastrada" },
+        { titulo: "Bancos", itens: bancos.map((b) => ({ id: b.id, label: b.label, grupo: b.bank || "", para: "/conta/" + b.id, icone: "banco", title: nomeDaFonte(b) })), vazio: "Nenhuma conta cadastrada" },
         { titulo: "Unidades", itens: unidades.map((u) => ({ id: u.id, label: u.label, para: "/conta/" + u.id, icone: "unidade" })), vazio: "Criadas ao distribuir por unidade" },
         { titulo: "Outras movimentações", itens: MOVIMENTOS.map((m) => ({ id: m.id, label: m.label, para: "/conta/" + m.id, icone: "mov" })) },
         { titulo: "Cadastros", itens: CADASTROS.map((c) => ({ id: c.id, label: c.label, para: "/cadastro/" + c.id, icone: "cadastro" })) }

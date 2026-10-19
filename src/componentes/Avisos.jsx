@@ -6,6 +6,7 @@ import Icone from "./Icone.jsx";
  * Avisos do sistema no lugar das janelinhas do navegador:
  *   aviso("Usuário excluído.", { desfazer: fn })  → faixa embaixo, com "Desfazer" opcional
  *   await confirmar({ titulo, texto, botao, perigo })  → true/false
+ *   com alternativa: "Substituir" aparece um terceiro botão, que devolve "alternativa" (fechar continua false)
  */
 const Contexto = createContext(null);
 
@@ -28,6 +29,7 @@ export function AvisosProvider({ children }) {
       <Janela aberta={!!pergunta} titulo={pergunta ? pergunta.titulo : ""} aoFechar={() => responder(false)}
         rodape={pergunta && (<>
           <button type="button" className="btn-fantasma" onClick={() => responder(false)}>Cancelar</button>
+          {pergunta.alternativa && <button type="button" className="btn-contorno" onClick={() => responder("alternativa")}>{pergunta.alternativa}</button>}
           <button type="button" data-foco className={pergunta.perigo ? "btn bg-debit text-white hover:opacity-90" : "btn-primario"} onClick={() => responder(true)}>{pergunta.botao || "Confirmar"}</button>
         </>)}>
         {pergunta && <p className="text-[14px] leading-relaxed text-ink-2 whitespace-pre-line">{pergunta.texto}</p>}
