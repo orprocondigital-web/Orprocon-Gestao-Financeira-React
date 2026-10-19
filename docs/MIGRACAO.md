@@ -14,9 +14,9 @@ anterior é arquivada.
 | Apuração de ICMS, Auditor IBS/CBS, ISS, Vencimentos, Em Dia, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
 | Integração contábil, contas, unidades, movimentos e cadastros | ⏳ A fazer |
 | Conciliação | ⏳ A fazer |
-| Usuários (administração) | ⏳ A fazer |
+| Usuários (administração), trocar a minha senha | ✅ React (com confirmações no visual do sistema e "Desfazer" ao desativar) |
 | Ligar os dados à API (lançamentos, cadastros, módulos) | ⏳ A fazer, junto com cada tela |
 | App instalável e modo sem internet (PWA) | ⏳ A fazer |
 
-Ordem sugerida: Usuários → Integração contábil (contas e cadastros) → Conciliação → módulos, dos mais
+Ordem sugerida: Integração contábil (contas e cadastros) → Conciliação → módulos, dos mais
 simples (Vencimentos, ISS) aos maiores. Cada parte numa branch `feat/...` com Pull Request.

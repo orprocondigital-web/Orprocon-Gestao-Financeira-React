@@ -6,6 +6,7 @@ import { gravarLocal, lerJson, lerLocal, useTema } from "../lib/tema.js";
 import { montarMenu } from "../lib/menu.js";
 import Icone from "./Icone.jsx";
 import Suporte from "./Suporte.jsx";
+import TrocarSenha from "./TrocarSenha.jsx";
 
 const VERSAO = "1.0.0-alpha.1";
 const FECHADAS_PADRAO = { "Outras movimentações": 1, "Cadastros": 1 };
@@ -55,6 +56,16 @@ export default function Layout() {
   const [integracaoAberta, setIntegracaoAberta] = useState(() => lerLocal("menu:integracao") === "aberta");
   const [recolhido, setRecolhido] = useState(() => lerLocal("menu:recolhido") === "1");
   const [gaveta, setGaveta] = useState(false);   // menu no celular
+  const [trocarSenha, setTrocarSenha] = useState(false);
+  const { auth } = useAuth();
+  useEffect(() => {   // sessão: ao voltar para a aba, confere se ainda vale (12 horas sem usar encerram)
+    const f = () => {
+      if (document.visibilityState !== "visible" || !auth) return;
+      auth.usuarioAtual().then((u) => { if (!u || u.trocarSenha) sair().then(() => navegar("/login", { replace: true, state: { expirou: true } })); });
+    };
+    document.addEventListener("visibilitychange", f);
+    return () => document.removeEventListener("visibilitychange", f);
+  }, [auth]);   // eslint-disable-line
 
   const alternarSecao = (t) => setFechadas((f) => { const n = Object.assign({}, f); if (n[t]) delete n[t]; else n[t] = 1; gravarLocal("menu:fechadas", JSON.stringify(n)); return n; });
   const abrirIntegracao = (sim) => { setIntegracaoAberta(sim); gravarLocal("menu:integracao", sim ? "aberta" : "fechada"); };
@@ -125,6 +136,7 @@ export default function Layout() {
       <div className={"border-t border-line p-3 flex items-center gap-2.5 " + (recolhido ? "flex-col" : "")}>
         <span className="h-9 w-9 shrink-0 rounded-full bg-brand-soft text-brand font-bold text-[13px] inline-flex items-center justify-center" aria-hidden="true">{iniciais(usuario && usuario.nome)}</span>
         {!recolhido && <span className="flex-1 min-w-0 leading-tight"><strong className="block truncate text-[14px]">{usuario && usuario.nome}</strong><span className="block truncate text-[12px] text-muted">{usuario && usuario.email}</span></span>}
+        {!(usuario && usuario.teste) && <button type="button" onClick={() => setTrocarSenha(true)} aria-label="Trocar a minha senha" title="Trocar a minha senha" className="btn-fantasma h-8 w-8 p-0"><Icone nome="cadeado" /></button>}
         <button type="button" onClick={() => sair().then(() => navegar("/login", { replace: true }))} aria-label="Sair do sistema" title="Sair" className="btn-fantasma h-8 w-8 p-0"><Icone nome="sair" /></button>
       </div>
     </nav>
@@ -156,6 +168,7 @@ export default function Layout() {
         </header>
         <div className={"flex-1 min-w-0 " + (naModulo ? "" : "px-4 sm:px-8 py-6 pb-24")}><Outlet context={{ titulo }} /></div>
       </main>
+      <TrocarSenha aberta={trocarSenha} aoFechar={() => setTrocarSenha(false)} />
       <Suporte compacto={naModulo} contexto={() => ({
         tela: (titulo.sub && titulo.sub !== titulo.titulo ? titulo.sub + " › " : "") + titulo.titulo,
         usuario: usuario ? { nome: usuario.nome, email: usuario.email } : null, versao: VERSAO, sistema: "Gestão Financeira"

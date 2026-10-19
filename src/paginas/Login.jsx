@@ -50,7 +50,7 @@ export default function Login() {
   const [s2, setS2] = useState("");
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
-  const [aviso, setAviso] = useState("");
+  const [aviso, setAviso] = useState(() => (local.state && local.state.expirou ? "A sessão terminou. Entre de novo." : ""));
   const senhaDigitada = useRef("");
   const arquivo = useRef(null);
 
