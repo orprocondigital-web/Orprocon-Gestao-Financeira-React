@@ -6,6 +6,9 @@ import Inicio from "./paginas/Inicio.jsx";
 import Modulo from "./paginas/Modulo.jsx";
 import EmConstrucao from "./paginas/EmConstrucao.jsx";
 import Usuarios from "./paginas/Usuarios.jsx";
+import Integracao from "./paginas/Integracao.jsx";
+import Conta from "./paginas/Conta.jsx";
+import Cadastro from "./paginas/Cadastro.jsx";
 import { AvisosProvider } from "./componentes/Avisos.jsx";
 
 function Protegida({ children }) {
@@ -20,6 +23,12 @@ function SoAdmin({ children }) {
   return usuario && usuario.perfil === "admin" ? children : <Navigate to="/" replace />;
 }
 
+/** Só quem tem a área (ex.: integracao) entra; os outros voltam ao Início. */
+function SoArea({ area, children }) {
+  const { pode } = useAuth();
+  return pode(area) ? children : <Navigate to="/" replace />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -31,10 +40,10 @@ export default function App() {
           <Route element={<Protegida><Layout /></Protegida>}>
             <Route index element={<Inicio />} />
             <Route path="modulo/:id" element={<Modulo />} />
-            <Route path="integracao" element={<EmConstrucao nome="A Integração contábil" />} />
+            <Route path="integracao" element={<SoArea area="integracao"><Integracao /></SoArea>} />
             <Route path="conciliacao" element={<EmConstrucao nome="A Conciliação" />} />
-            <Route path="conta/:id" element={<EmConstrucao nome="A tela das contas" />} />
-            <Route path="cadastro/:id" element={<EmConstrucao nome="A tela dos cadastros" />} />
+            <Route path="conta/:id" element={<SoArea area="integracao"><Conta /></SoArea>} />
+            <Route path="cadastro/:id" element={<SoArea area="integracao"><Cadastro /></SoArea>} />
             <Route path="usuarios" element={<SoAdmin><Usuarios /></SoAdmin>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

@@ -23,9 +23,9 @@ Para testar com a API rodando no computador, abra uma vez `http://localhost:5173
 | Pasta | O que tem |
 |---|---|
 | `src/legado/` | As **regras** do sistema, trazidas da versão anterior sem reescrever: extratos, planilhas, conciliação, integração com o Único, login, armazenamento e os dados de cada módulo. Testadas em `tests/`. |
-| `src/lib/` | Ligação das regras com o React: `legado.js` (carrega as regras), `auth.jsx` (login), `menu.js`, `tema.js`. |
-| `src/componentes/` | Peças da tela: menu e topo (`Layout`), `Suporte`, `Icone`. |
-| `src/paginas/` | As telas: `Login`, `Inicio`, `Modulo` e as que estão em construção. |
+| `src/lib/` | Ligação das regras com o React: `legado.js` (carrega as regras), `auth.jsx` (login), `menu.js`, `tema.js`, `contabil.mjs` + `useContabil.js` (Integração contábil) e `leitores.js` (planilhas, PDF, OFX, downloads). |
+| `src/componentes/` | Peças da tela: menu e topo (`Layout`), janelas (`Janela`), avisos e confirmações (`Avisos`), `Suporte`, `Icone`; as janelas da Integração contábil ficam em `contabil/`. |
+| `src/paginas/` | As telas: `Login`, `Inicio`, `Integracao`, `Conta`, `Cadastro`, `Usuarios`, `Modulo` e as que estão em construção (veja `docs/MIGRACAO.md`). |
 | `public/modulos/` | Os módulos da versão anterior, abertos num quadro enquanto não são refeitos em React. |
 | `tests/` | Testes automáticos (`node --test`). |
 | `docs/` | `GIT.md` (fluxo de branches) e `MIGRACAO.md` (o que já foi passado para React). |
