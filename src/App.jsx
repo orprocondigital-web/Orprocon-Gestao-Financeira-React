@@ -4,11 +4,11 @@ import Layout from "./componentes/Layout.jsx";
 import Login from "./paginas/Login.jsx";
 import Inicio from "./paginas/Inicio.jsx";
 import Modulo from "./paginas/Modulo.jsx";
-import EmConstrucao from "./paginas/EmConstrucao.jsx";
 import Usuarios from "./paginas/Usuarios.jsx";
 import Integracao from "./paginas/Integracao.jsx";
 import Conta from "./paginas/Conta.jsx";
 import Cadastro from "./paginas/Cadastro.jsx";
+import Conciliacao from "./paginas/Conciliacao.jsx";
 import { AvisosProvider } from "./componentes/Avisos.jsx";
 import AvisoAtualizacao from "./componentes/AvisoAtualizacao.jsx";
 
@@ -42,7 +42,7 @@ export default function App() {
             <Route index element={<Inicio />} />
             <Route path="modulo/:id" element={<Modulo />} />
             <Route path="integracao" element={<SoArea area="integracao"><Integracao /></SoArea>} />
-            <Route path="conciliacao" element={<EmConstrucao nome="A Conciliação" />} />
+            <Route path="conciliacao" element={<SoArea area="conciliacao"><Conciliacao /></SoArea>} />
             <Route path="conta/:id" element={<SoArea area="integracao"><Conta /></SoArea>} />
             <Route path="cadastro/:id" element={<SoArea area="integracao"><Cadastro /></SoArea>} />
             <Route path="usuarios" element={<SoAdmin><Usuarios /></SoAdmin>} />
