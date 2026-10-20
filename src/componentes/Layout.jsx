@@ -11,7 +11,7 @@ import Competencia from "./contabil/Competencia.jsx";
 import { useContabil } from "../lib/useContabil.js";
 import { instalarApp, usePwa } from "../lib/pwa.js";
 
-const VERSAO = "1.0.0-alpha.3";
+const VERSAO = "1.0.0-alpha.4";
 const FECHADAS_PADRAO = { "Outras movimentações": 1, "Cadastros": 1 };
 
 function iniciais(nome) {

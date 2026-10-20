@@ -15,7 +15,8 @@ anterior é arquivada.
 | Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
 | Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |
 | Cadastros (importar a aba ou cadastrar à mão, editar, excluir com Desfazer) | ✅ React |
-| Conciliação | ⏳ A fazer |
+| Conciliação por conta (extrato × lançamentos, conciliar à mão, conferido, exportar) | ✅ React |
+| Conciliação Extrato × planilha (planilha, balancete de fornecedores, XML de NF-e, conciliações salvas) | ⏳ Próxima entrega |
 | Usuários (administração), trocar a minha senha | ✅ React (com confirmações no visual do sistema e "Desfazer" ao desativar) |
 | Ligar os dados à API (lançamentos, cadastros, módulos) | ⏳ A fazer, junto com cada tela |
 | App instalável, abre sem internet, aviso de versão nova (PWA) | ✅ React (`pwa/`: o `sw.js` é gerado a cada build) |
@@ -30,4 +31,5 @@ simples (Vencimentos, ISS) aos maiores. Cada parte numa branch `feat/...` com Pu
   então os dois sistemas mostram os mesmos dados no navegador (e um restaura o backup do outro).
 - `src/lib/useContabil.js`: a instância única e o hook que redesenha as telas a cada gravação.
 - `src/lib/leitores.js`: leitura de planilha, PDF, OFX e download de arquivos (os leitores grandes só baixam quando usados).
-- Telas: `src/paginas/Integracao.jsx`, `Conta.jsx`, `Cadastro.jsx` e as janelas em `src/componentes/contabil/`.
+- `src/lib/conciliar.mjs`: resultado da conciliação (cruzamento + o que foi feito à mão), testado em `tests/conciliar.test.js`.
+- Telas: `src/paginas/Conciliacao.jsx`, `src/paginas/Integracao.jsx`, `Conta.jsx`, `Cadastro.jsx` e as janelas em `src/componentes/contabil/`.
