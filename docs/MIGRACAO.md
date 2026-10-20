@@ -11,7 +11,8 @@ anterior é arquivada.
 | Menu, topo, tema claro/escuro, menu no celular, menu recolhido | ✅ React |
 | Início (capa com as ferramentas e mini cards do dia) | ✅ React |
 | Suporte (WhatsApp) | ✅ React |
-| Apuração de ICMS, Auditor IBS/CBS, ISS, Vencimentos, Em Dia, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
+| Departamento Cadastro: Certidões e Alvarás (com vencimento e renovação), Faturamentos e Demonstrativos contábeis | ✅ React (substitui o Painel de vencimentos; os dados dele continuam) |
+| Apuração de ICMS, Auditor IBS/CBS, ISS, Em Dia, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
 | Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
 | Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |
 | Cadastros (importar a aba ou cadastrar à mão, editar, excluir com Desfazer) | ✅ React |
@@ -32,4 +33,5 @@ simples (Vencimentos, ISS) aos maiores. Cada parte numa branch `feat/...` com Pu
 - `src/lib/useContabil.js`: a instância única e o hook que redesenha as telas a cada gravação.
 - `src/lib/leitores.js`: leitura de planilha, PDF, OFX e download de arquivos (os leitores grandes só baixam quando usados).
 - `src/lib/conciliar.mjs`: resultado da conciliação (cruzamento + o que foi feito à mão), testado em `tests/conciliar.test.js`.
-- Telas: `src/paginas/Conciliacao.jsx`, `src/paginas/Integracao.jsx`, `Conta.jsx`, `Cadastro.jsx` e as janelas em `src/componentes/contabil/`.
+- `src/lib/depCadastro.mjs`: Departamento Cadastro. Certidões e alvarás continuam na chave do antigo painel (`painelVencimentos:v1`); faturamentos e demonstrativos em `depCadastro:v1`. Testado em `tests/depCadastro.test.js`.
+- Telas: `src/paginas/DepCadastro.jsx`, `src/paginas/Conciliacao.jsx`, `src/paginas/Integracao.jsx`, `Conta.jsx`, `Cadastro.jsx` e as janelas em `src/componentes/contabil/`.

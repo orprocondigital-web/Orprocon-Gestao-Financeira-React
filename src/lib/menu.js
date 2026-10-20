@@ -5,6 +5,7 @@
 import { Modulos } from "./legado.js";
 import { contabil as dados } from "./useContabil.js";
 import { nomeDaFonte } from "./contabil.mjs";
+import { depCadastro } from "./useDepCadastro.js";
 
 export { MOVIMENTOS, CADASTROS } from "./contabil.mjs";
 import { MOVIMENTOS, CADASTROS } from "./contabil.mjs";
@@ -36,6 +37,13 @@ export function montarMenu(pode, ehAdmin) {
     { titulo: "Contábil", itens: contabil },
     { titulo: "Fiscal", itens: modulos("Fiscal") },
     { titulo: "Departamento Pessoal", itens: modulos("Departamento Pessoal") },
+    // Departamento Cadastro: o número ao lado é o que venceu ou vence em até 7 dias
+    { titulo: "Departamento Cadastro", itens: pode("mod-vencimentos") ? [
+      { id: "dep-certidoes", label: "Certidões", para: "/departamento-cadastro/certidoes", icone: "certidao", contador: depCadastro.urgentes("certidoes") },
+      { id: "dep-alvaras", label: "Alvarás", para: "/departamento-cadastro/alvaras", icone: "alvara", contador: depCadastro.urgentes("alvaras") },
+      { id: "dep-faturamentos", label: "Faturamentos", para: "/departamento-cadastro/faturamentos", icone: "faturamento" },
+      { id: "dep-demonstrativos", label: "Demonstrativos contábeis", para: "/departamento-cadastro/demonstrativos", icone: "demonstrativo" }
+    ] : [] },
     { titulo: "Escritório", itens: modulos("Escritório") }
   ];
   if (ehAdmin) secoes.push({ titulo: "Administração", itens: [{ id: "usuarios", label: "Usuários", para: "/usuarios", icone: "usuarios" }] });

@@ -33,7 +33,7 @@
     { id: "mod-icms", nome: "Apuração de ICMS", detalhe: "" },
     { id: "mod-ibs-cbs", nome: "Auditor IBS/CBS", detalhe: "" },
     { id: "mod-iss", nome: "ISS Tubarão", detalhe: "Meu ISS: ISS retido e retenções federais por XML" },
-    { id: "mod-vencimentos", nome: "Painel de vencimentos", detalhe: "" },
+    { id: "mod-vencimentos", nome: "Departamento Cadastro", detalhe: "Certidões, alvarás, faturamentos e demonstrativos" },
     { id: "mod-em-dia", nome: "Em Dia", detalhe: "Fechamento do mês e diário dos setores" },
     { id: "mod-horas", nome: "Controle de horas", detalhe: "Folhas de presença dos funcionários dos clientes (DP)" }
   ];

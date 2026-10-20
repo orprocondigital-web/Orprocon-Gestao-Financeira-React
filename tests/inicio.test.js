@@ -27,7 +27,7 @@ describe("Início", () => {
 
   test("carrega exemplo só nos módulos vazios", () => {
     const { st, feitos } = exemplos();
-    assert.deepEqual(feitos, ["Em Dia", "ISS Tubarão", "Controle de horas", "Painel de vencimentos"]);
+    assert.deepEqual(feitos, ["Em Dia", "ISS Tubarão", "Controle de horas", "Certidões e alvarás"]);
     const ler = (k) => st[k] || null;
     assert.deepEqual(I.carregarExemplos(ler, () => { throw new Error("não devia gravar"); }, EU, HOJE), []);
   });
@@ -147,7 +147,9 @@ describe("Início", () => {
   test("capa: só as ferramentas que a pessoa pode abrir, por setor", () => {
     const r = I.resumir({}, ctx());
     const tudo = I.capa(r);
-    assert.equal((tudo.match(/class="capa-card"/g) || []).length, 8);
+    assert.equal((tudo.match(/class="capa-card"/g) || []).length, 11);
+    assert.match(tudo, /Departamento Cadastro/);
+    assert.ok(!/Painel de vencimentos/.test(tudo), "o painel saiu: os vencimentos ficam em Certidões e Alvarás");
     assert.match(tudo, /Departamento Pessoal/);
     assert.match(tudo, /Integração contábil/);
     assert.ok(!/capa-minis/.test(tudo), "sem dados, sem mini cards");

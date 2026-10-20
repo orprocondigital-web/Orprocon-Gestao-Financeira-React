@@ -27,7 +27,11 @@ export const ICONES = {
   chat: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
   ok: "M5 12l5 5 9-10",
   externo: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
-  instalar: "M12 4v11M7 10l5 5 5-5M5 20h14"
+  instalar: "M12 4v11M7 10l5 5 5-5M5 20h14",
+  certidao: "M7 3h7l5 5v13H7zM14 3v5h5M9.5 14.5l2 2 3.5-4",
+  alvara: "M5 4h14v16H5zM9 9h6M9 13h6M12 17h3",
+  faturamento: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  demonstrativo: "M5 3h14v18H5zM9 8h6M9 12h6M9 16h3"
 };
 
 export default function Icone({ nome, className = "" }) {

@@ -6,8 +6,8 @@ import { lerJson, lerLocal } from "../lib/tema.js";
 import { nomeDaConta } from "../lib/menu.js";
 import Icone from "../componentes/Icone.jsx";
 
-const COR_SETOR = { contabil: "border-brand-fill", fiscal: "border-ink-2", pessoal: "border-credit", escritorio: "border-info" };
-const ICO_SETOR = { contabil: "bg-brand-soft text-brand", fiscal: "bg-surface-2 text-ink-2 border border-line", pessoal: "bg-ok-soft text-credit", escritorio: "bg-info-soft text-info" };
+const COR_SETOR = { contabil: "border-brand-fill", fiscal: "border-ink-2", pessoal: "border-credit", cadastro: "border-warn", escritorio: "border-info" };
+const ICO_SETOR = { contabil: "bg-brand-soft text-brand", fiscal: "bg-surface-2 text-ink-2 border border-line", pessoal: "bg-ok-soft text-credit", cadastro: "bg-warn-soft text-warn", escritorio: "bg-info-soft text-info" };
 const TOM = { marca: "text-brand", alerta: "", perigo: "text-debit" };
 
 function mesAtual() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
@@ -45,6 +45,8 @@ export default function Inicio() {
   const ir = (alvo) => {
     if (!alvo) return;
     if (alvo.acaoApp === "extratos") { navegar("/integracao"); return; }
+    const dep = { "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-alvaras": "alvaras", "dep-faturamentos": "faturamentos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
+    if (dep) { navegar("/departamento-cadastro/" + dep); return; }
     navegar(alvo.tab === "master" ? "/integracao" : alvo.tab === "conciliacao" ? "/conciliacao" : "/modulo/" + alvo.tab, { state: { prefs: alvo.prefs || null } });
   };
   const exemplos = () => {
@@ -64,7 +66,7 @@ export default function Inicio() {
         <div className="relative flex flex-col gap-1.5 max-w-[640px]">
           <span className="text-[13px] font-semibold text-brand-fill">{r.data}</span>
           <h2 className="text-[26px] font-semibold tracking-tight text-[#F7F1E6]">{r.saudacao}{r.nome ? ", " + r.nome : ""}</h2>
-          <p className="text-[14.5px] leading-relaxed text-[#F4EFE6]/80">As ferramentas da Orprocon num lugar só: contábil, fiscal, departamento pessoal e escritório. Escolha abaixo por onde começar.</p>
+          <p className="text-[14.5px] leading-relaxed text-[#F4EFE6]/80">As ferramentas da Orprocon num lugar só: contábil, fiscal, departamento pessoal, cadastro e escritório. Escolha abaixo por onde começar.</p>
         </div>
         <div className="relative flex items-center gap-3 md:pl-6 md:border-l border-t md:border-t-0 border-white/15 pt-4 md:pt-0">
           <strong className="text-[44px] leading-none font-semibold text-brand-fill">{qtd}</strong>

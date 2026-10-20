@@ -9,6 +9,7 @@ import Integracao from "./paginas/Integracao.jsx";
 import Conta from "./paginas/Conta.jsx";
 import Cadastro from "./paginas/Cadastro.jsx";
 import Conciliacao from "./paginas/Conciliacao.jsx";
+import DepCadastro from "./paginas/DepCadastro.jsx";
 import { AvisosProvider } from "./componentes/Avisos.jsx";
 import AvisoAtualizacao from "./componentes/AvisoAtualizacao.jsx";
 
@@ -45,6 +46,9 @@ export default function App() {
             <Route path="conciliacao" element={<SoArea area="conciliacao"><Conciliacao /></SoArea>} />
             <Route path="conta/:id" element={<SoArea area="integracao"><Conta /></SoArea>} />
             <Route path="cadastro/:id" element={<SoArea area="integracao"><Cadastro /></SoArea>} />
+            <Route path="departamento-cadastro/:secao" element={<SoArea area="mod-vencimentos"><DepCadastro /></SoArea>} />
+            {/* o antigo Painel de vencimentos virou Certidões e Alvarás */}
+            <Route path="modulo/mod-vencimentos" element={<Navigate to="/departamento-cadastro/certidoes" replace />} />
             <Route path="usuarios" element={<SoAdmin><Usuarios /></SoAdmin>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

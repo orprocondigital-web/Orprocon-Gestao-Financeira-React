@@ -9,9 +9,10 @@ import Suporte from "./Suporte.jsx";
 import TrocarSenha from "./TrocarSenha.jsx";
 import Competencia from "./contabil/Competencia.jsx";
 import { useContabil } from "../lib/useContabil.js";
+import { useDepCadastro } from "../lib/useDepCadastro.js";
 import { instalarApp, usePwa } from "../lib/pwa.js";
 
-const VERSAO = "1.0.0-alpha.4";
+const VERSAO = "1.0.0-alpha.5";
 const FECHADAS_PADRAO = { "Outras movimentações": 1, "Cadastros": 1 };
 
 function iniciais(nome) {
@@ -55,7 +56,8 @@ export default function Layout() {
   const ehAdmin = usuario && usuario.perfil === "admin";
   const [, atualizar] = useState(0);
   const [, versaoDados] = useContabil();   // conta nova, unidade distribuída: o menu acompanha
-  const secoes = useMemo(() => montarMenu(pode, ehAdmin), [pode, ehAdmin, local.pathname, versaoDados]);   // eslint-disable-line
+  const [, versaoCad] = useDepCadastro();   // certidão renovada: o número no menu acompanha
+  const secoes = useMemo(() => montarMenu(pode, ehAdmin), [pode, ehAdmin, local.pathname, versaoDados, versaoCad]);   // eslint-disable-line
   const [fechadas, setFechadas] = useState(() => lerJson("menu:fechadas", FECHADAS_PADRAO));
   const [integracaoAberta, setIntegracaoAberta] = useState(() => lerLocal("menu:integracao") === "aberta");
   const [recolhido, setRecolhido] = useState(() => lerLocal("menu:recolhido") === "1");
@@ -112,7 +114,7 @@ export default function Layout() {
           <Secao key={s.titulo} titulo={s.titulo} aberta={!fechadas[s.titulo]} alternar={() => alternarSecao(s.titulo)} recolhido={recolhido}>
             {s.itens.map((i) => (
               <div key={i.id}>
-                <Item item={i} recolhido={recolhido} contador={i.id === "mod-vencimentos" ? Modulos.contador(i.id) : 0}
+                <Item item={i} recolhido={recolhido} contador={i.contador || 0}
                   extra={i.partes ? (
                     <span role="button" tabIndex={0} aria-expanded={integracaoAberta} title={integracaoAberta ? "Esconder bancos, unidades e cadastros" : "Mostrar bancos, unidades e cadastros"}
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); abrirIntegracao(!integracaoAberta); }}
