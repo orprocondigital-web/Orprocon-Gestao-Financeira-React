@@ -38,6 +38,143 @@ export function textoSituacao(s) {
   return "Vence em " + s.dias + (s.dias === 1 ? " dia" : " dias");
 }
 
+
+// ---------------------------------------------------------------- leitura de PDF de certidão / alvará
+
+const DATA = /(\d{2})\/(\d{2})\/(\d{4})/;
+const isoDe = (m) => m[3] + "-" + m[2] + "-" + m[1];
+function todasDatas(t) { const out = []; const re = /(\d{2})\/(\d{2})\/(\d{4})/g; let m; while ((m = re.exec(t))) out.push({ iso: isoDe(m), pos: m.index }); return out; }
+const semAcento = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+/** Tipo do documento pelo texto (as certidões de cada órgão têm frases próprias). */
+export function tipoPeloTexto(texto) {
+  const t = semAcento(texto).toLowerCase();
+  if (/certificado de regularidade do fgts|\bfgts\b/.test(t)) return "CRF FGTS";
+  if (/debitos trabalhistas|justica do trabalho/.test(t)) return "CND Trabalhista";
+  if (/tributos federais|divida ativa da uniao|receita federal/.test(t)) return "CND Federal";
+  if (/alvara/.test(t)) {
+    if (/sanitari/.test(t)) return "Alvará sanitário";
+    if (/bombeiro/.test(t)) return "Alvará dos Bombeiros";
+    if (/ambienta/.test(t)) return "Alvará ambiental";
+    return "Alvará de funcionamento";
+  }
+  if (/procuracao/.test(t)) return "Procuração";
+  if (/certificado digital|e-cnpj|icp-brasil/.test(t)) return "Certificado A1";
+  if (/secretaria de estado da fazenda|fazenda estadual|estado de|estadual/.test(t)) return "CND Estadual";
+  if (/prefeitura|municipio|municipal/.test(t)) return "CND Municipal";
+  if (/licenca/.test(t)) return "Licença";
+  return "";
+}
+
+/**
+ * Texto de um PDF de certidão ou alvará → { tipo, documento (CNPJ/CPF), emissao, vencimento, numero }.
+ * O que não achar fica vazio; a pessoa confere antes de salvar.
+ */
+export function lerCertidao(texto) {
+  const t = String(texto || "").replace(/\s+/g, " ");
+  const s = semAcento(t).toLowerCase();
+  const doc = /\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/.exec(t) || /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/.exec(t);
+  let vencimento = "";
+  const fim = /(valid[ao] ate|validade|vencimento|vence em|data de validade)[^0-9]{0,40}(\d{2}\/\d{2}\/\d{4})(\s*(a|ate)\s*(\d{2}\/\d{2}\/\d{4}))?/.exec(s);
+  if (fim) vencimento = isoDe(DATA.exec(fim[5] || fim[2]));
+  let emissao = "";
+  const ini = /(emitid[ao]|expedicao|data de emissao|emissao|expedid[ao])[^/]{0,40}?(\d{2}\/\d{2}\/\d{4})/.exec(s);
+  if (ini) emissao = isoDe(DATA.exec(ini[2]));
+  if (!vencimento) {   // sem a palavra "validade": a data mais à frente que não é a emissão
+    const ds = todasDatas(t).map((d) => d.iso).filter((d) => d !== emissao).sort();
+    if (ds.length && (!emissao || ds[ds.length - 1] > emissao)) vencimento = ds[ds.length - 1];
+  }
+  const num = /(certidao n(?:[ºo°]|\.|umero)|numero da certidao|codigo de controle(?: da certidao)?|certificacao numero|n[ºo°] da certidao|alvara n(?:[ºo°]|\.|umero))\s*:?\s*([a-z0-9][a-z0-9.\-\/]{3,})/.exec(s);
+  let numero = "";
+  if (num) { const i = s.indexOf(num[2], num.index); numero = t.substr(i, num[2].length).toUpperCase(); }
+  // nome da empresa, para cadastrar quando o CNPJ ainda não existe no sistema
+  const nm = /(?:nome empresarial|razao social|nome)\s*:\s*/.exec(s);
+  let nome = "";
+  if (nm) nome = t.substr(nm.index + nm[0].length, 120).split(/\s+(?:CNPJ|CPF|Inscri|Endere|Ressalvad|\(|-\s)/i)[0].replace(/[.,;]+$/, "").trim();
+  return { tipo: tipoPeloTexto(t), documento: doc ? doc[0] : "", nome, emissao, vencimento, numero };
+}
+
+// ---------------------------------------------------------------- leitura de planilha (Excel)
+
+const CAB = {
+  empresa: ["empresa", "cliente", "razao social", "nome", "nome da empresa"],
+  documento: ["cnpj", "cpf", "cnpj/cpf", "cpf/cnpj", "documento da empresa"],
+  tipo: ["tipo", "documento", "tipo de documento", "certidao", "alvara"],
+  numero: ["numero", "n", "no", "nº", "numero do documento"],
+  emissao: ["emissao", "data de emissao", "emitido em"],
+  vencimento: ["vencimento", "validade", "data de vencimento", "vence em", "valido ate"],
+  responsavel: ["responsavel"]
+};
+const MES_CAB = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const normCab = (v) => semAcento(v).toLowerCase().replace(/[.:]/g, "").replace(/\s+/g, " ").trim();
+
+function mapaColunas(cab) {
+  const m = {};
+  cab.forEach((c, i) => {
+    const n = normCab(c);
+    Object.keys(CAB).forEach((k) => { if (m[k] === undefined && CAB[k].includes(n)) m[k] = i; });
+    const mes = MES_CAB.findIndex((x) => n === x || n.startsWith(x + " ") || n.startsWith(x + "/") || (n.length > 3 && n.startsWith(x) && /^[a-z]+$/.test(n)));
+    if (mes > -1 && m["m" + mes] === undefined) m["m" + mes] = i;
+  });
+  return m;
+}
+
+/**
+ * Abas da planilha → o que importar: { empresas: [nome, documento], documentos: [...], faturamentos: [...], avisos, abas: [{ nome, tipo, linhas }] }.
+ * toIsoDate: Core.toIsoDate (datas do Excel ou dd/mm/aaaa). ano: para faturamento quando a aba não diz o ano.
+ */
+export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
+  const plano = { empresas: [], documentos: [], faturamentos: [], avisos: [], abas: [] };
+  const vistas = {};
+  const empresa = (nome, documento) => {
+    const k = chaveNome(nome);
+    if (!k) return;
+    if (!vistas[k]) { vistas[k] = { nome: txt(nome), documento: txt(documento) }; plano.empresas.push(vistas[k]); }
+    else if (!vistas[k].documento && txt(documento)) vistas[k].documento = txt(documento);
+  };
+  abas.forEach((a) => {
+    const rows = a.rows || [];
+    let h = rows.findIndex((r, i) => i < 10 && r && r.filter((c) => txt(c)).length >= 2);
+    if (h < 0) return;
+    const col = mapaColunas(rows[h]);
+    const meses = MES_CAB.map((_, i) => col["m" + i]).filter((x) => x !== undefined).length;
+    const get = (r, k) => (col[k] === undefined ? "" : r[col[k]]);
+    let tipo = "", n = 0;
+    if (col.empresa === undefined) { plano.abas.push({ nome: a.nome, tipo: "ignorada", linhas: 0 }); return; }
+    if (col.vencimento !== undefined) {
+      tipo = "documentos";
+      rows.slice(h + 1).forEach((r, i) => {
+        if (!r || !txt(get(r, "empresa"))) return;
+        const venc = toIsoDate(get(r, "vencimento"));
+        const t = txt(get(r, "tipo"));
+        if (!venc || !t) { plano.avisos.push("Aba \"" + a.nome + "\", linha " + (h + i + 2) + ": sem " + (!t ? "tipo" : "vencimento") + ", ficou de fora."); return; }
+        empresa(get(r, "empresa"), get(r, "documento"));
+        plano.documentos.push({ empresa: txt(get(r, "empresa")), tipo: t, numero: txt(get(r, "numero")), emissao: toIsoDate(get(r, "emissao")) || "",
+          vencimento: venc, responsavel: txt(get(r, "responsavel")) });
+        n++;
+      });
+    } else if (meses >= 6) {
+      tipo = "faturamentos";
+      const anoAba = (/(20\d{2})/.exec(a.nome) || /(20\d{2})/.exec(rows[h].join(" ")) || [])[1] || String(ano);
+      rows.slice(h + 1).forEach((r) => {
+        if (!r || !txt(get(r, "empresa")) || /^total/i.test(txt(get(r, "empresa")))) return;
+        empresa(get(r, "empresa"), get(r, "documento"));
+        MES_CAB.forEach((_, i) => {
+          const v = get(r, "m" + i);
+          const num = typeof v === "number" ? v : parseFloat(String(v).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", "."));
+          if (txt(v) !== "" && isFinite(num)) { plano.faturamentos.push({ empresa: txt(get(r, "empresa")), ano: anoAba, mes: String(i + 1).padStart(2, "0"), valor: Math.abs(num) }); }
+        });
+        n++;
+      });
+    } else {
+      tipo = "empresas";
+      rows.slice(h + 1).forEach((r) => { if (r && txt(get(r, "empresa"))) { empresa(get(r, "empresa"), get(r, "documento")); n++; } });
+    }
+    plano.abas.push({ nome: a.nome, tipo, linhas: n });
+  });
+  return plano;
+}
+
 /** deps: { ls (localStorage), agora?, aoMudar? } */
 export function criarDepCadastro(deps) {
   const { ls } = deps;
@@ -201,7 +338,114 @@ export function criarDepCadastro(deps) {
     return { total, entregues, emitidos, pendentes: total - entregues - emitidos };
   }
 
+
+  // ------------------------------------------------------------ importar, demonstração e limpar
+  /** Grava o que lerPlanilhaCadastro achou. Empresas novas são criadas; documentos iguais (empresa+tipo+vencimento) não repetem. */
+  function aplicarPlanilha(plano) {
+    const e = docs();
+    let novasEmp = 0, novosDocs = 0, repetidos = 0;
+    const porNome = {};
+    e.clientes.forEach((c) => { porNome[chaveNome(c.nome)] = c; });
+    plano.empresas.forEach((p) => {
+      const k = chaveNome(p.nome);
+      if (porNome[k]) { if (!porNome[k].documento && p.documento) porNome[k].documento = p.documento; return; }
+      const c = { id: novoId("cli-"), nome: p.nome, documento: p.documento || "", regime: "", contato: "", email: "", telefone: "" };
+      e.clientes.push(c); porNome[k] = c; novasEmp++;
+    });
+    plano.documentos.forEach((d) => {
+      const c = porNome[chaveNome(d.empresa)];
+      if (e.documentos.some((x) => x.clienteId === c.id && chaveNome(x.tipo) === chaveNome(d.tipo) && x.vencimento === d.vencimento)) { repetidos++; return; }
+      e.documentos.push({ id: novoId("doc-"), clienteId: c.id, tipo: d.tipo, numero: d.numero, emissao: d.emissao, vencimento: d.vencimento,
+        responsavel: d.responsavel, observacoes: "", link: "", andamento: "pendente", criadoEm: hoje(), historico: [] });
+      novosDocs++;
+    });
+    gravar(CHAVE_DOCS, e);
+    if (plano.faturamentos.length) {
+      const d = dados();
+      plano.faturamentos.forEach((f) => {
+        const c = porNome[chaveNome(f.empresa)];
+        const a = d.faturamentos[f.ano] = d.faturamentos[f.ano] || {};
+        (a[c.id] = a[c.id] || {})[f.mes] = Math.round(f.valor * 100) / 100;
+      });
+      gravar(CHAVE, d);
+    }
+    return { novasEmp, novosDocs, repetidos, faturamentos: plano.faturamentos.length };
+  }
+
+  /** Documento novo a partir de um PDF lido (lerCertidao). Cria a empresa se o CNPJ não estiver cadastrado e vier o nome. */
+  function empresaPorDocumento(documento) {
+    const dig = String(documento || "").replace(/\D/g, "");
+    if (dig.length < 11) return null;
+    return docs().clientes.find((c) => String(c.documento || "").replace(/\D/g, "") === dig) || null;
+  }
+
+  /** Dados fictícios (ids "ex-") só onde está vazio: empresas, certidões, alvarás, faturamento e demonstrativos. */
+  function carregarDemonstracao(exemploDocs) {
+    const e = docs();
+    let fez = false;
+    if (!e.clientes.length && !e.documentos.length) { gravar(CHAVE_DOCS, Object.assign(e, exemploDocs)); fez = true; }
+    const ids = docs().clientes.map((c) => c.id);
+    const d = dados();
+    const ano = String(agora().getFullYear()), mesAtual = agora().getMonth() + 1;
+    if (!Object.keys(d.faturamentos).length && ids.length) {
+      d.faturamentos[ano] = {};
+      ids.forEach((id, k) => {
+        const base = 18000 + k * 13500;
+        d.faturamentos[ano][id] = {};
+        for (let m = 1; m < mesAtual; m++) d.faturamentos[ano][id][String(m).padStart(2, "0")] = Math.round(base * (0.85 + ((m * 7 + k * 3) % 10) / 20) * 100) / 100;
+      });
+      fez = true;
+    }
+    if (!Object.keys(d.demonstrativos).length && ids.length) {
+      const ant = String(agora().getFullYear() - 1);
+      d.demonstrativos[ant] = {};
+      const sts = ["entregue", "emitido", "", "entregue"];
+      ids.forEach((id, k) => {
+        d.demonstrativos[ant][id] = {};
+        DEMONSTRATIVOS.forEach((t, j) => { const st = j === 2 && k % 2 ? "nao_se_aplica" : sts[(k + j) % 4]; if (st) d.demonstrativos[ant][id][t] = { status: st, em: hoje() }; });
+      });
+      fez = true;
+    }
+    if (fez) gravar(CHAVE, d);
+    return fez;
+  }
+  function temDemonstracao() { return docs().clientes.some((c) => /^ex-/.test(c.id)); }
+  /** soDemo: tira só o que é fictício (ids "ex-"). Devolve uma função que desfaz. */
+  function limpar(soDemo) {
+    const antes = { docs: ls.getItem(CHAVE_DOCS), dados: ls.getItem(CHAVE) };
+    if (soDemo) {
+      const e = docs();
+      // empresa fictícia que já recebeu documento de verdade fica (só os documentos fictícios saem)
+      e.documentos = e.documentos.filter((x) => !/^ex-/.test(x.id));
+      const usadas = new Set(e.documentos.map((x) => x.clienteId));
+      const fora = new Set(e.clientes.filter((c) => /^ex-/.test(c.id) && !usadas.has(c.id)).map((c) => c.id));
+      e.clientes = e.clientes.filter((c) => !fora.has(c.id));
+      gravar(CHAVE_DOCS, e);
+      const d = dados();
+      // faturamento e demonstrativos de empresas fictícias são fictícios: saem todos
+      const ficticias = new Set(((JSON.parse(antes.docs || "{}") || {}).clientes || []).filter((c) => /^ex-/.test(c.id)).map((c) => c.id));
+      ["faturamentos", "demonstrativos"].forEach((k) => Object.keys(d[k]).forEach((ano) => ficticias.forEach((id) => { delete d[k][ano][id]; })));
+      gravar(CHAVE, d);
+    } else {
+      gravar(CHAVE_DOCS, { clientes: [], documentos: [] });
+      gravar(CHAVE, { faturamentos: {}, demonstrativos: {} });
+    }
+    return () => {
+      if (antes.docs === null) gravar(CHAVE_DOCS, { clientes: [], documentos: [] }); else { ls.setItem(CHAVE_DOCS, antes.docs); avisar(); }
+      if (antes.dados !== null) { ls.setItem(CHAVE, antes.dados); avisar(); }
+    };
+  }
+  /** Anexo (PDF) guardado à parte: o documento só leva o nome e o tamanho. */
+  function marcarAnexo(id, anexo) {
+    const e = docs();
+    const d = e.documentos.find((x) => x.id === id);
+    if (!d) return;
+    if (anexo) d.anexo = { nome: txt(anexo.nome), tamanho: anexo.tamanho || 0 }; else delete d.anexo;
+    gravar(CHAVE_DOCS, e);
+  }
+
   return {
+    aplicarPlanilha, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
     hoje, empresas, salvarEmpresa, excluirEmpresa, documentos, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
     faturamentos, definirFaturamento, totalAno, ultimos12, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };

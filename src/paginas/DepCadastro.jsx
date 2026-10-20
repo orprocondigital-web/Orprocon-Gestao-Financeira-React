@@ -1,18 +1,37 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { Core } from "../lib/legado.js";
-import { DEMONSTRATIVOS, MESES, STATUS_DEMO, TIPOS_ALVARAS, TIPOS_CERTIDOES, textoSituacao } from "../lib/depCadastro.mjs";
+import { DEMONSTRATIVOS, MESES, STATUS_DEMO, TIPOS_ALVARAS, TIPOS_CERTIDOES, lerCertidao, textoSituacao } from "../lib/depCadastro.mjs";
+import { abrirArquivo, apagarArquivo, guardarArquivo } from "../lib/arquivos.js";
+import { textoDoPdf } from "../lib/leitores.js";
+import Importar, { carregarDemo } from "../componentes/depCadastro/Importar.jsx";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import Janela from "../componentes/Janela.jsx";
 import Icone from "../componentes/Icone.jsx";
-import { Campo, Segmentado, Selo, dataBR, numero } from "../componentes/contabil/ui.jsx";
+import { BotaoArquivo, Campo, Segmentado, Selo, dataBR, numero } from "../componentes/contabil/ui.jsx";
 
 /*
  * Departamento Cadastro: Certidões e Alvarás (com vencimento), Faturamentos (por empresa e mês) e
  * Demonstrativos contábeis (por empresa e ano). Regras em src/lib/depCadastro.mjs.
  */
 const SELO_SIT = { vencido: "erro", "7": "pendente", "30": "novo", ok: "ok", sem: "neutro" };
+
+/** Tela vazia: explica e oferece a demonstração e a importação. */
+function Vazio({ titulo, texto }) {
+  const [svc] = useDepCadastro();
+  const { aviso } = useAvisos();
+  return (
+    <div className="p-10 text-center space-y-3">
+      <strong className="block text-[15px]">{titulo}</strong>
+      <span className="block text-muted text-[13.5px]">{texto}</span>
+      <div className="flex flex-wrap justify-center gap-2 pt-1">
+        <button type="button" className="btn-contorno btn-sm" onClick={() => aviso(carregarDemo(svc) ? "Demonstração carregada." : "Já há dados: a demonstração só entra onde está vazio.")}>Carregar demonstração</button>
+        <Link to="/departamento-cadastro/importar" className="btn-contorno btn-sm">Importar PDF ou planilha</Link>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------- empresas
 function JanelaEmpresas({ aoFechar }) {
@@ -61,10 +80,26 @@ function FormDocumento({ grupo, editando, aoFechar }) {
   const tipos = grupo === "alvaras" ? TIPOS_ALVARAS : TIPOS_CERTIDOES;
   const [f, setF] = useState(() => Object.assign({ clienteId: "", tipo: tipos[0], numero: "", emissao: "", vencimento: "", responsavel: "", link: "", observacoes: "" }, editando || {}));
   const [erro, setErro] = useState("");
+  const [pdf, setPdf] = useState(null);
   const muda = (c) => (e) => setF((x) => Object.assign({}, x, { [c]: e.target.value }));
-  const salvar = (ev) => {
+  const anexar = async (file) => {
+    setPdf(file);
+    try {   // lê o PDF e preenche o que estiver vazio
+      const r = lerCertidao(await textoDoPdf(file));
+      const emp = svc.empresaPorDocumento(r.documento);
+      setF((x) => Object.assign({}, x, {
+        clienteId: x.clienteId || (emp ? emp.id : ""), tipo: editando ? x.tipo : (r.tipo || x.tipo),
+        vencimento: x.vencimento || r.vencimento, emissao: x.emissao || r.emissao, numero: x.numero || r.numero
+      }));
+    } catch (e) { /* PDF de imagem: só anexa */ }
+  };
+  const salvar = async (ev) => {
     ev.preventDefault();
-    try { svc.salvarDocumento(f, editando && editando.id); aviso(editando ? "Documento atualizado." : "Documento cadastrado."); aoFechar(); } catch (e) { setErro(e.message); }
+    try {
+      const d = svc.salvarDocumento(f, editando && editando.id);
+      if (pdf) { await guardarArquivo(d.id, pdf); svc.marcarAnexo(d.id, { nome: pdf.name, tamanho: pdf.size }); }
+      aviso(editando ? "Documento atualizado." : "Documento cadastrado."); aoFechar();
+    } catch (e) { setErro(e.message); }
   };
   const empresas = svc.empresas();
   return (
@@ -86,6 +121,10 @@ function FormDocumento({ grupo, editando, aoFechar }) {
         <Campo rotulo="Responsável" id="doc-resp"><input id="doc-resp" value={f.responsavel} onChange={muda("responsavel")} autoComplete="off" /></Campo>
         <Campo rotulo="Link do arquivo (opcional)" id="doc-link"><input id="doc-link" value={f.link} onChange={muda("link")} placeholder="https://…" autoComplete="off" /></Campo>
         <Campo rotulo="Observações" id="doc-obs" className="sm:col-span-2"><input id="doc-obs" value={f.observacoes} onChange={muda("observacoes")} autoComplete="off" /></Campo>
+        <div className="sm:col-span-2 flex flex-wrap items-center gap-2 text-[13px]">
+          <BotaoArquivo className="btn-contorno btn-sm" aceita=".pdf" aoEscolher={anexar}>{pdf || (editando && editando.anexo) ? "Trocar o PDF" : "Anexar o PDF"}</BotaoArquivo>
+          <span className="text-muted">{pdf ? pdf.name + " (os campos vazios foram preenchidos pelo PDF)" : editando && editando.anexo ? "Anexado: " + editando.anexo.nome : "Opcional. Ao anexar, o sistema lê tipo, CNPJ, datas e número."}</span>
+        </div>
         <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
       </form>
       {!empresas.length && <p className="text-[13px] text-warn">Cadastre a empresa primeiro (botão Empresas).</p>}
@@ -139,7 +178,14 @@ function Documentos({ grupo }) {
     const b = busca.trim().toLowerCase();
     return !b || [d.empresa, d.tipo, d.numero, d.responsavel].some((x) => String(x || "").toLowerCase().indexOf(b) > -1);
   });
-  const excluir = (d) => { const des = svc.excluirDocumento(d.id); if (des) aviso("Documento excluído.", { desfazer: des }); };
+  const excluir = (d) => {
+    const des = svc.excluirDocumento(d.id);
+    if (!des) return;
+    let desfeito = false;
+    aviso("Documento excluído.", { desfazer: () => { desfeito = true; des(); } });
+    if (d.anexo) setTimeout(() => { if (!desfeito) apagarArquivo(d.id); }, 8000);   // o PDF sai depois do prazo do Desfazer
+  };
+  const verPdf = (d) => abrirArquivo(d.id).catch((e) => aviso(e.message));
   const cartoes = [["Vencidos", r.vencido, "text-debit"], ["Vencem em até 7 dias", r["7"], "text-warn"], ["Em até 30 dias", r["30"], "text-brand"], ["Em dia", r.ok, "text-credit"]];
   return (
     <div className="space-y-4">
@@ -157,9 +203,10 @@ function Documentos({ grupo }) {
         <button type="button" className="btn-primario btn-sm" onClick={() => setForm({ editando: null })}><Icone nome="mais" />Nova {nome}</button>
       </div>
       <div className="cartao overflow-hidden">
-        {!visiveis.length ? (
-          <div className="p-10 text-center"><strong className="block text-[15px]">{lista.length ? (filtro === "atencao" ? "Nada vencendo nos próximos 30 dias" : "Nada com esse filtro") : "Nenhuma " + nome + " cadastrada"}</strong>
-            <span className="text-muted text-[13.5px]">{lista.length ? "Escolha Todos para ver a lista inteira." : "Cadastre as empresas e depois use Nova " + nome + "."}</span></div>
+        {!lista.length ? <Vazio titulo={"Nenhuma " + nome + " cadastrada"} texto={"Cadastre em Nova " + nome + ", importe os PDFs ou uma planilha, ou carregue a demonstração para ver como fica."} />
+        : !visiveis.length ? (
+          <div className="p-10 text-center"><strong className="block text-[15px]">{filtro === "atencao" ? "Nada vencendo nos próximos 30 dias" : "Nada com esse filtro"}</strong>
+            <span className="text-muted text-[13.5px]">Escolha Todos para ver a lista inteira.</span></div>
         ) : (
           <div className="overflow-x-auto relative">
             <table className="w-full text-[13.5px]">
@@ -171,7 +218,8 @@ function Documentos({ grupo }) {
                 {visiveis.map((d) => (
                   <tr key={d.id} className="hover:bg-surface-2 align-top">
                     <td className="px-3 py-2 font-medium min-w-[180px]">{d.empresa}</td>
-                    <td className="px-3 py-2 min-w-[150px]">{d.tipo}{(d.numero || d.link) && <span className="block text-[12px] text-muted">{d.numero}{d.link && <> {d.numero ? "· " : ""}<a href={d.link} target="_blank" rel="noopener noreferrer" className="text-brand underline">arquivo</a></>}</span>}</td>
+                    <td className="px-3 py-2 min-w-[150px]">{d.tipo}{(d.numero || d.link) && <span className="block text-[12px] text-muted">{d.numero}{d.link && <> {d.numero ? "· " : ""}<a href={d.link} target="_blank" rel="noopener noreferrer" className="text-brand underline">link</a></>}</span>}
+                      {d.anexo && <button type="button" onClick={() => verPdf(d)} className="mt-0.5 inline-flex items-center gap-1 text-[12px] font-semibold text-brand hover:underline" title={d.anexo.nome}>PDF</button>}</td>
                     <td className="px-3 py-2 whitespace-nowrap tabular-nums">{dataBR(d.vencimento)}</td>
                     <td className="px-3 py-2 whitespace-nowrap"><Selo tipo={SELO_SIT[d.situacao.status]}>{textoSituacao(d.situacao)}</Selo></td>
                     <td className="px-3 py-2">{d.responsavel}</td>
@@ -228,7 +276,7 @@ function Faturamentos() {
         <button type="button" className="btn-contorno btn-sm" onClick={() => setEmpresas(true)}>Empresas</button>
       </div>
       <div className="cartao overflow-hidden">
-        {!lista.length ? <div className="p-10 text-center text-muted">Cadastre as empresas para lançar o faturamento.</div> : (
+        {!lista.length ? <Vazio titulo="Nenhuma empresa cadastrada" texto="Cadastre as empresas (botão Empresas), importe uma planilha de faturamento ou carregue a demonstração." /> : (
           <div className="overflow-x-auto relative">
             <table className="w-full text-[13px]">
               <thead className="bg-surface-2 text-[12px] uppercase tracking-wide text-muted">
@@ -283,7 +331,7 @@ function Demonstrativos() {
         <button type="button" className="btn-contorno btn-sm" onClick={() => setEmpresas(true)}>Empresas</button>
       </div>
       <div className="cartao overflow-hidden">
-        {!lista.length ? <div className="p-10 text-center text-muted">Cadastre as empresas para acompanhar os demonstrativos.</div> : (
+        {!lista.length ? <Vazio titulo="Nenhuma empresa cadastrada" texto="Cadastre as empresas (botão Empresas) ou carregue a demonstração para ver como fica." /> : (
           <div className="overflow-x-auto relative">
             <table className="w-full text-[13.5px]">
               <thead className="bg-surface-2 text-left text-[12px] uppercase tracking-wide text-muted">
@@ -322,5 +370,6 @@ export default function DepCadastro() {
   if (secao === "alvaras") return <Documentos grupo="alvaras" />;
   if (secao === "faturamentos") return <Faturamentos />;
   if (secao === "demonstrativos") return <Demonstrativos />;
+  if (secao === "importar") return <Importar />;
   return <Navigate to="/departamento-cadastro/certidoes" replace />;
 }

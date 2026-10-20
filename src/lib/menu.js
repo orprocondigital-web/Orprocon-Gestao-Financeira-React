@@ -42,7 +42,8 @@ export function montarMenu(pode, ehAdmin) {
       { id: "dep-certidoes", label: "Certidões", para: "/departamento-cadastro/certidoes", icone: "certidao", contador: depCadastro.urgentes("certidoes") },
       { id: "dep-alvaras", label: "Alvarás", para: "/departamento-cadastro/alvaras", icone: "alvara", contador: depCadastro.urgentes("alvaras") },
       { id: "dep-faturamentos", label: "Faturamentos", para: "/departamento-cadastro/faturamentos", icone: "faturamento" },
-      { id: "dep-demonstrativos", label: "Demonstrativos contábeis", para: "/departamento-cadastro/demonstrativos", icone: "demonstrativo" }
+      { id: "dep-demonstrativos", label: "Demonstrativos contábeis", para: "/departamento-cadastro/demonstrativos", icone: "demonstrativo" },
+      { id: "dep-importar", label: "Importar e demonstração", para: "/departamento-cadastro/importar", icone: "importar" }
     ] : [] },
     { titulo: "Escritório", itens: modulos("Escritório") }
   ];
