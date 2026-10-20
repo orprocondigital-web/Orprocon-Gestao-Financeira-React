@@ -1,7 +1,7 @@
 // Em Dia (acompanhamento do fechamento): regras em modulos/em-dia/js/dados.js. Nomes fictícios.
 const { test, describe } = require("node:test");
 const assert = require("node:assert/strict");
-const D = require("../public/modulos/em-dia/js/dados.js");
+const D = require("../src/legado/modulos/em-dia/dados.js");
 
 function base() {
   const e = D.estadoVazio();

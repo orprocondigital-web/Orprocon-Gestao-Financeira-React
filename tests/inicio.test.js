@@ -2,7 +2,7 @@
 const { test, describe } = require("node:test");
 const assert = require("node:assert/strict");
 const I = require("../src/legado/inicio.js");
-const ED = require("../public/modulos/em-dia/js/dados.js");
+const ED = require("../src/legado/modulos/em-dia/dados.js");
 
 const HOJE = "2026-10-16";
 const EU = { id: "u1", nome: "Mauricio Teste", email: "m@exemplo.com" };

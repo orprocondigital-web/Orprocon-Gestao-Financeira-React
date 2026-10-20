@@ -50,7 +50,7 @@ export function Campo({ rotulo, id, children, dica, className = "" }) {
 /** Escolha entre poucas opções lado a lado (C/D, Todos/Pendentes…). */
 export function Segmentado({ opcoes, valor, aoMudar, rotulo, pequeno }) {
   return (
-    <div className={"inline-flex p-1 gap-1 rounded-lg bg-surface-2 border border-line " + (pequeno ? "" : "w-full")} role="radiogroup" aria-label={rotulo}>
+    <div className={"inline-flex p-1 gap-1 rounded-lg bg-surface-2 border border-line max-w-full overflow-x-auto " + (pequeno ? "" : "w-full")} role="radiogroup" aria-label={rotulo}>
       {opcoes.map(([id, nome, cls]) => (
         <button key={id} type="button" role="radio" aria-checked={valor === id} onClick={() => aoMudar(id)}
           className={"flex-1 whitespace-nowrap rounded-md px-3 py-1 text-[13.5px] " + (valor === id ? "bg-surface font-semibold shadow-sm " + (cls || "text-brand") : "text-ink-2 hover:text-ink")}>{nome}</button>

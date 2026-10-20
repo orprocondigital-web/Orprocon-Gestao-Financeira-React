@@ -466,8 +466,8 @@
         itens: ["Situação: pendente, emitido ou entregue", "Progresso do exercício de todas as empresas", "Marca o que não se aplica à empresa"] }
     ] },
     { id: "escritorio", nome: "Escritório", texto: "O andamento da equipe e o fechamento de cada cliente.", ferramentas: [
-      { tab: "mod-em-dia", area: "mod-em-dia", icone: "emdia", nome: "Em Dia", resumo: "O fechamento de cada cliente e o diário de cada setor.",
-        itens: ["Etapas do mês por cliente, com responsável e prazo", "Diário do Contábil, Fiscal e DP: o que fiz e onde parei", "Passagem de bastão quando alguém falta"] }
+      { tab: "mod-em-dia", area: "mod-em-dia", icone: "emdia", nome: "Em Dia", resumo: "O que cada um faz no mês, numa grade simples.",
+        itens: ["Empresas × obrigações de cada setor, com um clique para marcar feito", "Quanto cada pessoa já fez, e o que falta", "Passagem de bastão quando alguém falta e diário curto"] }
     ] }
   ];
 

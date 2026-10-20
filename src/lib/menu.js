@@ -45,7 +45,8 @@ export function montarMenu(pode, ehAdmin) {
       { id: "dep-demonstrativos", label: "Demonstrativos contábeis", para: "/departamento-cadastro/demonstrativos", icone: "demonstrativo" },
       { id: "dep-importar", label: "Importar e demonstração", para: "/departamento-cadastro/importar", icone: "importar" }
     ] : [] },
-    { titulo: "Escritório", itens: modulos("Escritório") }
+    // Em Dia: tela em React (a grade simples); o módulo antigo saiu
+    { titulo: "Escritório", itens: modulos("Escritório").concat(pode("mod-em-dia") ? [{ id: "em-dia", label: "Em Dia", para: "/em-dia", icone: "emdia" }] : []) }
   ];
   if (ehAdmin) secoes.push({ titulo: "Administração", itens: [{ id: "usuarios", label: "Usuários", para: "/usuarios", icone: "usuarios" }] });
   return secoes.filter((s) => s.itens.length);

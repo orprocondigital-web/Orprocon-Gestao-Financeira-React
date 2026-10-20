@@ -4,6 +4,7 @@ import { AuthCore, Inicio as I, Store } from "../lib/legado.js";
 import { useAuth } from "../lib/auth.jsx";
 import { lerJson, lerLocal } from "../lib/tema.js";
 import { nomeDaConta } from "../lib/menu.js";
+import { emDia, useEmDia } from "../lib/useEmDia.js";
 import Icone from "../componentes/Icone.jsx";
 
 const COR_SETOR = { contabil: "border-brand-fill", fiscal: "border-ink-2", pessoal: "border-credit", cadastro: "border-warn", escritorio: "border-info" };
@@ -15,6 +16,7 @@ function mesAtual() { const d = new Date(); return d.getFullYear() + "-" + Strin
 /** O resumo do dia: lê o que cada módulo gravou, com as mesmas regras deles (js de regras). */
 function useResumo(usuario, pode) {
   const [versao, setVersao] = useState(0);
+  const [, versaoEmDia] = useEmDia();
   useEffect(() => {
     const f = () => setVersao((n) => n + 1);
     window.addEventListener("storage", f);
@@ -29,8 +31,19 @@ function useResumo(usuario, pode) {
     };
     const ctx = { hoje: I.hojeIso(), agora: new Date(), competencia, pode,
       usuario: usuario ? { id: usuario.usuarioId || usuario.id, nome: usuario.nome, email: usuario.email } : null };
-    try { return I.resumir(fontes, ctx, {}); } catch (e) { console.error("Início:", e); return null; }
-  }, [usuario, pode, versao]);
+    try {
+      const r = I.resumir(fontes, ctx, {});
+      // Em Dia novo (grade): o fechamento do mês e as minhas pendências vêm dele
+      const ed = emDia.resumo(emDia.mesPadrao(), ctx.usuario);
+      if (ed.total) r.vazio = false;
+      if (ed.total) r.numeros = r.numeros.map((n) => {
+        if (n.id === "fechamento") return Object.assign({}, n, { rotulo: "Fechamento de " + I.rotuloMes(ed.mes).split("/")[0], valor: ed.pct + "%", sub: ed.feitas + " de " + ed.total + " feitas", pct: ed.pct, ir: pode("mod-em-dia") ? { tab: "mod-em-dia" } : null });
+        if (n.id === "hoje") return Object.assign({}, n, { rotulo: "Minhas pendências", valor: String(ed.minhas), sub: ed.minhas ? "no Em Dia de " + I.rotuloMes(ed.mes).split("/")[0] : "Nada pendente com você", tom: ed.minhas ? "alerta" : "", ir: pode("mod-em-dia") ? { tab: "mod-em-dia" } : null });
+        return n;
+      });
+      return r;
+    } catch (e) { console.error("Início:", e); return null; }
+  }, [usuario, pode, versao, versaoEmDia]);   // eslint-disable-line
 }
 
 export default function Inicio() {
@@ -40,19 +53,21 @@ export default function Inicio() {
   const [msg, setMsg] = useState("");
   const ehTeste = usuario && (usuario.teste || usuario.email === AuthCore.TESTE_EMAIL);
   const C = I.CHAVES;
-  const algumVazio = [C.emDia, C.iss, C.horas, C.venc].some((k) => !lerLocal(k)) || (r && !r.temEmDia);
+  const algumVazio = [C.iss, C.horas, C.venc].some((k) => !lerLocal(k)) || !lerLocal("emDia:v2");
 
   const ir = (alvo) => {
     if (!alvo) return;
     if (alvo.acaoApp === "extratos") { navegar("/integracao"); return; }
+    if (alvo.tab === "mod-em-dia") { navegar("/em-dia"); return; }
     const dep = { "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-alvaras": "alvaras", "dep-faturamentos": "faturamentos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
     if (dep) { navegar("/departamento-cadastro/" + dep); return; }
     navegar(alvo.tab === "master" ? "/integracao" : alvo.tab === "conciliacao" ? "/conciliacao" : "/modulo/" + alvo.tab, { state: { prefs: alvo.prefs || null } });
   };
   const exemplos = () => {
     const feitos = I.carregarExemplos((k) => lerJson(k), (k, v) => localStorage.setItem(k, JSON.stringify(v)),
-      { id: usuario.usuarioId || usuario.id, nome: usuario.nome, email: usuario.email }, I.hojeIso(), pode);
-    window.dispatchEvent(new StorageEvent("storage", { key: "emDia:v1" }));
+      { id: usuario.usuarioId || usuario.id, nome: usuario.nome, email: usuario.email }, I.hojeIso(), (a) => a !== "mod-em-dia" && pode(a));   // o Em Dia antigo saiu
+    if (pode("mod-em-dia") && emDia.carregarDemonstracao(I.vencimentosExemplo(I.hojeIso()).clientes)) feitos.push("Em Dia");
+    window.dispatchEvent(new StorageEvent("storage", { key: "emDia:v2" }));
     setMsg(feitos.length ? "Exemplos carregados em: " + feitos.join(", ") + "." : "Os módulos já tinham dados; nada foi alterado.");
   };
   if (!r) return <p className="text-muted">Não consegui montar o resumo. Abra as ferramentas pelo menu.</p>;

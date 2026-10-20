@@ -13,7 +13,8 @@ anterior é arquivada.
 | Suporte (WhatsApp) | ✅ React |
 | Departamento Cadastro: Certidões e Alvarás (com vencimento e renovação), Faturamentos e Demonstrativos contábeis | ✅ React (substitui o Painel de vencimentos; os dados dele continuam) |
 | Departamento Cadastro: importar PDFs (lê tipo, CNPJ, datas e número; PDF anexado), planilha do Excel, demonstração e limpar | ✅ React (PDFs em `src/lib/arquivos.js`, banco próprio do navegador, fora do backup) |
-| Apuração de ICMS, Auditor IBS/CBS, ISS, Em Dia, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
+| Em Dia simples: grade empresas × obrigações por setor e mês, responsáveis, passagem de bastão, diário, importar CSV de entregas e planilha de controle | ✅ React (`src/lib/emDia.mjs`, dados em `emDia:v2`; o Em Dia antigo saiu do menu) |
+| Apuração de ICMS, Auditor IBS/CBS, ISS, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
 | Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
 | Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |
 | Cadastros (importar a aba ou cadastrar à mão, editar, excluir com Desfazer) | ✅ React |
