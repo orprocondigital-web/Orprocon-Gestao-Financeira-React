@@ -12,11 +12,24 @@ anterior é arquivada.
 | Início (capa com as ferramentas e mini cards do dia) | ✅ React |
 | Suporte (WhatsApp) | ✅ React |
 | Apuração de ICMS, Auditor IBS/CBS, ISS, Vencimentos, Em Dia, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
-| Integração contábil, contas, unidades, movimentos e cadastros | ⏳ A fazer |
-| Conciliação | ⏳ A fazer |
+| Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
+| Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |
+| Cadastros (importar a aba ou cadastrar à mão, editar, excluir com Desfazer) | ✅ React |
+| Conciliação por conta (extrato × lançamentos, conciliar à mão, conferido, exportar) | ✅ React |
+| Conciliação Extrato × planilha (planilha, balancete de fornecedores, XML de NF-e, conciliações salvas) | ⏳ Próxima entrega |
 | Usuários (administração), trocar a minha senha | ✅ React (com confirmações no visual do sistema e "Desfazer" ao desativar) |
 | Ligar os dados à API (lançamentos, cadastros, módulos) | ⏳ A fazer, junto com cada tela |
-| App instalável e modo sem internet (PWA) | ⏳ A fazer |
+| App instalável, abre sem internet, aviso de versão nova (PWA) | ✅ React (`pwa/`: o `sw.js` é gerado a cada build) |
 
-Ordem sugerida: Integração contábil (contas e cadastros) → Conciliação → módulos, dos mais
+Ordem sugerida: Conciliação → virada (esta versão vira a oficial) → dados no servidor → módulos, dos mais
 simples (Vencimentos, ISS) aos maiores. Cada parte numa branch `feat/...` com Pull Request.
+
+## Onde ficam as regras da Integração contábil
+
+- `src/lib/contabil.mjs`: contas, lançamentos, cadastros, mês de trabalho, importação, extratos, distribuição,
+  TXTs e backup. Sem tela; testado em `tests/contabil.test.js`. Usa as mesmas chaves de dados da versão HTML,
+  então os dois sistemas mostram os mesmos dados no navegador (e um restaura o backup do outro).
+- `src/lib/useContabil.js`: a instância única e o hook que redesenha as telas a cada gravação.
+- `src/lib/leitores.js`: leitura de planilha, PDF, OFX e download de arquivos (os leitores grandes só baixam quando usados).
+- `src/lib/conciliar.mjs`: resultado da conciliação (cruzamento + o que foi feito à mão), testado em `tests/conciliar.test.js`.
+- Telas: `src/paginas/Conciliacao.jsx`, `src/paginas/Integracao.jsx`, `Conta.jsx`, `Cadastro.jsx` e as janelas em `src/componentes/contabil/`.

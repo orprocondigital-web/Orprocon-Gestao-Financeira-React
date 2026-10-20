@@ -7,8 +7,11 @@ import { montarMenu } from "../lib/menu.js";
 import Icone from "./Icone.jsx";
 import Suporte from "./Suporte.jsx";
 import TrocarSenha from "./TrocarSenha.jsx";
+import Competencia from "./contabil/Competencia.jsx";
+import { useContabil } from "../lib/useContabil.js";
+import { instalarApp, usePwa } from "../lib/pwa.js";
 
-const VERSAO = "1.0.0-alpha.1";
+const VERSAO = "1.0.0-alpha.4";
 const FECHADAS_PADRAO = { "Outras movimentações": 1, "Cadastros": 1 };
 
 function iniciais(nome) {
@@ -51,13 +54,15 @@ export default function Layout() {
   const navegar = useNavigate();
   const ehAdmin = usuario && usuario.perfil === "admin";
   const [, atualizar] = useState(0);
-  const secoes = useMemo(() => montarMenu(pode, ehAdmin), [pode, ehAdmin, local.pathname]);   // eslint-disable-line
+  const [, versaoDados] = useContabil();   // conta nova, unidade distribuída: o menu acompanha
+  const secoes = useMemo(() => montarMenu(pode, ehAdmin), [pode, ehAdmin, local.pathname, versaoDados]);   // eslint-disable-line
   const [fechadas, setFechadas] = useState(() => lerJson("menu:fechadas", FECHADAS_PADRAO));
   const [integracaoAberta, setIntegracaoAberta] = useState(() => lerLocal("menu:integracao") === "aberta");
   const [recolhido, setRecolhido] = useState(() => lerLocal("menu:recolhido") === "1");
   const [gaveta, setGaveta] = useState(false);   // menu no celular
   const [trocarSenha, setTrocarSenha] = useState(false);
   const { auth } = useAuth();
+  const { instalar } = usePwa();
   useEffect(() => {   // sessão: ao voltar para a aba, confere se ainda vale (12 horas sem usar encerram)
     const f = () => {
       if (document.visibilityState !== "visible" || !auth) return;
@@ -91,6 +96,7 @@ export default function Layout() {
 
   const ehTeste = usuario && (usuario.teste || usuario.email === AuthCore.TESTE_EMAIL);
   const naModulo = local.pathname.indexOf("/modulo/") === 0;
+  const comMes = /^\/(integracao|conta\/)/.test(local.pathname);   // telas que dependem do mês de trabalho
 
   const menu = (
     <nav aria-label="Menu principal" className="flex flex-col h-full">
@@ -136,6 +142,7 @@ export default function Layout() {
       <div className={"border-t border-line p-3 flex items-center gap-2.5 " + (recolhido ? "flex-col" : "")}>
         <span className="h-9 w-9 shrink-0 rounded-full bg-brand-soft text-brand font-bold text-[13px] inline-flex items-center justify-center" aria-hidden="true">{iniciais(usuario && usuario.nome)}</span>
         {!recolhido && <span className="flex-1 min-w-0 leading-tight"><strong className="block truncate text-[14px]">{usuario && usuario.nome}</strong><span className="block truncate text-[12px] text-muted">{usuario && usuario.email}</span></span>}
+        {instalar && <button type="button" onClick={instalarApp} aria-label="Instalar como aplicativo" title="Instalar como aplicativo (ícone na área de trabalho, abre sem internet)" className="btn-fantasma h-8 w-8 p-0 text-brand"><Icone nome="instalar" /></button>}
         {!(usuario && usuario.teste) && <button type="button" onClick={() => setTrocarSenha(true)} aria-label="Trocar a minha senha" title="Trocar a minha senha" className="btn-fantasma h-8 w-8 p-0"><Icone nome="cadeado" /></button>}
         <button type="button" onClick={() => sair().then(() => navegar("/login", { replace: true }))} aria-label="Sair do sistema" title="Sair" className="btn-fantasma h-8 w-8 p-0"><Icone nome="sair" /></button>
       </div>
@@ -159,8 +166,9 @@ export default function Layout() {
             <h1 className="text-[21px] sm:text-[22px] font-semibold tracking-tight truncate">{titulo.titulo}</h1>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {comMes && <Competencia />}
             {ehTeste && <span className="rounded-full bg-brand-soft text-brand text-[12px] font-bold uppercase tracking-wide px-2.5 py-1" title="Você entrou sem senha, no modo de teste.">Modo de teste</span>}
-            <span className="hidden sm:inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] text-muted">
+            <span className="hidden xl:inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] text-muted">
               <span className="h-2 w-2 rounded-full bg-credit" aria-hidden="true" />Salvo neste navegador</span>
             <button type="button" onClick={alternarTema} className="btn-contorno h-10 w-10 p-0 rounded-full" aria-label={tema === "dark" ? "Ativar tema claro" : "Ativar tema escuro"} title={tema === "dark" ? "Tema claro" : "Tema escuro"}>
               <Icone nome={tema === "dark" ? "sol" : "lua"} /></button>
