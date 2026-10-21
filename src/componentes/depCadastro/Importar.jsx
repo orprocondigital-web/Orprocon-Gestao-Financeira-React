@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Core, Inicio } from "../../lib/legado.js";
 import { TIPOS_ALVARAS, TIPOS_CERTIDOES, chaveNome, grupoDoTipo, lerCertidao, lerPlanilhaCadastro, MESES } from "../../lib/depCadastro.mjs";
 import { useDepCadastro } from "../../lib/useDepCadastro.js";
+import { emDia } from "../../lib/useEmDia.js";
 import { carregarXlsx, lerPlanilha, textoDoPdf } from "../../lib/leitores.js";
 import { apagarTodos, guardarArquivo } from "../../lib/arquivos.js";
 import { useAvisos } from "../Avisos.jsx";
@@ -133,8 +134,16 @@ function Planilha() {
   };
   const importar = () => {
     const r = svc.aplicarPlanilha(plano);
+    // responsáveis de cada setor (e o histórico do contábil) vão para o Em Dia; só onde ainda não há
+    let resp = 0;
+    plano.empresas.forEach((p) => {
+      const id = r.ids[chaveNome(p.nome)];
+      if (!id) return;
+      if (p.histContabil && !emDia.historicoResponsavel("contabil", id).length) { emDia.importarHistorico("contabil", id, p.histContabil); resp++; }
+      Object.keys(p.responsaveis || {}).forEach((s) => { if (emDia.setores().some((x) => x.id === s) && !emDia.responsavel(s, id)) { emDia.definirResponsavel(s, id, p.responsaveis[s], ""); resp++; } });
+    });
     setPlano(null); setArquivo("");
-    aviso("Importado: " + [r.novasEmp && r.novasEmp + " empresa(s)", r.novosDocs && r.novosDocs + " documento(s)", r.faturamentos && r.faturamentos + " valor(es) de faturamento"].filter(Boolean).join(", ") + (r.repetidos ? ". " + r.repetidos + " documento(s) já existiam." : "."));
+    aviso("Importado: " + [r.novasEmp && r.novasEmp + " empresa(s)", r.novosDocs && r.novosDocs + " documento(s)", r.faturamentos && r.faturamentos + " valor(es) de faturamento", resp && resp + " responsável(is) no Em Dia"].filter(Boolean).join(", ") + (r.repetidos ? ". " + r.repetidos + " documento(s) já existiam." : "."));
   };
   const modelo = async () => {
     const XLSX = await carregarXlsx();
@@ -151,7 +160,7 @@ function Planilha() {
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex-1 min-w-[240px]">
           <h2 className="text-[16px] font-semibold">Planilha (Excel)</h2>
-          <p className="text-[13px] text-muted">Empresas, certidões e alvarás (colunas Empresa, Tipo e Vencimento) e faturamento (Empresa e os meses Jan a Dez; o ano vem do nome da aba). Pode ter várias abas no mesmo arquivo.</p>
+          <p className="text-[13px] text-muted">Empresas, certidões e alvarás (colunas Empresa, Tipo e Vencimento) e faturamento (Empresa e os meses Jan a Dez; o ano vem do nome da aba). Pode ter várias abas no mesmo arquivo. Também lê a aba Empresas exportada do sistema do Depto. Contábil (regime, sócios, responsáveis, entrada e saída); as colunas de senha são ignoradas.</p>
         </div>
         <button type="button" className="btn-fantasma" onClick={modelo}>Baixar modelo</button>
         <BotaoArquivo className="btn-primario" aceita=".xlsx,.xls,.xlsm,.csv" aoEscolher={ler}>Escolher planilha</BotaoArquivo>

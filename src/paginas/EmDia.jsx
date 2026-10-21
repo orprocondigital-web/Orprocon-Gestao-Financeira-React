@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Core, Importacao, Inicio } from "../lib/legado.js";
-import { FREQUENCIAS, ehMesmaPessoa, textoRegra } from "../lib/emDia.mjs";
-import { MESES, REGIMES } from "../lib/depCadastro.mjs";
+import { ATALHOS_MESES, VENCE_DEPOIS, ehMesmaPessoa, textoRegra } from "../lib/emDia.mjs";
+import { MESES, REGIMES, TIPOS_LUCRO_REAL } from "../lib/depCadastro.mjs";
 import { carregarXlsx } from "../lib/leitores.js";
 import { useEmDia } from "../lib/useEmDia.js";
 import { useAuth } from "../lib/auth.jsx";
@@ -18,7 +18,8 @@ import { BotaoArquivo, Campo, Segmentado, TextoRapido, dataBR, numero } from "..
  */
 const PROXIMO = { "": "feito", feito: "na", na: "" };
 const CELULA = {
-  "": "bg-warn-soft text-warn border-warn/30", feito: "bg-ok-soft text-credit border-credit/30", na: "bg-surface-2 text-muted border-line"
+  "": "bg-warn-soft text-warn border-warn/30", feito: "bg-ok-soft text-credit border-credit/30", na: "bg-surface-2 text-muted border-line",
+  atrasada: "bg-debit-soft text-debit border-debit/30"
 };
 const ROTULO = { "": "Pendente", feito: "Feito", na: "N/A" };
 const memoria = { aba: "grade", setor: "", mes: "" };
@@ -27,53 +28,80 @@ function mesTexto(m) { return Importacao.nomeCompetencia(m).replace(" de ", "/")
 function somarMes(m, n) { const [a, b] = m.split("-").map(Number); const d = new Date(a, b - 1 + n, 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
 
 // ---------------------------------------------------------------- colunas do setor (e a regra de cada uma)
+const NUMS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
 function JanelaColunas({ setor, aoFechar }) {
   const [svc] = useEmDia();
   const { aviso } = useAvisos();
   const [lista, setLista] = useState(() => setor.obrigacoes.map((o) => {
     const r = setor.regras[o] || {};
-    return { nome: o, regimes: (r.regimes || []).slice(), inicio: r.inicio || "", freq: r.freq || "mensal", mesAnual: r.mesAnual || "12" };
+    return { nome: o, codigo: r.codigo || "", meses: (r.meses || []).slice(), regimes: (r.regimes || []).slice(), lucroReal: r.lucroReal || "", inicio: r.inicio || "",
+      venc: r.venc ? { dia: r.venc.dia, depois: r.venc.depois } : { dia: "", depois: 1 }, ativa: r.ativa !== false };
   }));
+  const [aberta, setAberta] = useState(-1);
   const [erro, setErro] = useState("");
   const salvar = () => { try { svc.salvarObrigacoes(setor.id, lista); aviso("Obrigações de " + setor.nome + " atualizadas."); aoFechar(); } catch (e) { setErro(e.message); } };
   const mover = (i, d) => setLista((l) => { const n = l.slice(); const j = i + d; if (j < 0 || j >= n.length) return n; [n[i], n[j]] = [n[j], n[i]]; return n; });
   const muda = (i, campo, v) => setLista((l) => l.map((x, k) => (k === i ? Object.assign({}, x, { [campo]: v }) : x)));
-  const alternarRegime = (i, reg) => setLista((l) => l.map((x, k) => (k !== i ? x : Object.assign({}, x, { regimes: x.regimes.includes(reg) ? x.regimes.filter((y) => y !== reg) : x.regimes.concat(reg) }))));
+  const alterna = (i, campo, v) => setLista((l) => l.map((x, k) => (k !== i ? x : Object.assign({}, x, { [campo]: x[campo].includes(v) ? x[campo].filter((y) => y !== v) : x[campo].concat(v) }))));
+  const chip = (on) => "rounded-full border px-2 py-0.5 text-[12px] " + (on ? "bg-brand-soft border-brand text-brand font-semibold" : "border-line text-ink-2");
   return (
-    <Janela aberta titulo={"Obrigações de " + setor.nome} aoFechar={aoFechar} largura="max-w-[700px]"
+    <Janela aberta titulo={"Obrigações de " + setor.nome} aoFechar={aoFechar} largura="max-w-[720px]"
       rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button><button type="button" className="btn-primario" onClick={salvar}>Salvar</button></>}>
-      <p className="text-[13px] text-muted">Cada obrigação vira uma coluna da grade. Diga com que frequência ela aparece, para quais regimes vale e a partir de quando: onde não vale, a célula fica com um traço e não conta no andamento. Renomear uma coluna começa ela vazia.</p>
+      <p className="text-[13px] text-muted">Cada obrigação ativa vira uma coluna da grade. Em Regras: em que meses vale, para quais regimes, desde quando e o vencimento. Onde não vale a célula fica com um traço; passado o vencimento, a pendência fica vermelha.</p>
       <ul className="space-y-2">
-        {lista.map((o, i) => (
-          <li key={i} className="rounded-lg border border-line p-2.5 space-y-2">
-            <div className="flex gap-1.5">
-              <input value={o.nome} onChange={(e) => muda(i, "nome", e.target.value)} aria-label={"Obrigação " + (i + 1)} className="h-9 font-medium" />
-              <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => mover(i, -1)} aria-label="Subir" title="Subir">↑</button>
-              <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => mover(i, 1)} aria-label="Descer" title="Descer">↓</button>
-              <button type="button" className="btn-perigo h-9 w-9 p-0" onClick={() => setLista((l) => l.filter((_, k) => k !== i))} aria-label={"Tirar " + (o.nome || "obrigação")} title="Tirar"><Icone nome="fechar" /></button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
-              <select value={o.freq} onChange={(e) => muda(i, "freq", e.target.value)} aria-label={"Frequência de " + o.nome} className="h-8 w-auto text-[12.5px]">
-                {FREQUENCIAS.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-              </select>
-              {o.freq === "anual" && <select value={o.mesAnual} onChange={(e) => muda(i, "mesAnual", e.target.value)} aria-label={"Mês de " + o.nome} className="h-8 w-auto text-[12.5px]">
-                {MESES.map((m, k) => <option key={m} value={String(k + 1).padStart(2, "0")}>em {m}</option>)}</select>}
-              {o.freq === "trimestral" && <span className="text-muted">mar, jun, set e dez</span>}
-              <label className="inline-flex items-center gap-1.5 ml-auto"><span className="text-muted">Desde</span>
-                <input type="month" value={o.inicio} onChange={(e) => muda(i, "inicio", e.target.value)} aria-label={"Início de " + o.nome} className="h-8 w-[150px] text-[12.5px]" /></label>
-            </div>
-            <div className="flex flex-wrap items-center gap-1" role="group" aria-label={"Regimes de " + o.nome}>
-              <span className="text-[12px] text-muted mr-1">Vale para:</span>
-              {REGIMES.map((r) => (
-                <button key={r} type="button" aria-pressed={o.regimes.includes(r)} onClick={() => alternarRegime(i, r)}
-                  className={"rounded-full border px-2 py-0.5 text-[12px] " + (o.regimes.includes(r) ? "bg-brand-soft border-brand text-brand font-semibold" : "border-line text-ink-2")}>{r}</button>
-              ))}
-              {!o.regimes.length && <span className="text-[12px] text-muted ml-1">(nenhum marcado = todos)</span>}
-            </div>
-          </li>
-        ))}
+        {lista.map((o, i) => {
+          const resumo = textoRegra(Object.assign({}, o, { venc: o.venc.dia ? o.venc : null }));
+          return (
+            <li key={i} className={"rounded-lg border border-line p-2.5 space-y-2 " + (o.ativa ? "" : "opacity-60")}>
+              <div className="flex gap-1.5 items-center">
+                <input value={o.nome} onChange={(e) => muda(i, "nome", e.target.value)} aria-label={"Obrigação " + (i + 1)} className="h-9 font-medium" />
+                <input value={o.codigo} onChange={(e) => muda(i, "codigo", e.target.value)} aria-label={"Código de " + o.nome} placeholder="Código" className="h-9 w-[90px] text-[13px]" />
+                <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => mover(i, -1)} aria-label="Subir" title="Subir">↑</button>
+                <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => mover(i, 1)} aria-label="Descer" title="Descer">↓</button>
+                <button type="button" className="btn-perigo h-9 w-9 p-0" onClick={() => setLista((l) => l.filter((_, k) => k !== i))} aria-label={"Tirar " + (o.nome || "obrigação")} title="Tirar"><Icone nome="fechar" /></button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+                <button type="button" className="btn-contorno btn-sm" aria-expanded={aberta === i} onClick={() => setAberta(aberta === i ? -1 : i)}>Regras</button>
+                <span className="text-muted flex-1 min-w-0 truncate">{resumo || "todo mês, todos os regimes, sem vencimento"}</span>
+                <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={o.ativa} onChange={(e) => muda(i, "ativa", e.target.checked)} /> Ativa</label>
+              </div>
+              {aberta === i && (
+                <div className="space-y-2.5 rounded-md bg-surface-2 p-2.5 text-[12.5px]">
+                  <div className="flex flex-wrap items-center gap-1" role="group" aria-label={"Meses de " + o.nome}>
+                    <span className="text-muted w-[70px]">Meses</span>
+                    {ATALHOS_MESES.map((a) => <button key={a.id} type="button" className={chip(o.meses.join() === a.meses.join())} onClick={() => muda(i, "meses", a.meses.slice())}>{a.nome}</button>)}
+                    <span className="mx-1 text-muted">ou</span>
+                    {NUMS.map((m, k) => <button key={m} type="button" aria-pressed={o.meses.includes(m)} className={chip(o.meses.includes(m))} onClick={() => alterna(i, "meses", m)}>{MESES[k]}</button>)}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1" role="group" aria-label={"Regimes de " + o.nome}>
+                    <span className="text-muted w-[70px]">Regimes</span>
+                    {REGIMES.map((r) => <button key={r} type="button" aria-pressed={o.regimes.includes(r)} onClick={() => alterna(i, "regimes", r)} className={chip(o.regimes.includes(r))}>{r}</button>)}
+                    {!o.regimes.length && <span className="text-muted ml-1">(nenhum = todos)</span>}
+                  </div>
+                  {(o.regimes.includes("Lucro Real") || !o.regimes.length) && (
+                    <label className="flex items-center gap-2"><span className="text-muted w-[70px]">Lucro Real</span>
+                      <select value={o.lucroReal} onChange={(e) => muda(i, "lucroReal", e.target.value)} aria-label={"Tipo do Lucro Real de " + o.nome} className="h-8 w-auto text-[12.5px]">
+                        <option value="">trimestral e anual</option>{TIPOS_LUCRO_REAL.map((t) => <option key={t} value={t}>só {t.toLowerCase()}</option>)}</select></label>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted w-[70px]">Vence</span>
+                    <select value={o.venc.dia === "util" ? "util" : o.venc.dia ? "dia" : ""} aria-label={"Vencimento de " + o.nome} className="h-8 w-auto text-[12.5px]"
+                      onChange={(e) => muda(i, "venc", Object.assign({}, o.venc, { dia: e.target.value === "util" ? "util" : e.target.value === "dia" ? 20 : "" }))}>
+                      <option value="">sem vencimento</option><option value="dia">no dia</option><option value="util">no último dia útil</option></select>
+                    {o.venc.dia !== "util" && o.venc.dia !== "" && <input type="number" min="1" max="31" value={o.venc.dia} onChange={(e) => muda(i, "venc", Object.assign({}, o.venc, { dia: e.target.value }))} aria-label={"Dia do vencimento de " + o.nome} className="h-8 w-[70px] text-[12.5px]" />}
+                    {o.venc.dia !== "" && <select value={o.venc.depois} onChange={(e) => muda(i, "venc", Object.assign({}, o.venc, { depois: Number(e.target.value) }))} aria-label={"Mês do vencimento de " + o.nome} className="h-8 w-auto text-[12.5px]">
+                      {VENCE_DEPOIS.map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}</select>}
+                  </div>
+                  <label className="flex items-center gap-2"><span className="text-muted w-[70px]">Desde</span>
+                    <input type="month" value={o.inicio} onChange={(e) => muda(i, "inicio", e.target.value)} aria-label={"Início de " + o.nome} className="h-8 w-[160px] text-[12.5px]" />
+                    <span className="text-muted">vazio = sempre</span></label>
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
-      <button type="button" className="btn-contorno btn-sm self-start" onClick={() => setLista((l) => l.concat({ nome: "", regimes: [], inicio: "", freq: "mensal", mesAnual: "12" }))}><Icone nome="mais" />Obrigação</button>
+      <button type="button" className="btn-contorno btn-sm self-start" onClick={() => { setLista((l) => l.concat({ nome: "", codigo: "", meses: [], regimes: [], lucroReal: "", inicio: "", venc: { dia: "", depois: 1 }, ativa: true })); setAberta(lista.length); }}><Icone nome="mais" />Obrigação</button>
       {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
     </Janela>
   );
@@ -141,6 +169,7 @@ function JanelaImportar({ setorAtual, mesAtual, aoFechar }) {
 // ---------------------------------------------------------------- grade
 function Grade({ setorId, mes, eu }) {
   const [svc, versao] = useEmDia();
+  const { aviso } = useAvisos();
   const [pessoa, setPessoa] = useState("");
   const [pendentes, setPendentes] = useState(false);
   const [busca, setBusca] = useState("");
@@ -159,6 +188,7 @@ function Grade({ setorId, mes, eu }) {
         <div className="flex flex-wrap items-center gap-3">
           <strong className="text-[16px]">{todos.pct}% feito</strong>
           <span className="text-[13px] text-muted">{numero(todos.feitas)} de {numero(todos.total)} em {todos.setor.nome} · {mesTexto(mes)}</span>
+          {todos.atrasadas > 0 && <span className="text-[13px] font-semibold text-debit">{numero(todos.atrasadas)} atrasada(s)</span>}
         </div>
         <div className="h-2 rounded-full bg-warn-soft overflow-hidden"><div className="h-full bg-credit" style={{ width: todos.pct + "%" }} /></div>
         <div className="flex flex-wrap gap-1.5">
@@ -188,9 +218,9 @@ function Grade({ setorId, mes, eu }) {
                 <th className="px-3 py-2.5 font-semibold min-w-[200px] sticky left-0 bg-surface-2 z-10">Empresa</th>
                 <th className="px-2 py-2.5 font-semibold min-w-[130px]">Responsável</th>
                 {g.setor.obrigacoes.map((o) => {
-                  const regra = textoRegra(g.setor.regras[o]);
+                  const regra = textoRegra(g.setor.regras[o]), venc = g.vencimentos[o];
                   return <th key={o} className="px-2 py-2.5 font-semibold text-center max-w-[130px]" title={o + (regra ? " · " + regra : "")}><span className="block truncate">{o}</span>
-                    {regra && <span className="block truncate normal-case tracking-normal font-normal text-[11px]">{regra}</span>}</th>;
+                    {venc && <span className="block truncate normal-case tracking-normal font-normal text-[11px]">vence {dataBR(venc).slice(0, 5)}</span>}</th>;
                 })}
                 <th className="px-2 py-2.5 font-semibold text-center">Situação</th>
                 <th className="px-2 py-2.5 font-semibold min-w-[180px]">Observação</th>
@@ -203,11 +233,11 @@ function Grade({ setorId, mes, eu }) {
                 <tr key={l.empresa.id} className="group hover:bg-surface-2">
                   <td className="px-3 py-1.5 font-medium sticky left-0 bg-surface group-hover:bg-surface-2 z-10">{l.empresa.nome}</td>
                   <td className="px-1 py-1"><TextoRapido valor={l.responsavel} lista="emdia-pessoas" rotulo={"Responsável de " + l.empresa.nome} placeholder="—" className="w-[130px]"
-                    aoGravar={(v) => svc.definirResponsavel(setorId, l.empresa.id, v)} /></td>
+                    aoGravar={(v) => { svc.definirResponsavel(setorId, l.empresa.id, v, mes); aviso("Responsável de " + l.empresa.nome + " a partir de " + mesTexto(mes) + ": " + (v.trim() || "ninguém") + "."); }} /></td>
                   {l.celulas.map((c) => (
                     <td key={c.obrigacao} className="px-1.5 py-1 text-center">
-                      {!c.vale ? <span className="text-muted" title={c.obrigacao + " não vale para esta empresa neste mês"}>—</span> : <button type="button" onClick={() => alternar(l, c)} title={c.obrigacao + ": " + ROTULO[c.status] + (c.por ? " · " + c.por : "") + (c.em ? " em " + dataBR(c.em) : "")}
-                        className={"min-w-[86px] h-7 px-2 rounded-full border text-[12.5px] font-semibold " + CELULA[c.status]}>{c.status === "feito" ? "✓ Feito" : ROTULO[c.status]}</button>}
+                      {!c.vale ? <span className="text-muted" title={c.obrigacao + " não vale para esta empresa neste mês"}>—</span> : <button type="button" onClick={() => alternar(l, c)} title={c.obrigacao + ": " + ROTULO[c.status] + (c.vencimento ? " · vence " + dataBR(c.vencimento) : "") + (c.por ? " · " + c.por : "") + (c.em ? " em " + dataBR(c.em) : "")}
+                        className={"min-w-[86px] h-7 px-2 rounded-full border text-[12.5px] font-semibold " + CELULA[c.atrasada ? "atrasada" : c.status]}>{c.status === "feito" ? "✓ Feito" : c.atrasada ? "Atrasada" : ROTULO[c.status]}</button>}
                     </td>
                   ))}
                   <td className="px-2 py-1 text-center whitespace-nowrap">{l.completo ? <span className="text-credit font-semibold">✓ OK</span> : <span className="text-muted tabular-nums">{l.feitas}/{l.total}</span>}</td>

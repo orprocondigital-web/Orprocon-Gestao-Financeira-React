@@ -15,7 +15,9 @@ anterior é arquivada.
 | Departamento Cadastro: importar PDFs (lê tipo, CNPJ, datas e número; PDF anexado), planilha do Excel, demonstração e limpar | ✅ React (PDFs em `src/lib/arquivos.js`, banco próprio do navegador, fora do backup) |
 | Em Dia simples: grade empresas × obrigações por setor e mês, responsáveis, passagem de bastão, diário, importar CSV de entregas e planilha de controle | ✅ React (`src/lib/emDia.mjs`, dados em `emDia:v2`; o Em Dia antigo saiu do menu) |
 | Cadastro geral de empresas (Departamento Cadastro › Empresas): código, regime, matriz/filial pelo CNPJ, cliente desde/até, responsável de cada setor | ✅ React (mesma chave `painelVencimentos:v1`; responsáveis gravados no Em Dia) |
-| Em Dia: obrigação por regime, frequência (mensal, trimestral, anual) e início; visão do ano (JAN–DEZ) por empresa e por pessoa, com Excel | ✅ React (regras em `emDia:v2`, campo `regras`) |
+| Em Dia: regras de cada obrigação (meses, regimes, tipo do Lucro Real, vencimento em dia fixo ou último dia útil, código, ativa) e pendência atrasada; visão do ano (JAN–DEZ) por empresa e por pessoa, com Excel | ✅ React (regras em `emDia:v2`, campo `regras`; o formato antigo com `freq` continua sendo lido) |
+| Cadastro de empresas: sócios (filial usa os da matriz), tipo do Lucro Real, Imune e Isenta, data de baixa, segmento e contato; importa a aba Empresas do sistema do Depto. Contábil (sem as colunas de senha) | ✅ React |
+| Em Dia: responsável por competência (histórico); a troca vale a partir de um mês e não muda os meses anteriores | ✅ React (`histResp` em `emDia:v2`) |
 | Apuração de ICMS, Auditor IBS/CBS, ISS, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
 | Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
 | Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |

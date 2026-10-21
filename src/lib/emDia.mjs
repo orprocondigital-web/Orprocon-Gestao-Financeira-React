@@ -11,8 +11,46 @@
 import { ativaNoMes, ehFilial, regimePeloTexto } from "./depCadastro.mjs";
 
 export const CHAVE = "emDia:v2";
-/** Com que frequência a obrigação aparece: todo mês, no fim do trimestre (03, 06, 09, 12) ou uma vez por ano. */
-export const FREQUENCIAS = [{ id: "mensal", nome: "Mensal" }, { id: "trimestral", nome: "Trimestral" }, { id: "anual", nome: "Anual" }];
+const MESES_NUM = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+/** Atalhos para os meses em que a obrigação vale. */
+export const ATALHOS_MESES = [{ id: "mensal", nome: "Todo mês", meses: [] }, { id: "trimestral", nome: "Fim de trimestre", meses: ["03", "06", "09", "12"] }];
+/** Quando vence, contando da competência: no mesmo mês, no seguinte ou dois meses depois. */
+export const VENCE_DEPOIS = [{ id: 0, nome: "do mesmo mês" }, { id: 1, nome: "do mês seguinte" }, { id: 2, nome: "do 2º mês seguinte" }];
+
+/**
+ * Regra de uma obrigação, no formato atual (como o ObrigConfig do sistema antigo):
+ * meses [] = todo mês · regimes [] = todos · lucroReal "" | Trimestral | Anual · inicio AAAA-MM ·
+ * venc { dia: 1..31 | "util" (último dia útil), depois: 0..2 } ou null · codigo · ativa.
+ * Aceita o formato anterior (freq mensal/trimestral/anual + mesAnual).
+ */
+export function normalizarRegra(r) {
+  const x = r || {};
+  let meses = Array.isArray(x.meses) ? x.meses.filter((m) => MESES_NUM.includes(m)) : null;
+  if (!meses) meses = x.freq === "trimestral" ? ["03", "06", "09", "12"] : x.freq === "anual" ? [x.mesAnual || "12"] : [];
+  if (meses.length === 12) meses = [];
+  const v = x.venc && (x.venc.dia === "util" || (Number(x.venc.dia) >= 1 && Number(x.venc.dia) <= 31))
+    ? { dia: x.venc.dia === "util" ? "util" : Number(x.venc.dia), depois: [0, 1, 2].includes(Number(x.venc.depois)) ? Number(x.venc.depois) : 1 } : null;
+  return { meses: meses.slice().sort(), regimes: Array.isArray(x.regimes) ? x.regimes.filter(Boolean) : [], lucroReal: x.lucroReal || "",
+    inicio: x.inicio || "", venc: v, codigo: txt(x.codigo), ativa: x.ativa !== false };
+}
+const regraVazia = (r) => !r.meses.length && !r.regimes.length && !r.lucroReal && !r.inicio && !r.venc && !r.codigo && r.ativa;
+
+/** Data de vencimento (AAAA-MM-DD) da obrigação na competência; "" sem vencimento definido. */
+export function vencimento(regra, mes) {
+  const r = normalizarRegra(regra);
+  if (!r.venc) return "";
+  const [a, m] = mes.split("-").map(Number);
+  const alvo = new Date(Date.UTC(a, m - 1 + r.venc.depois, 1));
+  const ano = alvo.getUTCFullYear(), mm = alvo.getUTCMonth();
+  const ultimo = new Date(Date.UTC(ano, mm + 1, 0)).getUTCDate();
+  let dia;
+  if (r.venc.dia === "util") {   // último dia útil (sem feriados): sábado e domingo voltam para sexta
+    const d = new Date(Date.UTC(ano, mm, ultimo)).getUTCDay();
+    dia = ultimo - (d === 0 ? 2 : d === 6 ? 1 : 0);
+  } else dia = Math.min(r.venc.dia, ultimo);
+  return ano + "-" + String(mm + 1).padStart(2, "0") + "-" + String(dia).padStart(2, "0");
+}
 export const STATUS = [
   { id: "", nome: "Pendente" }, { id: "feito", nome: "Feito" }, { id: "na", nome: "Não se aplica" }
 ];
@@ -47,20 +85,23 @@ export function setorDoDepartamento(dep) {
  * freq: mensal | trimestral | anual, mesAnual: "01".."12" }.
  */
 export function obrigacaoVale(regra, empresa, mes) {
-  const r = regra || {};
+  const r = normalizarRegra(regra);
+  if (!r.ativa) return false;
   if (r.inicio && mes < r.inicio) return false;
-  if (Array.isArray(r.regimes) && r.regimes.length && !r.regimes.includes((empresa && empresa.regime) || "")) return false;
-  const m = mes.slice(5, 7);
-  if (r.freq === "trimestral") return ["03", "06", "09", "12"].includes(m);
-  if (r.freq === "anual") return m === (r.mesAnual || "12");
+  const regime = (empresa && empresa.regime) || "";
+  if (r.regimes.length && !r.regimes.includes(regime)) return false;
+  // como no sistema antigo: regra só do Lucro Real trimestral (ou anual) não vale para a empresa do outro tipo
+  if (r.lucroReal && regime === "Lucro Real" && ((empresa && empresa.tipoLucroReal) || "") !== r.lucroReal) return false;
+  if (r.meses.length && !r.meses.includes(mes.slice(5, 7))) return false;
   return true;
 }
 /** Texto curto da regra, para o cabeçalho da coluna. */
 export function textoRegra(regra) {
-  const r = regra || {}, p = [];
-  if (r.freq === "trimestral") p.push("trimestral");
-  if (r.freq === "anual") p.push("anual (mês " + (r.mesAnual || "12") + ")");
-  if (Array.isArray(r.regimes) && r.regimes.length) p.push(r.regimes.join(", "));
+  const r = normalizarRegra(regra), p = [];
+  if (r.meses.length) p.push(r.meses.join(",") === "03,06,09,12" ? "trimestral" : r.meses.length === 1 ? "anual (" + MESES_CURTOS[Number(r.meses[0]) - 1] + ")" : r.meses.map((m) => MESES_CURTOS[Number(m) - 1]).join(", "));
+  if (r.regimes.length) p.push(r.regimes.map((x) => (x === "Lucro Real" && r.lucroReal ? "Lucro Real " + r.lucroReal.toLowerCase() : x)).join(", "));
+  else if (r.lucroReal) p.push("Lucro Real " + r.lucroReal.toLowerCase());
+  if (r.venc) p.push("vence " + (r.venc.dia === "util" ? "no último dia útil" : "dia " + r.venc.dia) + " " + VENCE_DEPOIS.find((v) => v.id === r.venc.depois).nome);
   if (r.inicio) p.push("desde " + r.inicio.slice(5) + "/" + r.inicio.slice(0, 4));
   return p.join(" · ");
 }
@@ -89,7 +130,7 @@ export function criarEmDia(deps) {
     const e = ler(CHAVE, {});
     return {
       setores: Array.isArray(e.setores) && e.setores.length ? e.setores : SETORES_PADRAO.map((s) => Object.assign({}, s, { obrigacoes: s.obrigacoes.slice() })),
-      responsaveis: e.responsaveis || {}, status: e.status || {}, obs: e.obs || {}, ocultas: e.ocultas || {}, regras: e.regras || {},
+      responsaveis: e.responsaveis || {}, histResp: e.histResp || {}, status: e.status || {}, obs: e.obs || {}, ocultas: e.ocultas || {}, regras: e.regras || {},
       diario: Array.isArray(e.diario) ? e.diario : [], bastao: Array.isArray(e.bastao) ? e.bastao : []
     };
   }
@@ -107,7 +148,7 @@ export function criarEmDia(deps) {
   function setores() { const d = dados(); return d.setores.map((s) => Object.assign({}, s, { regras: regrasDe(d, s) })); }
   function regrasDe(d, s) {
     const r = d.regras[s.id] || {}, out = {};
-    s.obrigacoes.forEach((o) => { if (r[chaveNome(o)]) out[o] = r[chaveNome(o)]; });
+    s.obrigacoes.forEach((o) => { if (r[chaveNome(o)]) out[o] = normalizarRegra(r[chaveNome(o)]); });
     return out;
   }
   /**
@@ -123,7 +164,7 @@ export function criarEmDia(deps) {
     if (!limpa.length) throw new Error("Deixe pelo menos uma obrigação.");
     limpa.forEach((o) => {
       if (o.inicio && !/^\d{4}-\d{2}$/.test(o.inicio)) throw new Error(o.nome + ": início em mês e ano (AAAA-MM).");
-      if (o.freq && !FREQUENCIAS.some((f) => f.id === o.freq)) throw new Error(o.nome + ": frequência inválida.");
+      if (o.venc && o.venc.dia !== "util" && o.venc.dia !== "" && o.venc.dia !== undefined && !(Number(o.venc.dia) >= 1 && Number(o.venc.dia) <= 31)) throw new Error(o.nome + ": dia do vencimento de 1 a 31.");
     });
     const d = dados();
     const s = d.setores.find((x) => x.id === setorId);
@@ -132,9 +173,9 @@ export function criarEmDia(deps) {
     const antigas = d.regras[setorId] || {}, regras = {};
     limpa.forEach((o) => {
       const k = chaveNome(o.nome);
-      const temRegra = ["regimes", "inicio", "freq"].some((c) => c in o);
-      const r = temRegra ? { regimes: Array.isArray(o.regimes) ? o.regimes.filter(Boolean) : [], inicio: txt(o.inicio), freq: o.freq || "mensal", mesAnual: o.freq === "anual" ? (o.mesAnual || "12") : "" } : antigas[k];
-      if (r && (r.regimes.length || r.inicio || r.freq !== "mensal")) regras[k] = r;
+      const temRegra = ["regimes", "inicio", "freq", "meses", "venc", "lucroReal", "codigo", "ativa"].some((c) => c in o);
+      const r = temRegra ? normalizarRegra(Object.assign({}, o, { venc: o.venc && o.venc.dia !== "" && o.venc.dia !== undefined ? o.venc : null })) : antigas[k] && normalizarRegra(antigas[k]);
+      if (r && !regraVazia(r)) regras[k] = r;
     });
     d.regras[setorId] = regras;
     gravar(d);
@@ -171,13 +212,56 @@ export function criarEmDia(deps) {
   }
 
   // ------------------------------------------------------------ responsável e situação
-  /** Todos os responsáveis: { setorId: { empresaId: nome } }. */
-  function todosResponsaveis() { return dados().responsaveis; }
-  function responsavel(setorId, empresaId) { return ((dados().responsaveis[setorId] || {})[empresaId]) || ""; }
-  function definirResponsavel(setorId, empresaId, nome) {
-    const d = dados();
+  /**
+   * Responsável por competência (como o histórico do sistema antigo): cada troca grava { desde: AAAA-MM, nome }.
+   * A primeira vez vale para sempre (desde ""). A grade de um mês usa quem era o responsável naquele mês,
+   * então trocar a carteira de dono não muda os relatórios dos meses que já passaram.
+   */
+  function respNoMes(d, setorId, empresaId, mes) {
+    const h = ((d.histResp[setorId] || {})[empresaId]) || [];
+    if (!h.length) return ((d.responsaveis[setorId] || {})[empresaId]) || "";
+    let nome = "";
+    h.forEach((x) => { if (x.desde <= mes) nome = x.nome; });
+    return nome;
+  }
+  function gravarResp(d, setorId, empresaId, nome, desde) {
+    const hs = d.histResp[setorId] = d.histResp[setorId] || {};
+    let h = hs[empresaId] || [];
+    const atual = ((d.responsaveis[setorId] || {})[empresaId]) || "";
+    if (!h.length && atual) h = [{ desde: "", nome: atual }];   // quem já estava (antes do histórico) vale para trás
+    const de = h.length ? (desde || mesPadrao()) : "";
+    h = h.filter((x) => x.desde !== de).concat({ desde: de, nome: txt(nome) }).sort((a, b) => a.desde.localeCompare(b.desde));
+    // duas entradas seguidas com o mesmo nome viram uma
+    h = h.filter((x, i) => i === 0 || x.nome !== h[i - 1].nome);
+    hs[empresaId] = h;
     const r = d.responsaveis[setorId] = d.responsaveis[setorId] || {};
-    if (txt(nome)) r[empresaId] = txt(nome); else delete r[empresaId];
+    const ultimo = h[h.length - 1].nome;
+    if (ultimo) r[empresaId] = ultimo; else delete r[empresaId];
+  }
+  /** Todos os responsáveis de agora: { setorId: { empresaId: nome } }. */
+  function todosResponsaveis() { return dados().responsaveis; }
+  function responsavel(setorId, empresaId, mes) { const d = dados(); return mes ? respNoMes(d, setorId, empresaId, mes) : ((d.responsaveis[setorId] || {})[empresaId]) || ""; }
+  /** Troca o responsável a partir da competência "desde" (padrão: o mês de trabalho). */
+  function definirResponsavel(setorId, empresaId, nome, desde) {
+    const d = dados();
+    gravarResp(d, setorId, empresaId, nome, desde);
+    gravar(d);
+  }
+  /** Quem foi responsável e desde quando, mais antigo primeiro. */
+  function historicoResponsavel(setorId, empresaId) {
+    const d = dados();
+    const h = ((d.histResp[setorId] || {})[empresaId]) || [];
+    if (h.length) return h.slice();
+    const a = ((d.responsaveis[setorId] || {})[empresaId]) || "";
+    return a ? [{ desde: "", nome: a }] : [];
+  }
+  /** Grava o histórico vindo de outro sistema (substitui o que houver). */
+  function importarHistorico(setorId, empresaId, lista) {
+    const d = dados();
+    const h = lista.filter((x) => txt(x.nome)).map((x) => ({ desde: x.desde || "", nome: txt(x.nome) })).sort((a, b) => a.desde.localeCompare(b.desde));
+    if (!h.length) return;
+    (d.histResp[setorId] = d.histResp[setorId] || {})[empresaId] = h;
+    (d.responsaveis[setorId] = d.responsaveis[setorId] || {})[empresaId] = h[h.length - 1].nome;
     gravar(d);
   }
   function definirStatus(mes, setorId, empresaId, obrigacao, status, quem) {
@@ -202,20 +286,28 @@ export function criarEmDia(deps) {
   function grade(mes, setorId, filtro) {
     const d = dados();
     const setor0 = d.setores.find((s) => s.id === setorId) || d.setores[0];
-    const setor = Object.assign({}, setor0, { regras: regrasDe(d, setor0) });
+    const regras0 = regrasDe(d, setor0);
+    // obrigação desativada sai da grade (continua na lista de obrigações para voltar depois)
+    const setor = Object.assign({}, setor0, { regras: regras0, obrigacoes: setor0.obrigacoes.filter((o) => !regras0[o] || regras0[o].ativa) });
+    const vencs = {};
+    setor.obrigacoes.forEach((o) => { vencs[o] = vencimento(setor.regras[o], mes); });
     const ocultas = new Set(d.ocultas[setor.id] || []);
-    const resp = d.responsaveis[setor.id] || {};
     const st = d.status[mes] || {};
+    const hojeIso = hoje();
     const obs = d.obs[mes] || {};
     const f = filtro || {};
     // empresas que não eram clientes no mês, ou sem nenhuma obrigação que valha nele, ficam de fora
     let semObrigacao = 0;
     let linhas = empresas().filter((c) => !ocultas.has(c.id) && ativaNoMes(c, mes)).map((c) => {
       const s = (st[c.id] || {})[setor.id] || {};
-      const celulas = setor.obrigacoes.map((o) => ({ obrigacao: o, vale: obrigacaoVale(setor.regras[o], c, mes), status: (s[o] || {}).s || "", por: (s[o] || {}).por || "", em: (s[o] || {}).em || "" }));
+      const celulas = setor.obrigacoes.map((o) => {
+        const status = (s[o] || {}).s || "", vale = obrigacaoVale(setor.regras[o], c, mes);
+        return { obrigacao: o, vale, status, por: (s[o] || {}).por || "", em: (s[o] || {}).em || "", vencimento: vencs[o], atrasada: vale && !status && !!vencs[o] && hojeIso > vencs[o] };
+      });
       const valem = celulas.filter((x) => x.vale && x.status !== "na");
       const feitas = valem.filter((x) => x.status === "feito").length;
-      return { empresa: c, responsavel: resp[c.id] || "", celulas, feitas, total: valem.length, completo: valem.length > 0 && feitas === valem.length, obs: (obs[c.id] || {})[setor.id] || "" };
+      return { empresa: c, responsavel: respNoMes(d, setor.id, c.id, mes), celulas, feitas, total: valem.length, atrasadas: celulas.filter((x) => x.atrasada).length,
+        completo: valem.length > 0 && feitas === valem.length, obs: (obs[c.id] || {})[setor.id] || "" };
     }).filter((l) => { if (l.celulas.some((x) => x.vale)) return true; semObrigacao++; return false; });
     if (f.regime) linhas = linhas.filter((l) => (l.empresa.regime || "(sem)") === f.regime);
     if (f.matrizes) linhas = linhas.filter((l) => !ehFilial(l.empresa.documento));
@@ -223,15 +315,16 @@ export function criarEmDia(deps) {
     if (f.pendentes) linhas = linhas.filter((l) => !l.completo);
     if (f.busca) { const b = chaveNome(f.busca); linhas = linhas.filter((l) => chaveNome(l.empresa.nome).indexOf(b) > -1 || digitos(l.empresa.documento).indexOf(digitos(f.busca) || "§") > -1); }
     const porPessoa = {};
-    let feitas = 0, total = 0;
+    let feitas = 0, total = 0, atrasadas = 0;
     linhas.forEach((l) => {
+      atrasadas += l.atrasadas;
       const k = l.responsavel || "(sem responsável)";
       const p = porPessoa[k] = porPessoa[k] || { pessoa: k, feitas: 0, total: 0, empresas: 0 };
       p.feitas += l.feitas; p.total += l.total; p.empresas++;
       feitas += l.feitas; total += l.total;
     });
     return {
-      setor, linhas, feitas, total, pct: total ? Math.round(feitas / total * 100) : 0, semObrigacao,
+      setor, linhas, feitas, total, atrasadas, vencimentos: vencs, pct: total ? Math.round(feitas / total * 100) : 0, semObrigacao,
       porPessoa: Object.values(porPessoa).sort((a, b) => a.pessoa.localeCompare(b.pessoa, "pt-BR")),
       ocultas: empresas().filter((c) => ocultas.has(c.id))
     };
@@ -240,6 +333,7 @@ export function criarEmDia(deps) {
   function pessoas() {
     const d = dados(), s = new Set();
     Object.values(d.responsaveis).forEach((r) => Object.values(r).forEach((n) => s.add(n)));
+    Object.values(d.histResp).forEach((r) => Object.values(r).forEach((h) => h.forEach((x) => s.add(x.nome))));
     d.diario.forEach((x) => s.add(x.pessoa));
     return Array.from(s).filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }
@@ -298,8 +392,7 @@ export function criarEmDia(deps) {
     const ids = g.linhas.filter((l) => chaveNome(l.responsavel) === chaveNome(de) && !l.completo).map((l) => l.empresa.id);
     if (!ids.length) throw new Error(txt(de) + " não tem empresas com pendência neste setor e mês.");
     const d = dados();
-    const r = d.responsaveis[setorId] = d.responsaveis[setorId] || {};
-    ids.forEach((id) => { r[id] = txt(para); });
+    ids.forEach((id) => { gravarResp(d, setorId, id, para, mes); });
     d.bastao.unshift({ id: novoId("b-"), mes, setor: setorId, de: txt(de), para: txt(para), motivo: txt(motivo), empresas: ids, em: hoje() });
     gravar(d);
     return { qtd: ids.length, desfazer: () => { if (antes === null) ls.removeItem && ls.removeItem(CHAVE); else ls.setItem(CHAVE, antes); avisar(); } };
@@ -309,8 +402,7 @@ export function criarEmDia(deps) {
     const d = dados();
     const b = d.bastao.find((x) => x.id === id);
     if (!b || b.devolvido) throw new Error("Passagem não encontrada.");
-    const r = d.responsaveis[b.setor] = d.responsaveis[b.setor] || {};
-    b.empresas.forEach((e) => { if (chaveNome(r[e]) === chaveNome(b.para)) r[e] = b.de; });
+    b.empresas.forEach((e) => { if (chaveNome(respNoMes(d, b.setor, e, b.mes)) === chaveNome(b.para)) gravarResp(d, b.setor, e, b.de, b.mes); });
     b.devolvido = hoje();
     gravar(d);
   }
@@ -394,7 +486,7 @@ export function criarEmDia(deps) {
       if (!s.obrigacoes.some((o) => chaveNome(o) === chaveNome(it.obrigacao))) s.obrigacoes.push(it.obrigacao);
       const obr = s.obrigacoes.find((o) => chaveNome(o) === chaveNome(it.obrigacao));
       const c = empresaPara(it.empresa, it.cnpj, true);
-      if (it.responsavel) { const r = d.responsaveis[s.id] = d.responsaveis[s.id] || {}; if (!r[c.id]) r[c.id] = it.responsavel; }
+      if (it.responsavel && !((d.responsaveis[s.id] || {})[c.id])) gravarResp(d, s.id, c.id, it.responsavel, "");
       if (it.status && !it.vazio) {
         const st = celulasDe(d, it.mes, c.id, s.id);
         if (!st[obr] || st[obr].s !== "feito") { st[obr] = { s: it.status, por: "importado", em: hoje() }; marcados++; }
@@ -425,7 +517,7 @@ export function criarEmDia(deps) {
     d.setores.forEach((s, k) => {
       const r = d.responsaveis[s.id] = d.responsaveis[s.id] || {};
       lista.forEach((c, i) => {
-        if (!r[c.id]) r[c.id] = nomes[(i + k) % nomes.length];
+        if (!r[c.id]) gravarResp(d, s.id, c.id, nomes[(i + k) % nomes.length], "");
         meses.forEach((mm, n) => {
           const atual = mm === mes, falta = meses.length - 1 - n;
           s.obrigacoes.forEach((o, j) => {
@@ -445,13 +537,13 @@ export function criarEmDia(deps) {
   function limpar() {
     const antes = ls.getItem(CHAVE);
     const d = dados();
-    ls.setItem(CHAVE, JSON.stringify({ setores: d.setores, regras: d.regras }));
+    ls.setItem(CHAVE, JSON.stringify({ setores: d.setores, regras: d.regras }));   // responsáveis e histórico saem junto
     avisar();
     return () => { if (antes !== null) { ls.setItem(CHAVE, antes); avisar(); } };
   }
 
   return {
-    hoje, mesPadrao, setores, salvarObrigacoes, empresas, empresaPara, ocultar, responsavel, todosResponsaveis, definirResponsavel,
+    hoje, mesPadrao, setores, salvarObrigacoes, empresas, empresaPara, ocultar, responsavel, todosResponsaveis, definirResponsavel, historicoResponsavel, importarHistorico,
     definirStatus, definirObs, grade, anual, pessoas, resumo, passarBastao, devolverBastao, historicoBastao,
     anotar, excluirAnotacao, diario, lerEntregas, lerControle, aplicarImportacao, carregarDemonstracao, limpar
   };

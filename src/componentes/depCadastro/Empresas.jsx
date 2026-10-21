@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { REGIMES, ativaNoMes } from "../../lib/depCadastro.mjs";
+import { REGIMES, TIPOS_LUCRO_REAL, ativaNoMes } from "../../lib/depCadastro.mjs";
 import { useDepCadastro } from "../../lib/useDepCadastro.js";
 import { useEmDia } from "../../lib/useEmDia.js";
 import { useAvisos } from "../Avisos.jsx";
@@ -22,46 +22,100 @@ function FormEmpresa({ editando, aoFechar }) {
   const { aviso } = useAvisos();
   const setores = emDia.setores();
   const resp = emDia.todosResponsaveis();
-  const [f, setF] = useState(() => Object.assign({ nome: "", documento: "", codigo: "", regime: "", inicio: "", saida: "" }, editando || {}));
+  const vazio = { nome: "", documento: "", codigo: "", regime: "", tipoLucroReal: "", inicio: "", saida: "", baixa: "", segmento: "", contato: "", telefone: "", email: "", obs: "" };
+  const [f, setF] = useState(() => Object.assign({}, vazio, editando || {}));
+  const [socios, setSocios] = useState(() => (editando && !editando.sociosDaMatriz && editando.socios ? editando.socios.map((x) => Object.assign({}, x)) : []));
   const [r, setR] = useState(() => {
     const o = {};
     setores.forEach((s) => { o[s.id] = editando ? ((resp[s.id] || {})[editando.id] || "") : ""; });
     return o;
   });
+  const [desde, setDesde] = useState(emDia.mesPadrao());
   const [erro, setErro] = useState("");
   const muda = (c) => (e) => setF((x) => Object.assign({}, x, { [c]: e.target.value }));
+  const mudaSocio = (i, c, v) => setSocios((l) => l.map((x, k) => (k === i ? Object.assign({}, x, { [c]: v }) : x)));
+  const soma = socios.reduce((t, x) => t + (parseFloat(String(x.percentual || 0).replace(",", ".")) || 0), 0);
+  const trocou = setores.some((s) => editando && (resp[s.id] || {})[editando.id] && (r[s.id] || "") !== ((resp[s.id] || {})[editando.id] || ""));
   const salvar = (ev) => {
     ev.preventDefault();
     try {
-      const e = svc.salvarEmpresa(f, editando && editando.id);
-      setores.forEach((s) => { if ((r[s.id] || "") !== ((resp[s.id] || {})[e.id] || "")) emDia.definirResponsavel(s.id, e.id, r[s.id]); });
+      const dados = Object.assign({}, f);
+      if (!(editando && editando.sociosDaMatriz)) dados.socios = socios;
+      const e = svc.salvarEmpresa(dados, editando && editando.id);
+      setores.forEach((s) => { if ((r[s.id] || "") !== ((resp[s.id] || {})[e.id] || "")) emDia.definirResponsavel(s.id, e.id, r[s.id], desde); });
       aviso(editando ? "Empresa atualizada." : "Empresa cadastrada.");
       aoFechar();
     } catch (e) { setErro(e.message); }
   };
+  const sub = "text-[12.5px] font-semibold uppercase tracking-wide text-muted sm:col-span-6 pt-1 border-t border-line mt-1";
   return (
-    <Janela aberta titulo={editando ? "Editar empresa" : "Nova empresa"} aoFechar={aoFechar} largura="max-w-[620px]"
+    <Janela aberta titulo={editando ? "Editar empresa" : "Nova empresa"} aoFechar={aoFechar} largura="max-w-[720px]"
       rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button><button type="submit" form="form-emp" className="btn-primario">Salvar</button></>}>
       <form id="form-emp" onSubmit={salvar} className="grid sm:grid-cols-6 gap-3">
-        <Campo rotulo="Razão social" id="emp-nome" className="sm:col-span-6"><input id="emp-nome" value={f.nome} onChange={muda("nome")} data-foco autoComplete="off" /></Campo>
+        <Campo rotulo="Razão social" id="emp-nome" className="sm:col-span-4"><input id="emp-nome" value={f.nome} onChange={muda("nome")} data-foco autoComplete="off" /></Campo>
+        <Campo rotulo="Código" id="emp-cod" className="sm:col-span-2"><input id="emp-cod" value={f.codigo} onChange={muda("codigo")} autoComplete="off" /></Campo>
         <Campo rotulo="CNPJ/CPF" id="emp-doc" className="sm:col-span-3" dica="0001 no CNPJ = matriz; os outros números são filiais.">
           <input id="emp-doc" value={f.documento} onChange={muda("documento")} autoComplete="off" inputMode="numeric" /></Campo>
-        <Campo rotulo="Código" id="emp-cod" className="sm:col-span-1"><input id="emp-cod" value={f.codigo} onChange={muda("codigo")} autoComplete="off" /></Campo>
-        <Campo rotulo="Regime" id="emp-reg" className="sm:col-span-2">
+        <Campo rotulo="Segmento" id="emp-seg" className="sm:col-span-3"><input id="emp-seg" value={f.segmento} onChange={muda("segmento")} placeholder="Comércio, serviços, indústria…" autoComplete="off" /></Campo>
+        <Campo rotulo="Regime" id="emp-reg" className="sm:col-span-3">
           <select id="emp-reg" value={f.regime} onChange={muda("regime")}><option value="">—</option>{REGIMES.map((x) => <option key={x} value={x}>{x}</option>)}</select></Campo>
-        <Campo rotulo="Cliente desde" id="emp-ini" className="sm:col-span-3" dica="Vazio = sempre. Antes disso a empresa não aparece no Em Dia.">
-          <input id="emp-ini" type="month" value={f.inicio} onChange={muda("inicio")} /></Campo>
-        <Campo rotulo="Saiu em" id="emp-sai" className="sm:col-span-3" dica="Último mês como cliente. Vazio = ainda é cliente.">
-          <input id="emp-sai" type="month" value={f.saida} onChange={muda("saida")} /></Campo>
-        <fieldset className="sm:col-span-6 space-y-2">
-          <legend className="rotulo mb-1.5">Responsável em cada setor</legend>
-          <div className="grid sm:grid-cols-3 gap-2">
-            {setores.map((s) => (
-              <Campo key={s.id} rotulo={s.nome} id={"emp-r-" + s.id}>
-                <input id={"emp-r-" + s.id} list="emp-pessoas" value={r[s.id] || ""} onChange={(e) => setR((x) => Object.assign({}, x, { [s.id]: e.target.value }))} autoComplete="off" />
-              </Campo>
+        {f.regime === "Lucro Real" && <Campo rotulo="Apuração do Lucro Real" id="emp-lr" className="sm:col-span-3">
+          <select id="emp-lr" value={f.tipoLucroReal} onChange={muda("tipoLucroReal")}><option value="">—</option>{TIPOS_LUCRO_REAL.map((x) => <option key={x} value={x}>{x}</option>)}</select></Campo>}
+
+        <p className={sub}>Período</p>
+        <Campo rotulo="Cliente desde" id="emp-ini" className="sm:col-span-2" dica="Vazio = sempre."><input id="emp-ini" type="month" value={f.inicio} onChange={muda("inicio")} /></Campo>
+        <Campo rotulo="Saiu em" id="emp-sai" className="sm:col-span-2" dica="Último mês como cliente."><input id="emp-sai" type="month" value={f.saida} onChange={muda("saida")} /></Campo>
+        <Campo rotulo="Data de baixa" id="emp-baixa" className="sm:col-span-2" dica="Empresa encerrada."><input id="emp-baixa" type="date" value={f.baixa} onChange={muda("baixa")} /></Campo>
+
+        <p className={sub}>Contato</p>
+        <Campo rotulo="Nome" id="emp-cont" className="sm:col-span-2"><input id="emp-cont" value={f.contato} onChange={muda("contato")} autoComplete="off" /></Campo>
+        <Campo rotulo="Telefone" id="emp-tel" className="sm:col-span-2"><input id="emp-tel" value={f.telefone} onChange={muda("telefone")} inputMode="tel" autoComplete="off" /></Campo>
+        <Campo rotulo="E-mail" id="emp-mail" className="sm:col-span-2"><input id="emp-mail" type="email" value={f.email} onChange={muda("email")} autoComplete="off" /></Campo>
+        <Campo rotulo="Observações" id="emp-obs" className="sm:col-span-6"><input id="emp-obs" value={f.obs} onChange={muda("obs")} autoComplete="off" /></Campo>
+
+        <p className={sub}>Sócios</p>
+        {editando && editando.sociosDaMatriz ? (
+          <p className="sm:col-span-6 text-[13px] text-muted">Filial: os sócios são os da matriz{editando.socios.length ? " (" + editando.socios.map((x) => x.nome).join(", ") + ")" : ""}. Para mudar, edite a matriz.</p>
+        ) : (
+          <div className="sm:col-span-6 space-y-1.5">
+            {socios.map((x, i) => (
+              <div key={i} className="grid grid-cols-[minmax(0,1fr)_110px_70px_auto] sm:grid-cols-[minmax(0,1fr)_118px_64px_128px_128px_auto] gap-1.5 items-center">
+                <input value={x.nome} onChange={(e) => mudaSocio(i, "nome", e.target.value)} placeholder="Nome" aria-label={"Sócio " + (i + 1)} className="h-9" />
+                <input value={x.cpf} onChange={(e) => mudaSocio(i, "cpf", e.target.value)} placeholder="CPF" aria-label={"CPF do sócio " + (i + 1)} className="h-9" inputMode="numeric" />
+                <input value={x.percentual} onChange={(e) => mudaSocio(i, "percentual", e.target.value)} placeholder="%" aria-label={"Participação do sócio " + (i + 1)} className="h-9 text-right" inputMode="decimal" />
+                <input type="date" value={x.entrada || ""} onChange={(e) => mudaSocio(i, "entrada", e.target.value)} aria-label={"Entrada do sócio " + (i + 1)} title="Entrada" className="h-9 hidden sm:block" />
+                <input type="date" value={x.saida || ""} onChange={(e) => mudaSocio(i, "saida", e.target.value)} aria-label={"Saída do sócio " + (i + 1)} title="Saída" className="h-9 hidden sm:block" />
+                <button type="button" className="btn-perigo h-9 w-9 p-0" onClick={() => setSocios((l) => l.filter((_, k) => k !== i))} aria-label={"Tirar o sócio " + (i + 1)}><Icone nome="fechar" /></button>
+              </div>
             ))}
+            <div className="flex items-center gap-3">
+              <button type="button" className="btn-contorno btn-sm" onClick={() => setSocios((l) => l.concat({ nome: "", cpf: "", percentual: "", entrada: "", saida: "" }))}><Icone nome="mais" />Sócio</button>
+              {socios.length > 0 && <span className={"text-[12.5px] tabular-nums " + (soma > 100.01 ? "text-debit font-semibold" : "text-muted")}>Total: {soma.toLocaleString("pt-BR")}%{socios.length && soma < 99.99 ? " (falta " + (100 - soma).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) + "%)" : ""}</span>}
+              {socios.length > 0 && <span className="text-[12px] text-muted hidden sm:inline ml-auto">entrada · saída</span>}
+            </div>
           </div>
+        )}
+
+        <fieldset className="sm:col-span-6 space-y-2 pt-1 border-t border-line mt-1">
+          <legend className="sr-only">Responsável em cada setor</legend>
+          <p className="text-[12.5px] font-semibold uppercase tracking-wide text-muted pt-2">Responsável em cada setor</p>
+          <div className="grid sm:grid-cols-3 gap-2">
+            {setores.map((s) => {
+              const hist = editando ? emDia.historicoResponsavel(s.id, editando.id) : [];
+              return (
+                <Campo key={s.id} rotulo={s.nome} id={"emp-r-" + s.id} dica={hist.length > 1 ? "Antes: " + hist.slice(0, -1).map((h) => h.nome || "ninguém").join(", ") : ""}>
+                  <input id={"emp-r-" + s.id} list="emp-pessoas" value={r[s.id] || ""} onChange={(e) => setR((x) => Object.assign({}, x, { [s.id]: e.target.value }))} autoComplete="off" />
+                </Campo>
+              );
+            })}
+          </div>
+          {trocou && (
+            <label className="flex flex-wrap items-center gap-2 text-[13px] rounded-lg bg-info-soft text-info px-3 py-2">
+              A troca de responsável vale a partir de
+              <input type="month" value={desde} onChange={(e) => setDesde(e.target.value)} className="h-8 w-[160px] text-[13px]" aria-label="Troca vale a partir de" />
+              <span className="text-[12.5px]">Os meses anteriores continuam com quem era o responsável.</span>
+            </label>
+          )}
           <datalist id="emp-pessoas">{emDia.pessoas().map((p) => <option key={p} value={p} />)}</datalist>
         </fieldset>
         <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
@@ -90,7 +144,7 @@ export default function Empresas() {
   lista.forEach((c) => { nomes[c.id] = c.nome; });
   const ativas = lista.filter((c) => ativaNoMes(c, mesAtual) || (c.inicio && c.inicio > mesAtual));
   const visiveis = lista.filter((c) => {
-    if (!saidas && c.saida && c.saida < mesAtual) return false;
+    if (!saidas && ((c.saida && c.saida < mesAtual) || (c.baixa && c.baixa.slice(0, 7) < mesAtual))) return false;
     if (regime && (c.regime || "(sem)") !== regime) return false;
     if (matrizes && c.filial) return false;
     const b = busca.trim().toLowerCase(), dig = busca.replace(/\D/g, "");
@@ -151,13 +205,14 @@ export default function Empresas() {
               </thead>
               <tbody className="divide-y divide-line">
                 {visiveis.map((c) => {
-                  const saiuJa = c.saida && c.saida < mesAtual;
+                  const saiuJa = (c.saida && c.saida < mesAtual) || (c.baixa && c.baixa.slice(0, 7) < mesAtual);
                   return (
                     <tr key={c.id} className={"hover:bg-surface-2 " + (saiuJa ? "opacity-60" : "")}>
                       <td className="px-3 py-1.5 tabular-nums text-muted">{c.codigo}</td>
                       <td className="px-3 py-1.5">
                         <strong className="block font-medium">{c.nome}</strong>
                         <span className="text-[12px] text-muted tabular-nums">{c.documento || "sem CNPJ/CPF"}</span>
+                        {c.baixa && <span className="ml-1.5 align-middle"><Selo tipo="erro">Baixada em {c.baixa.split("-").reverse().join("/")}</Selo></span>}
                         {c.filial && <span className="ml-1.5 align-middle"><Selo tipo="neutro" title="Pelo CNPJ (não é 0001)">{c.matrizId ? "Filial de " + nomes[c.matrizId] : "Filial"}</Selo></span>}
                       </td>
                       <td className="px-1 py-1">
@@ -165,6 +220,7 @@ export default function Empresas() {
                           className={"h-8 w-[142px] px-2 text-[13px] " + (c.regime ? "border-transparent bg-transparent hover:border-line" : "border-warn/40 bg-warn-soft text-warn")}>
                           <option value="">Escolher…</option>{REGIMES.map((x) => <option key={x} value={x}>{x}</option>)}
                         </select>
+                        {c.regime === "Lucro Real" && <span className={"block px-2 text-[11.5px] " + (c.tipoLucroReal ? "text-muted" : "text-warn")}>{c.tipoLucroReal ? "LR " + c.tipoLucroReal.toLowerCase() : "falta: trimestral ou anual"}</span>}
                       </td>
                       {setores.map((s) => (
                         <td key={s.id} className="px-1 py-1"><TextoRapido valor={(resp[s.id] || {})[c.id] || ""} lista="emp-pessoas-tab" rotulo={"Responsável em " + s.nome + " de " + c.nome} placeholder="—" className="w-[108px]"
