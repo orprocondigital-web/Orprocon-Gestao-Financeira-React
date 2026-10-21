@@ -17,7 +17,9 @@ export const STATUS_DEMO = [
   { id: "", nome: "Pendente" }, { id: "emitido", nome: "Emitido" }, { id: "entregue", nome: "Entregue" }, { id: "nao_se_aplica", nome: "Não se aplica" }
 ];
 export const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-export const REGIMES = ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI", "Imune / Isenta", "Pessoa física", "Outro"];
+export const REGIMES = ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI", "Imune", "Isenta", "Pessoa física", "Outro"];
+/** Lucro Real: apuração trimestral ou anual (muda quais obrigações valem). */
+export const TIPOS_LUCRO_REAL = ["Trimestral", "Anual"];
 
 const txt = (v) => (v === null || v === undefined ? "" : String(v).trim());
 const iso = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
@@ -33,7 +35,8 @@ export function regimePeloTexto(t) {
   if (/simples|^sn$/.test(s)) return "Simples Nacional";
   if (/presumid|^lp$/.test(s)) return "Lucro Presumido";
   if (/real|^lr$/.test(s)) return "Lucro Real";
-  if (/imune|isent/.test(s)) return "Imune / Isenta";
+  if (/^im$|imune/.test(s)) return "Imune";
+  if (/^is$|isent/.test(s)) return "Isenta";
   if (/fisica|^pf$|^cpf$/.test(s)) return "Pessoa física";
   return "";
 }
@@ -42,8 +45,30 @@ export function regimePeloTexto(t) {
 export function raizCnpj(doc) { const d = txt(doc).replace(/\D/g, ""); return d.length === 14 ? d.slice(0, 8) : ""; }
 export function ehFilial(doc) { const d = txt(doc).replace(/\D/g, ""); return d.length === 14 && d.slice(8, 12) !== "0001"; }
 
-/** A empresa é cliente na competência (AAAA-MM)? inicio e saida são AAAA-MM ou vazios. */
-export function ativaNoMes(c, mes) { return !!c && (!c.inicio || c.inicio <= mes) && (!c.saida || c.saida >= mes); }
+/** A empresa é cliente na competência (AAAA-MM)? inicio e saida são AAAA-MM; baixa (empresa encerrada) é AAAA-MM-DD. */
+export function ativaNoMes(c, mes) {
+  return !!c && (!c.inicio || c.inicio <= mes) && (!c.saida || c.saida >= mes) && (!c.baixa || c.baixa.slice(0, 7) >= mes);
+}
+
+/** "fulano.de.tal@empresa.com" → "Fulano De Tal" (o sistema antigo guardava o e-mail do responsável). */
+export function nomeDoEmail(v) {
+  const t = txt(v);
+  if (t.indexOf("@") < 0) return t;
+  return t.split("@")[0].split(/[._-]+/).filter(Boolean).map((p) => p[0].toUpperCase() + p.slice(1).toLowerCase()).join(" ");
+}
+
+/** Sócios: nome, CPF, % e datas (AAAA-MM-DD). Linhas sem nome saem; a soma não pode passar de 100%. */
+export function limparSocios(lista) {
+  const out = (Array.isArray(lista) ? lista : []).map((x) => ({
+    nome: txt(x && x.nome), cpf: txt(x && x.cpf),
+    percentual: Math.round((parseFloat(String((x && x.percentual) ?? "").replace(",", ".")) || 0) * 100) / 100,
+    entrada: iso(x && x.entrada) ? x.entrada : "", saida: iso(x && x.saida) ? x.saida : ""
+  })).filter((x) => x.nome);
+  out.forEach((x) => { if (x.percentual < 0 || x.percentual > 100) throw new Error("Participação de " + x.nome + " fora de 0 a 100%."); });
+  const soma = out.reduce((t, x) => t + x.percentual, 0);
+  if (soma > 100.01) throw new Error("A soma das participações dá " + soma.toLocaleString("pt-BR") + "% (passa de 100%).");
+  return out;
+}
 
 /** Certidões ou alvarás, pelo tipo do documento. */
 export function grupoDoTipo(tipo) { return /^alvar/i.test(txt(tipo)) ? "alvaras" : "certidoes"; }
@@ -128,7 +153,20 @@ const CAB = {
   vencimento: ["vencimento", "validade", "data de vencimento", "vence em", "valido ate"],
   responsavel: ["responsavel"],
   regime: ["regime", "regime tributario", "tributacao", "enquadramento"],
-  codigo: ["cod", "codigo", "cod empresa", "codigo da empresa"]
+  codigo: ["cod", "codigo", "cod empresa", "codigo da empresa"],
+  // colunas do cadastro do sistema antigo do Depto. Contábil (as de senha são ignoradas de propósito)
+  segmento: ["segmento", "ramo", "atividade"],
+  contato: ["contato"],
+  obs: ["obs", "observacao", "observacoes"],
+  socios: ["socios_json", "socios"],
+  tipoLucroReal: ["tipolucroreal", "tipo lucro real", "tipo do lucro real"],
+  entrada: ["entrada", "cliente desde"],
+  saida: ["saida", "saiu em"],
+  baixa: ["databaixa", "data de baixa", "data da baixa", "baixa"],
+  respContabil: ["deptocontabil", "responsavel contabil", "contabil"],
+  respFiscal: ["deptofiscal", "responsavel fiscal", "fiscal"],
+  respDp: ["deptopessoal", "responsavel pessoal", "responsavel dp", "dp", "departamento pessoal"],
+  respHist: ["responsavelhist"]
 };
 const MES_CAB = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const normCab = (v) => semAcento(v).toLowerCase().replace(/[.:]/g, "").replace(/\s+/g, " ").trim();
@@ -156,8 +194,10 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
     if (!k) return;
     if (!vistas[k]) { vistas[k] = { nome: txt(nome), documento: txt(documento), regime: "", codigo: "" }; plano.empresas.push(vistas[k]); }
     else if (!vistas[k].documento && txt(documento)) vistas[k].documento = txt(documento);
-    if (extra) ["regime", "codigo"].forEach((c) => { if (!vistas[k][c] && extra[c]) vistas[k][c] = extra[c]; });
+    if (extra) Object.keys(extra).forEach((c) => { const v = extra[c]; if ((v && !Array.isArray(v) || Array.isArray(v) && v.length) && !(vistas[k][c] && (!Array.isArray(vistas[k][c]) || vistas[k][c].length))) vistas[k][c] = v; });
   };
+  const mesDe = (v) => { const t = txt(v); const m = /^(\d{1,2})\/(\d{4})$/.exec(t); if (m) return m[2] + "-" + m[1].padStart(2, "0"); const d = toIsoDate(v); return d ? d.slice(0, 7) : ""; };
+  const json = (v) => { try { const a = JSON.parse(txt(v) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
   abas.forEach((a) => {
     const rows = a.rows || [];
     let h = rows.findIndex((r, i) => i < 10 && r && r.filter((c) => txt(c)).length >= 2);
@@ -194,9 +234,25 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
       });
     } else {
       tipo = "empresas";
-      rows.slice(h + 1).forEach((r) => {
+      rows.slice(h + 1).forEach((r, i) => {
         if (!r || !txt(get(r, "empresa"))) return;
-        empresa(get(r, "empresa"), get(r, "documento"), { regime: regimePeloTexto(get(r, "regime")), codigo: txt(get(r, "codigo")) });
+        let socios = [];
+        try {
+          socios = limparSocios(json(get(r, "socios")).map((x) => ({ nome: x.nome, cpf: x.cpf, percentual: x.percentual,
+            entrada: toIsoDate(x.dataEntrada || x.entrada) || "", saida: toIsoDate(x.dataSaida || x.saida) || "" })));
+        } catch (e) { plano.avisos.push("Aba \"" + a.nome + "\", linha " + (h + i + 2) + ": sócios não importados (" + e.message + ")"); }
+        const tlr = txt(get(r, "tipoLucroReal"));
+        const resp = {};
+        [["contabil", "respContabil"], ["fiscal", "respFiscal"], ["dp", "respDp"]].forEach(([s, c]) => { const v = nomeDoEmail(get(r, c)); if (v) resp[s] = v; });
+        // no sistema antigo a coluna "Responsavel" é o responsável contábil
+        if (!resp.contabil && col.responsavel !== undefined && nomeDoEmail(get(r, "responsavel"))) resp.contabil = nomeDoEmail(get(r, "responsavel"));
+        const hist = json(get(r, "respHist")).map((x) => ({ desde: mesDe(x.inicio), nome: nomeDoEmail(x.email || x.nome) })).filter((x) => x.nome);
+        empresa(get(r, "empresa"), get(r, "documento"), {
+          regime: regimePeloTexto(get(r, "regime")), codigo: txt(get(r, "codigo")), segmento: txt(get(r, "segmento")), contato: txt(get(r, "contato")),
+          obs: txt(get(r, "obs")), socios, tipoLucroReal: TIPOS_LUCRO_REAL.find((x) => chaveNome(x) === chaveNome(tlr)) || "",
+          inicio: mesDe(get(r, "entrada")), saida: mesDe(get(r, "saida")), baixa: toIsoDate(get(r, "baixa")) || "",
+          responsaveis: Object.keys(resp).length ? resp : null, histContabil: hist.length ? hist : null
+        });
         n++;
       });
     }
@@ -236,15 +292,27 @@ export function criarDepCadastro(deps) {
     const lista = docs().clientes.slice().sort((a, b) => txt(a.nome).localeCompare(txt(b.nome), "pt-BR"));
     const matrizes = {};
     lista.forEach((c) => { const r = raizCnpj(c.documento); if (r && !ehFilial(c.documento)) matrizes[r] = c.id; });
-    return lista.map((c) => Object.assign({}, c, { regime: regimePeloTexto(c.regime) || txt(c.regime), filial: ehFilial(c.documento), matrizId: ehFilial(c.documento) ? matrizes[raizCnpj(c.documento)] || "" : "" }));
+    const porId = {};
+    lista.forEach((c) => { porId[c.id] = c; });
+    return lista.map((c) => {
+      const matrizId = ehFilial(c.documento) ? matrizes[raizCnpj(c.documento)] || "" : "";
+      // filial com a matriz cadastrada usa os sócios da matriz (como no sistema antigo)
+      const socios = matrizId ? (porId[matrizId].socios || []) : (c.socios || []);
+      return Object.assign({}, c, { regime: regimePeloTexto(c.regime) || txt(c.regime), filial: ehFilial(c.documento), matrizId, socios, sociosDaMatriz: !!matrizId });
+    });
   }
   const MES = /^\d{4}-\d{2}$/;
   /** Cadastro geral: nome, CNPJ/CPF, código, regime, cliente desde (inicio) e até (saida), em AAAA-MM. */
   function salvarEmpresa(dadosEmp, id) {
     const nome = txt(dadosEmp.nome);
     if (!nome) throw new Error("Preencha o nome da empresa.");
-    const campos = { nome, documento: txt(dadosEmp.documento), codigo: txt(dadosEmp.codigo), regime: txt(dadosEmp.regime), inicio: txt(dadosEmp.inicio), saida: txt(dadosEmp.saida) };
+    const campos = { nome, documento: txt(dadosEmp.documento), codigo: txt(dadosEmp.codigo), regime: txt(dadosEmp.regime), inicio: txt(dadosEmp.inicio), saida: txt(dadosEmp.saida),
+      tipoLucroReal: txt(dadosEmp.regime) === "Lucro Real" ? txt(dadosEmp.tipoLucroReal) : "", baixa: txt(dadosEmp.baixa),
+      segmento: txt(dadosEmp.segmento), contato: txt(dadosEmp.contato), telefone: txt(dadosEmp.telefone), email: txt(dadosEmp.email), obs: txt(dadosEmp.obs) };
     if (campos.regime && !REGIMES.includes(campos.regime)) throw new Error("Regime inválido.");
+    if (campos.tipoLucroReal && !TIPOS_LUCRO_REAL.includes(campos.tipoLucroReal)) throw new Error("Tipo do Lucro Real inválido.");
+    if (campos.baixa && !iso(campos.baixa)) throw new Error("Data de baixa inválida.");
+    if (dadosEmp.socios !== undefined) campos.socios = limparSocios(dadosEmp.socios);
     if ((campos.inicio && !MES.test(campos.inicio)) || (campos.saida && !MES.test(campos.saida))) throw new Error("Use mês e ano (AAAA-MM).");
     if (campos.inicio && campos.saida && campos.saida < campos.inicio) throw new Error("A saída precisa ser depois do início.");
     const e = docs();
@@ -399,8 +467,16 @@ export function criarDepCadastro(deps) {
     e.clientes.forEach((c) => { porNome[chaveNome(c.nome)] = c; });
     plano.empresas.forEach((p) => {
       const k = chaveNome(p.nome);
-      if (porNome[k]) { ["documento", "regime", "codigo"].forEach((x) => { if (!porNome[k][x] && p[x]) porNome[k][x] = p[x]; }); return; }
-      const c = { id: novoId("cli-"), nome: p.nome, documento: p.documento || "", codigo: p.codigo || "", regime: p.regime || "", contato: "", email: "", telefone: "" };
+      const extras = ["documento", "regime", "codigo", "segmento", "contato", "obs", "tipoLucroReal", "inicio", "saida", "baixa"];
+      if (porNome[k]) {
+        extras.forEach((x) => { if (!porNome[k][x] && p[x]) porNome[k][x] = p[x]; });
+        if ((!porNome[k].socios || !porNome[k].socios.length) && p.socios && p.socios.length) porNome[k].socios = p.socios;
+        return;
+      }
+      const c = { id: novoId("cli-"), nome: p.nome, contato: "", email: "", telefone: "" };
+      extras.forEach((x) => { c[x] = p[x] || ""; });
+      c.documento = c.documento || "";
+      if (p.socios && p.socios.length) c.socios = p.socios;
       e.clientes.push(c); porNome[k] = c; novasEmp++;
     });
     plano.documentos.forEach((d) => {
@@ -420,7 +496,10 @@ export function criarDepCadastro(deps) {
       });
       gravar(CHAVE, d);
     }
-    return { novasEmp, novosDocs, repetidos, faturamentos: plano.faturamentos.length };
+    // ids das empresas do plano, para quem chama gravar os responsáveis no Em Dia
+    const ids = {};
+    plano.empresas.forEach((p) => { const c = porNome[chaveNome(p.nome)]; if (c) ids[chaveNome(p.nome)] = c.id; });
+    return { novasEmp, novosDocs, repetidos, faturamentos: plano.faturamentos.length, ids };
   }
 
   /** Documento novo a partir de um PDF lido (lerCertidao). Cria a empresa se o CNPJ não estiver cadastrado e vier o nome. */
@@ -438,7 +517,9 @@ export function criarDepCadastro(deps) {
       // a demonstração ganha CNPJ, regime e código fictícios, e uma filial da primeira empresa
       const ex = Object.assign({}, exemploDocs, { clientes: (exemploDocs.clientes || []).map((c, i) => Object.assign({}, c, {
         documento: c.documento || (String(i + 1).repeat(2) + "." + String(i + 1).repeat(3) + "." + String(i + 1).repeat(3) + "/0001-" + String(i + 1).repeat(2)),
-        regime: c.regime || REGIMES[i % 3], codigo: c.codigo || String(101 + i) })) });
+        regime: c.regime || REGIMES[i % 3], codigo: c.codigo || String(101 + i), tipoLucroReal: REGIMES[i % 3] === "Lucro Real" ? "Trimestral" : "",
+        socios: c.socios || [{ nome: "Sócio " + String.fromCharCode(65 + i) + " (exemplo)", cpf: "", percentual: 60, entrada: "", saida: "" },
+          { nome: "Sócia " + String.fromCharCode(66 + i) + " (exemplo)", cpf: "", percentual: 40, entrada: "", saida: "" }] })) });
       if (ex.clientes.length) {
         const m = ex.clientes[0];
         ex.clientes = ex.clientes.concat({ id: "ex-filial", nome: m.nome + " (filial)", documento: m.documento.replace("/0001-", "/0002-"), regime: m.regime, codigo: "", contato: "", email: "", telefone: "" });

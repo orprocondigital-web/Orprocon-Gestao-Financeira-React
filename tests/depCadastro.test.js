@@ -146,7 +146,8 @@ describe("importar planilha", () => {
     assert.deepEqual(p.faturamentos.map((f) => [f.ano, f.mes, f.valor]), [["2025", "01", 1000], ["2025", "02", 2500.5], ["2025", "04", 10], ["2025", "05", 20], ["2025", "06", 30]]);
     const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
     const r = svc.aplicarPlanilha(p);
-    assert.deepEqual(r, { novasEmp: 2, novosDocs: 2, repetidos: 0, faturamentos: 5 });
+    assert.deepEqual([r.novasEmp, r.novosDocs, r.repetidos, r.faturamentos], [2, 2, 0, 5]);
+    assert.equal(r.ids["empresa exemplo ltda"], "c1");
     assert.equal(svc.aplicarPlanilha(p).repetidos, 2, "importar de novo não duplica");
     assert.equal(svc.empresas().length, 3);
     assert.equal(svc.documentos("alvaras").length, 2);
@@ -182,7 +183,10 @@ describe("cadastro geral de empresas", () => {
     assert.ok(!D.ativaNoMes({ inicio: "2026-03" }, "2026-02"));
     assert.ok(!D.ativaNoMes({ saida: "2026-09" }, "2026-10"));
     assert.deepEqual(["SN", "L. Presumido", "lucro real", "MEI", "Isenta", "xyz"].map(D.regimePeloTexto),
-      ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI", "Imune / Isenta", ""]);
+      ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI", "Isenta", ""]);
+    assert.deepEqual(["IM", "IS", "Imune"].map(D.regimePeloTexto), ["Imune", "Isenta", "Imune"]);
+    assert.equal(D.nomeDoEmail("ana.paula_souza@exemplo.com"), "Ana Paula Souza");
+    assert.equal(D.nomeDoEmail("Bruno"), "Bruno");
   });
   test("planilha de empresas traz código e regime", () => {
     const { svc } = amb();
@@ -190,6 +194,43 @@ describe("cadastro geral de empresas", () => {
     assert.deepEqual(p.empresas, [{ nome: "Ômega Ltda", documento: "55.555.555/0001-55", regime: "Simples Nacional", codigo: "12" }]);
     svc.aplicarPlanilha(p);
     assert.equal(svc.empresas()[0].codigo, "12");
+  });
+});
+
+describe("sócios, Lucro Real, baixa e cadastro do sistema antigo", () => {
+  test("sócios validados; filial usa os da matriz; baixa encerra o período", () => {
+    const { svc } = amb();
+    assert.throws(() => svc.salvarEmpresa({ nome: "X", socios: [{ nome: "A", percentual: 70 }, { nome: "B", percentual: 40 }] }), /110%/);
+    assert.throws(() => svc.salvarEmpresa({ nome: "X", regime: "Lucro Real", tipoLucroReal: "Mensal" }), /Lucro Real/);
+    const m = svc.salvarEmpresa({ nome: "Matriz", documento: "33.333.333/0001-33", regime: "Lucro Real", tipoLucroReal: "Trimestral",
+      socios: [{ nome: " Sócio A ", percentual: "60,5" }, { nome: "", percentual: 10 }, { nome: "Sócia B", percentual: 39.5, entrada: "2020-01-01" }] });
+    assert.deepEqual(m.socios.map((x) => [x.nome, x.percentual]), [["Sócio A", 60.5], ["Sócia B", 39.5]]);
+    assert.equal(svc.salvarEmpresa({ nome: "Outra", regime: "Simples Nacional", tipoLucroReal: "Anual" }).tipoLucroReal, "", "tipo do LR só para Lucro Real");
+    svc.salvarEmpresa({ nome: "Filial", documento: "33.333.333/0002-14" });
+    const f = svc.empresas().find((c) => c.nome === "Filial");
+    assert.ok(f.sociosDaMatriz); assert.equal(f.socios.length, 2);
+    assert.throws(() => svc.salvarEmpresa({ nome: "Y", baixa: "31/08/2026" }), /baixa/);
+    assert.ok(D.ativaNoMes({ baixa: "2026-08-31" }, "2026-08"));
+    assert.ok(!D.ativaNoMes({ baixa: "2026-08-31" }, "2026-09"));
+  });
+  test("lê o cadastro exportado do sistema antigo, sem as senhas", () => {
+    const toIso = (v) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(v || "")); return m ? m[3] + "-" + m[2] + "-" + m[1] : ""; };
+    const cab = ["ID", "Nome", "CNPJ", "Regime", "Segmento", "Contato", "FormaRecebimento", "Obs", "Responsavel", "Socios_JSON", "DeptoContabil", "DeptoFiscal",
+      "DeptoPessoal", "CertValidade", "CertSenha", "Tipo", "MatrizId", "DataBaixa", "LucroBruto", "TipoLucroReal", "Incorporadora", "ResponsavelHist", "Entrada", "Saida", "SenhaNFSe"];
+    const linha = ["EMP1", "Alfa Exemplo Ltda", "11.111.111/0001-11", "LR", "Comércio", "Contato Exemplo", "Boleto", "obs", "ana.exemplo@exemplo.com",
+      JSON.stringify([{ nome: "Sócio Um", percentual: 70, dataEntrada: "01/01/2020" }, { nome: "Sócio Dois", percentual: 30 }]), "", "bruno@exemplo.com", "",
+      "", "senha-que-nao-pode-vir", "Matriz", "", "", "8", "Trimestral", false,
+      JSON.stringify([{ email: "carla@exemplo.com", inicio: "01/2026" }, { email: "ana.exemplo@exemplo.com", inicio: "06/2026" }]), "03/2024", "", "outra-senha"];
+    const p = D.lerPlanilhaCadastro([{ nome: "Empresas", rows: [cab, linha] }], toIso, 2026);
+    const e = p.empresas[0];
+    assert.deepEqual([e.regime, e.tipoLucroReal, e.segmento, e.inicio, e.socios.length], ["Lucro Real", "Trimestral", "Comércio", "2024-03", 2]);
+    assert.deepEqual(e.responsaveis, { contabil: "Ana Exemplo", fiscal: "Bruno" });
+    assert.deepEqual(e.histContabil, [{ desde: "2026-01", nome: "Carla" }, { desde: "2026-06", nome: "Ana Exemplo" }]);
+    assert.ok(!JSON.stringify(p).includes("senha"), "nenhuma senha entra no plano");
+    const { svc } = amb();
+    svc.aplicarPlanilha(p);
+    const c = svc.empresas()[0];
+    assert.deepEqual([c.regime, c.tipoLucroReal, c.socios[0].entrada], ["Lucro Real", "Trimestral", "2020-01-01"]);
   });
 });
 
