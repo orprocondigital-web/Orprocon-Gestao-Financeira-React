@@ -7,7 +7,7 @@ export function useTema() {
     document.documentElement.setAttribute("data-theme", tema);
     try { localStorage.setItem("tema", tema); } catch (e) { /* sem armazenamento: só nesta aba */ }
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", tema === "dark" ? "#14120F" : "#49433A");
+    if (meta) meta.setAttribute("content", tema === "dark" ? "#11141A" : "#1B273D");
     window.dispatchEvent(new CustomEvent("gf:tema", { detail: tema }));
   }, [tema]);
   return [tema, () => setTema((t) => (t === "dark" ? "light" : "dark"))];
