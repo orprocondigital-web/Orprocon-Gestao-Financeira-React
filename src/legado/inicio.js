@@ -432,7 +432,8 @@
     certidao: '<path d="M7 3h7l5 5v13H7zM14 3v5h5M9.5 14.5l2 2 3.5-4"/>',
     alvara: '<path d="M5 4h14v16H5zM9 9h6M9 13h6M12 17h3"/>',
     faturamento: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
-    demonstrativo: '<path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h3"/>'
+    demonstrativo: '<path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h3"/>',
+    lucros: '<path d="M12 3c3.9 0 7 1.3 7 3s-3.1 3-7 3-7-1.3-7-3 3.1-3 7-3zM5 6v4c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 10v4c0 1.7 3.1 3 7 3s7-1.3 7-3v-4M5 14v4c0 1.7 3.1 3 7 3s7-1.3 7-3v-4"/>'
   };
 
   /** As ferramentas, por setor, com o que cada uma faz (o texto da capa). */
@@ -441,7 +442,9 @@
       { tab: "master", area: "integracao", icone: "master", nome: "Integração contábil", resumo: "Os lançamentos do mês classificados e prontos para o SCI Único.",
         itens: ["Importa a planilha do mês e os extratos (PDF, OFX, TXT, CSV)", "Classifica por categoria, unidade e natureza, com sugestões", "Distribui por unidade e gera os TXTs do Único"] },
       { tab: "conciliacao", area: "conciliacao", icone: "conciliacao", nome: "Conciliação", resumo: "Confere o extrato do banco com o que foi lançado.",
-        itens: ["Cruza cada movimento por valor, sinal e data", "Extrato × planilha de clientes e fornecedores ou XML de NF-e", "Concilia à mão, marca conferido e exporta o resultado"] }
+        itens: ["Cruza cada movimento por valor, sinal e data", "Extrato × planilha de clientes e fornecedores ou XML de NF-e", "Concilia à mão, marca conferido e exporta o resultado"] },
+      { tab: "lucros", area: "contabil-lucros", icone: "lucros", nome: "Distribuição de lucros e REINF", resumo: "O que cada sócio recebeu, o IRRF e a REINF do mês.",
+        itens: ["Calcula base e IRRF de 10% e avisa quando o mês passa de R$ 50 mil", "Saldo de lucros aprovados em ata, sem IRRF", "REINF por competência: notas, distribuído e confirmação"] }
     ] },
     { id: "fiscal", nome: "Fiscal", texto: "Prévia da apuração e conferência das notas antes do fechamento.", ferramentas: [
       { tab: "mod-icms", area: "mod-icms", icone: "icms", nome: "Apuração de ICMS", resumo: "Acompanha o ICMS do cliente durante o mês.",
