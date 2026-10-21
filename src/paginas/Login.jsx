@@ -5,14 +5,12 @@ import { useAuth } from "../lib/auth.jsx";
 import { lerLocal, gravarLocal } from "../lib/tema.js";
 
 const RECURSOS = [
-  "Início com as ferramentas de cada setor e o resumo do dia",
-  "Integração contábil com o SCI Único",
-  "Extratos bancários e conciliação",
-  "Apuração de ICMS e auditor IBS/CBS",
-  "ISS de Tubarão (Meu ISS) e retenções",
-  "Painel de vencimentos dos clientes",
-  "Controle de horas do Departamento Pessoal",
-  "Em Dia: fechamento do mês e diário dos setores"
+  "Integração contábil com o SCI Único e conciliação bancária",
+  "Distribuição de lucros, IRRF e REINF",
+  "Departamento Cadastro: empresas, certidões, alvarás e faturamento",
+  "Em Dia: o que cada setor fez no mês",
+  "Apuração de ICMS, auditor IBS/CBS e ISS de Tubarão",
+  "Controle de horas do Departamento Pessoal"
 ];
 
 function CampoSenha({ id, value, onChange, autoComplete }) {
@@ -108,35 +106,38 @@ export default function Login() {
   const servidor = auth && auth.modo === "api";
 
   return (
-    <main className="min-h-full grid lg:grid-cols-[minmax(0,1fr)_520px] bg-canvas">
-      <section className="hidden lg:flex flex-col justify-center gap-8 px-16 bg-surface border-r border-line" aria-hidden="true">
-        <Logo className="w-72 max-w-full" />
+    <main className="min-h-full grid lg:grid-cols-[minmax(0,1fr)_minmax(440px,46%)] bg-canvas">
+      {/* lado da marca: bloco centralizado na coluna, nos dois sentidos */}
+      <section className="hidden lg:flex items-center justify-center px-10 xl:px-16 py-12 bg-surface border-r border-line" aria-hidden="true">
+        <div className="w-full max-w-[420px] space-y-8">
+        <Logo className="w-60 max-w-full" />
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Gestão Financeira</h2>
-          <ul className="mt-5 space-y-3">
+          <ul className="mt-5 space-y-2.5">
             {RECURSOS.map((r) => (
-              <li key={r} className="flex gap-3 text-[15px] text-ink-2">
-                <span className="mt-2 h-1.5 w-1.5 rounded-full bg-brand-fill shrink-0" />{r}
+              <li key={r} className="flex gap-3 text-[14.5px] leading-snug text-ink-2">
+                <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-brand-fill shrink-0" />{r}
               </li>
             ))}
           </ul>
         </div>
+        </div>
       </section>
 
-      <section className="flex flex-col justify-center px-6 py-10 sm:px-12">
-        <div className="w-full max-w-[400px] mx-auto">
+      <section className="flex flex-col items-center justify-center px-6 py-10 sm:px-12">
+        <div className="w-full max-w-[400px]">
           <div className="mb-8 lg:hidden"><Logo className="w-52" /></div>
           {(carregando || tela === "carregando") && !erroGeral && <p className="text-muted">Carregando…</p>}
           {erroGeral && <p className="text-debit font-medium" role="alert">{erroGeral}</p>}
           {aviso && <p className="mb-4 rounded-lg bg-ok-soft text-credit px-3 py-2 text-[13px]" role="status">{aviso}</p>}
 
           {tela === "entrar" && modoTeste && (
-            <div className="mb-6">
+            <div className="mb-5">
               <span className="inline-block rounded-full bg-brand-soft text-brand text-xs font-bold uppercase tracking-wide px-2.5 py-1">Modo de teste</span>
               <h1 className="mt-3 text-[26px] font-semibold tracking-tight">Conheça o sistema</h1>
               <p className="mt-1 text-muted">Entre sem senha para testar. O que você fizer fica só neste computador.</p>
               <button type="button" id="btn-entrar-teste" onClick={entrarTeste} disabled={ocupado} className="btn-contorno w-full h-11 mt-4 border-brand-fill text-brand">Entrar no modo de teste</button>
-              <div className="flex items-center gap-3 mt-6 text-[13px] text-muted"><span className="h-px flex-1 bg-line" />ou entre com o seu usuário<span className="h-px flex-1 bg-line" /></div>
+              <div className="flex items-center gap-3 mt-5 text-[13px] text-muted"><span className="h-px flex-1 bg-line" />ou entre com o seu usuário<span className="h-px flex-1 bg-line" /></div>
             </div>
           )}
 
