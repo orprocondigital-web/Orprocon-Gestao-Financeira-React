@@ -139,7 +139,7 @@ function Planilha() {
   const modelo = async () => {
     const XLSX = await carregarXlsx();
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Empresa", "CNPJ"], ["Empresa Exemplo Ltda", "00.000.000/0001-00"]]), "Empresas");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Cód.", "Empresa", "CNPJ", "Regime"], ["1", "Empresa Exemplo Ltda", "00.000.000/0001-00", "Simples Nacional"]]), "Empresas");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Empresa", "CNPJ", "Tipo", "Número", "Emissão", "Vencimento", "Responsável"],
       ["Empresa Exemplo Ltda", "00.000.000/0001-00", "CND Federal", "", "15/09/2026", "14/03/2027", ""], ["Empresa Exemplo Ltda", "", "Alvará de funcionamento", "", "", "31/12/2026", ""]]), "Certidões e alvarás");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Empresa"].concat(MESES), ["Empresa Exemplo Ltda", 10000, 12000]]), "Faturamento " + ano);

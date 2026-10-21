@@ -59,6 +59,55 @@ describe("grade", () => {
   });
 });
 
+describe("regras das obrigações e visão anual", () => {
+  test("regime, frequência e início de cada obrigação; empresa fora do período sai da grade", () => {
+    const { svc, ls } = amb();
+    const cad = JSON.parse(ls["painelVencimentos:v1"]);
+    cad.clientes[0].regime = "Simples Nacional"; cad.clientes[1].regime = "Lucro Real";
+    cad.clientes.push({ id: "c3", nome: "Zeta Nova", documento: "", regime: "Lucro Real", inicio: "2026-10" });
+    ls["painelVencimentos:v1"] = JSON.stringify(cad);
+    svc.salvarObrigacoes("fiscal", [{ nome: "Apuração" }, { nome: "ECF", regimes: ["Lucro Real", "Lucro Presumido"], freq: "anual", mesAnual: "07" },
+      { nome: "REINF", inicio: "2026-08", freq: "trimestral" }]);
+    const s = svc.setores().find((x) => x.id === "fiscal");
+    assert.deepEqual(Object.keys(s.regras), ["ECF", "REINF"], "Apuração (todo mês, todos) não guarda regra");
+    assert.equal(E.textoRegra(s.regras.ECF), "anual (mês 07) · Lucro Real, Lucro Presumido");
+    const jul = svc.grade("2026-07", "fiscal");
+    assert.deepEqual(jul.linhas.map((l) => l.celulas.filter((c) => c.vale).map((c) => c.obrigacao)), [["Apuração"], ["Apuração", "ECF"]]);
+    assert.equal(jul.total, 3);
+    const set = svc.grade("2026-09", "fiscal");
+    assert.deepEqual(set.linhas[0].celulas.filter((c) => c.vale).map((c) => c.obrigacao), ["Apuração", "REINF"]);
+    assert.equal(set.linhas.length, 2, "Zeta só entra a partir de outubro");
+    assert.equal(svc.grade("2026-10", "fiscal").linhas.length, 3);
+    assert.equal(svc.grade("2026-09", "fiscal", { regime: "Lucro Real" }).linhas.length, 1);
+    assert.throws(() => svc.salvarObrigacoes("fiscal", [{ nome: "X", inicio: "08/2026" }]), /AAAA-MM/);
+    svc.salvarObrigacoes("fiscal", ["Apuração", "ECF", "REINF", "DIRF"]);
+    assert.deepEqual(Object.keys(svc.setores().find((x) => x.id === "fiscal").regras), ["ECF", "REINF"], "salvar só os nomes mantém as regras");
+    assert.ok(E.obrigacaoVale({ freq: "trimestral" }, {}, "2026-12"));
+    assert.ok(!E.obrigacaoVale({ freq: "trimestral" }, {}, "2026-11"));
+  });
+  test("ano: empresa por linha com JAN a DEZ e a equipe mês a mês", () => {
+    const { svc } = amb();
+    svc.definirResponsavel("dp", "c1", "Ana"); svc.definirResponsavel("dp", "c2", "Bruno");
+    ["Folha", "FGTS", "DCTFWeb"].forEach((o) => svc.definirStatus("2026-01", "dp", "c1", o, "feito"));
+    svc.definirStatus("2026-02", "dp", "c2", "Folha", "feito");
+    const a = svc.anual("2026", "dp");
+    assert.equal(a.meses.length, 12);
+    const alfa = a.linhas.find((l) => l.empresa.id === "c1");
+    assert.equal(alfa.meses[0].pct, 100); assert.equal(alfa.meses[1].pct, 0);
+    assert.equal(alfa.feitas, 3); assert.equal(alfa.total, 27, "o ano conta até setembro, o mês de trabalho");
+    assert.deepEqual(a.equipe.map((p) => [p.pessoa, p.meses[0].pct, p.meses[1].pct]), [["Ana", 100, 0], ["Bruno", 0, 33]]);
+    assert.equal(a.totais[0].pct, 50);
+    assert.equal(svc.anual("2026", "dp", { pessoa: "Bruno" }).linhas.length, 1);
+  });
+  test("demonstração preenche os meses do ano até o de trabalho", () => {
+    const { svc } = amb();
+    svc.carregarDemonstracao();
+    const a = svc.anual("2026", "dp");
+    assert.ok(a.totais[0].pct > a.totais[8].pct, "janeiro mais adiantado que setembro");
+    assert.equal(a.totais[10].pct, 0, "novembro ainda não começou");
+  });
+});
+
 describe("passagem de bastão e diário", () => {
   test("passa só as empresas com pendência, devolve e desfaz", () => {
     const { svc } = amb();

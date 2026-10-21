@@ -5,6 +5,7 @@ import { DEMONSTRATIVOS, MESES, STATUS_DEMO, TIPOS_ALVARAS, TIPOS_CERTIDOES, ler
 import { abrirArquivo, apagarArquivo, guardarArquivo } from "../lib/arquivos.js";
 import { textoDoPdf } from "../lib/leitores.js";
 import Importar, { carregarDemo } from "../componentes/depCadastro/Importar.jsx";
+import Empresas from "../componentes/depCadastro/Empresas.jsx";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import Janela from "../componentes/Janela.jsx";
@@ -30,46 +31,6 @@ function Vazio({ titulo, texto }) {
         <Link to="/departamento-cadastro/importar" className="btn-contorno btn-sm">Importar PDF ou planilha</Link>
       </div>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------- empresas
-function JanelaEmpresas({ aoFechar }) {
-  const [svc] = useDepCadastro();
-  const { aviso, confirmar } = useAvisos();
-  const [ed, setEd] = useState(null);   // {id?, nome, documento}
-  const [erro, setErro] = useState("");
-  const lista = svc.empresas();
-  const salvar = (ev) => {
-    ev.preventDefault();
-    try { svc.salvarEmpresa(ed, ed.id); aviso(ed.id ? "Empresa atualizada." : "Empresa cadastrada."); setEd(null); setErro(""); } catch (e) { setErro(e.message); }
-  };
-  const excluir = async (c) => {
-    if (!(await confirmar({ titulo: "Excluir " + c.nome + "?", perigo: true, botao: "Excluir", texto: "Os faturamentos e demonstrativos dela também saem." }))) return;
-    try { svc.excluirEmpresa(c.id); aviso("Empresa excluída."); } catch (e) { setErro(e.message); }
-  };
-  return (
-    <Janela aberta titulo="Empresas" aoFechar={aoFechar} largura="max-w-[560px]"
-      rodape={<button type="button" className="btn-fantasma" onClick={aoFechar}>Fechar</button>}>
-      <form onSubmit={salvar} className="grid sm:grid-cols-[minmax(0,1fr)_170px_auto] gap-2 items-end">
-        <Campo rotulo={ed && ed.id ? "Editando" : "Nova empresa"} id="emp-nome">
-          <input id="emp-nome" value={ed ? ed.nome : ""} onChange={(e) => setEd(Object.assign({}, ed || {}, { nome: e.target.value }))} placeholder="Razão social" data-foco autoComplete="off" /></Campo>
-        <Campo rotulo="CNPJ/CPF" id="emp-doc"><input id="emp-doc" value={ed ? ed.documento || "" : ""} onChange={(e) => setEd(Object.assign({}, ed || {}, { documento: e.target.value }))} autoComplete="off" /></Campo>
-        <div className="flex gap-1"><button type="submit" className="btn-primario h-10">{ed && ed.id ? "Salvar" : "Adicionar"}</button>
-          {ed && ed.id && <button type="button" className="btn-fantasma h-10" onClick={() => setEd(null)}>Cancelar</button>}</div>
-      </form>
-      {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
-      <ul className="divide-y divide-line border border-line rounded-lg max-h-[320px] overflow-y-auto">
-        {!lista.length && <li className="px-3 py-4 text-center text-muted text-[13.5px]">Nenhuma empresa ainda.</li>}
-        {lista.map((c) => (
-          <li key={c.id} className="flex items-center gap-2 px-3 py-2 text-[13.5px]">
-            <span className="flex-1 min-w-0"><strong className="block truncate font-medium">{c.nome}</strong>{c.documento && <span className="text-[12px] text-muted">{c.documento}</span>}</span>
-            <button type="button" className="btn-fantasma btn-sm" onClick={() => { setEd({ id: c.id, nome: c.nome, documento: c.documento }); setErro(""); }}>Editar</button>
-            <button type="button" className="btn-perigo btn-sm" onClick={() => excluir(c)}>Excluir</button>
-          </li>
-        ))}
-      </ul>
-    </Janela>
   );
 }
 
@@ -127,7 +88,7 @@ function FormDocumento({ grupo, editando, aoFechar }) {
         </div>
         <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
       </form>
-      {!empresas.length && <p className="text-[13px] text-warn">Cadastre a empresa primeiro (botão Empresas).</p>}
+      {!empresas.length && <p className="text-[13px] text-warn">Cadastre a empresa primeiro, em <Link to="/departamento-cadastro/empresas" className="underline">Empresas</Link>.</p>}
       {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
     </Janela>
   );
@@ -169,7 +130,6 @@ function Documentos({ grupo }) {
   const [busca, setBusca] = useState("");
   const [form, setForm] = useState(null);   // { editando }
   const [renovando, setRenovando] = useState(null);
-  const [empresas, setEmpresas] = useState(false);
   useEffect(() => { setFiltro("atencao"); setBusca(""); }, [grupo]);
   const nome = grupo === "alvaras" ? "alvará" : "certidão";
   const visiveis = lista.filter((d) => {
@@ -199,7 +159,7 @@ function Documentos({ grupo }) {
           opcoes={[["atencao", "Pedem atenção"], ["vencido", "Vencidos"], ["todos", "Todos (" + numero(r.total) + ")"]]} />
         <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar empresa, tipo, número…" aria-label="Buscar" className="max-w-[300px] h-9" />
         <div className="flex-1" />
-        <button type="button" className="btn-contorno btn-sm" onClick={() => setEmpresas(true)}>Empresas</button>
+        <Link to="/departamento-cadastro/empresas" className="btn-contorno btn-sm">Empresas</Link>
         <button type="button" className="btn-primario btn-sm" onClick={() => setForm({ editando: null })}><Icone nome="mais" />Nova {nome}</button>
       </div>
       <div className="cartao overflow-hidden">
@@ -237,7 +197,6 @@ function Documentos({ grupo }) {
       </div>
       {form && <FormDocumento grupo={grupo} editando={form.editando} aoFechar={() => setForm(null)} />}
       {renovando && <Renovar doc={renovando} aoFechar={() => setRenovando(null)} />}
-      {empresas && <JanelaEmpresas aoFechar={() => setEmpresas(false)} />}
     </div>
   );
 }
@@ -262,7 +221,6 @@ function Faturamentos() {
   const [svc, versao] = useDepCadastro();
   const atual = new Date().getFullYear();
   const [ano, setAno] = useState(String(atual));
-  const [empresas, setEmpresas] = useState(false);
   const lista = svc.empresas();
   const fat = useMemo(() => svc.faturamentos(ano), [svc, ano, versao]);   // eslint-disable-line
   const totMes = MESES.map((_, i) => lista.reduce((t, c) => t + (((fat[c.id] || {})[String(i + 1).padStart(2, "0")]) || 0), 0));
@@ -273,10 +231,10 @@ function Faturamentos() {
         <Segmentado pequeno rotulo="Ano" valor={ano} aoMudar={setAno} opcoes={anos.map((a) => [a, a])} />
         <p className="text-[13px] text-muted">Clique no mês e digite o valor faturado. Grava sozinho ao sair do campo.</p>
         <div className="flex-1" />
-        <button type="button" className="btn-contorno btn-sm" onClick={() => setEmpresas(true)}>Empresas</button>
+        <Link to="/departamento-cadastro/empresas" className="btn-contorno btn-sm">Empresas</Link>
       </div>
       <div className="cartao overflow-hidden">
-        {!lista.length ? <Vazio titulo="Nenhuma empresa cadastrada" texto="Cadastre as empresas (botão Empresas), importe uma planilha de faturamento ou carregue a demonstração." /> : (
+        {!lista.length ? <Vazio titulo="Nenhuma empresa cadastrada" texto="Cadastre as empresas (em Empresas), importe uma planilha de faturamento ou carregue a demonstração." /> : (
           <div className="overflow-x-auto relative">
             <table className="w-full text-[13px]">
               <thead className="bg-surface-2 text-[12px] uppercase tracking-wide text-muted">
@@ -306,7 +264,6 @@ function Faturamentos() {
           </div>
         )}
       </div>
-      {empresas && <JanelaEmpresas aoFechar={() => setEmpresas(false)} />}
     </div>
   );
 }
@@ -317,7 +274,6 @@ function Demonstrativos() {
   const [svc, versao] = useDepCadastro();
   const atual = new Date().getFullYear();
   const [ano, setAno] = useState(String(atual - 1));
-  const [empresas, setEmpresas] = useState(false);
   const lista = svc.empresas();
   const dem = useMemo(() => svc.demonstrativos(ano), [svc, ano, versao]);   // eslint-disable-line
   const p = useMemo(() => svc.progressoDemonstrativos(ano), [svc, ano, versao]);   // eslint-disable-line
@@ -328,10 +284,10 @@ function Demonstrativos() {
         <Segmentado pequeno rotulo="Exercício" valor={ano} aoMudar={setAno} opcoes={anos.map((a) => [a, a])} />
         {p.total > 0 && <span className="text-[13px] text-muted">Exercício {ano}: <strong className="text-credit">{p.entregues}</strong> entregues, <strong className="text-info">{p.emitidos}</strong> emitidos, <strong className="text-warn">{p.pendentes}</strong> pendentes</span>}
         <div className="flex-1" />
-        <button type="button" className="btn-contorno btn-sm" onClick={() => setEmpresas(true)}>Empresas</button>
+        <Link to="/departamento-cadastro/empresas" className="btn-contorno btn-sm">Empresas</Link>
       </div>
       <div className="cartao overflow-hidden">
-        {!lista.length ? <Vazio titulo="Nenhuma empresa cadastrada" texto="Cadastre as empresas (botão Empresas) ou carregue a demonstração para ver como fica." /> : (
+        {!lista.length ? <Vazio titulo="Nenhuma empresa cadastrada" texto="Cadastre as empresas (em Empresas) ou carregue a demonstração para ver como fica." /> : (
           <div className="overflow-x-auto relative">
             <table className="w-full text-[13.5px]">
               <thead className="bg-surface-2 text-left text-[12px] uppercase tracking-wide text-muted">
@@ -359,13 +315,13 @@ function Demonstrativos() {
           </div>
         )}
       </div>
-      {empresas && <JanelaEmpresas aoFechar={() => setEmpresas(false)} />}
     </div>
   );
 }
 
 export default function DepCadastro() {
   const { secao } = useParams();
+  if (secao === "empresas") return <Empresas />;
   if (secao === "certidoes") return <Documentos grupo="certidoes" />;
   if (secao === "alvaras") return <Documentos grupo="alvaras" />;
   if (secao === "faturamentos") return <Faturamentos />;

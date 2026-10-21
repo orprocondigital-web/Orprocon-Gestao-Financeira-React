@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Core, Importacao, Inicio } from "../lib/legado.js";
-import { STATUS, ehMesmaPessoa } from "../lib/emDia.mjs";
+import { FREQUENCIAS, ehMesmaPessoa, textoRegra } from "../lib/emDia.mjs";
+import { MESES, REGIMES } from "../lib/depCadastro.mjs";
+import { carregarXlsx } from "../lib/leitores.js";
 import { useEmDia } from "../lib/useEmDia.js";
 import { useAuth } from "../lib/auth.jsx";
 import { lerBuffer, lerPlanilha } from "../lib/leitores.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import Janela from "../componentes/Janela.jsx";
 import Icone from "../componentes/Icone.jsx";
-import { BotaoArquivo, Campo, Segmentado, dataBR, numero } from "../componentes/contabil/ui.jsx";
+import { BotaoArquivo, Campo, Segmentado, TextoRapido, dataBR, numero } from "../componentes/contabil/ui.jsx";
 
 /*
  * Em Dia (simples): o que cada um faz no mês. Uma grade por setor, com as empresas nas linhas e as
@@ -24,38 +26,54 @@ const memoria = { aba: "grade", setor: "", mes: "" };
 function mesTexto(m) { return Importacao.nomeCompetencia(m).replace(" de ", "/"); }
 function somarMes(m, n) { const [a, b] = m.split("-").map(Number); const d = new Date(a, b - 1 + n, 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
 
-// ---------------------------------------------------------------- campo que grava ao sair
-function TextoRapido({ valor, aoGravar, rotulo, lista, placeholder, className = "" }) {
-  const [v, setV] = useState(valor || "");
-  useEffect(() => { setV(valor || ""); }, [valor]);
-  return <input value={v} onChange={(e) => setV(e.target.value)} onBlur={() => { if (v.trim() !== (valor || "")) aoGravar(v); }}
-    onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} aria-label={rotulo} list={lista} placeholder={placeholder}
-    className={"h-8 px-2 text-[13px] border-transparent bg-transparent hover:border-line focus:bg-surface " + className} />;
-}
-
-// ---------------------------------------------------------------- colunas do setor
+// ---------------------------------------------------------------- colunas do setor (e a regra de cada uma)
 function JanelaColunas({ setor, aoFechar }) {
   const [svc] = useEmDia();
   const { aviso } = useAvisos();
-  const [lista, setLista] = useState(setor.obrigacoes.slice());
+  const [lista, setLista] = useState(() => setor.obrigacoes.map((o) => {
+    const r = setor.regras[o] || {};
+    return { nome: o, regimes: (r.regimes || []).slice(), inicio: r.inicio || "", freq: r.freq || "mensal", mesAnual: r.mesAnual || "12" };
+  }));
   const [erro, setErro] = useState("");
-  const salvar = () => { try { svc.salvarObrigacoes(setor.id, lista); aviso("Colunas de " + setor.nome + " atualizadas."); aoFechar(); } catch (e) { setErro(e.message); } };
+  const salvar = () => { try { svc.salvarObrigacoes(setor.id, lista); aviso("Obrigações de " + setor.nome + " atualizadas."); aoFechar(); } catch (e) { setErro(e.message); } };
   const mover = (i, d) => setLista((l) => { const n = l.slice(); const j = i + d; if (j < 0 || j >= n.length) return n; [n[i], n[j]] = [n[j], n[i]]; return n; });
+  const muda = (i, campo, v) => setLista((l) => l.map((x, k) => (k === i ? Object.assign({}, x, { [campo]: v }) : x)));
+  const alternarRegime = (i, reg) => setLista((l) => l.map((x, k) => (k !== i ? x : Object.assign({}, x, { regimes: x.regimes.includes(reg) ? x.regimes.filter((y) => y !== reg) : x.regimes.concat(reg) }))));
   return (
-    <Janela aberta titulo={"Obrigações de " + setor.nome} aoFechar={aoFechar}
+    <Janela aberta titulo={"Obrigações de " + setor.nome} aoFechar={aoFechar} largura="max-w-[700px]"
       rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button><button type="button" className="btn-primario" onClick={salvar}>Salvar</button></>}>
-      <p className="text-[13px] text-muted">Cada obrigação vira uma coluna da grade. Renomear uma coluna começa ela vazia.</p>
-      <ul className="space-y-1.5">
+      <p className="text-[13px] text-muted">Cada obrigação vira uma coluna da grade. Diga com que frequência ela aparece, para quais regimes vale e a partir de quando: onde não vale, a célula fica com um traço e não conta no andamento. Renomear uma coluna começa ela vazia.</p>
+      <ul className="space-y-2">
         {lista.map((o, i) => (
-          <li key={i} className="flex gap-1.5">
-            <input value={o} onChange={(e) => setLista((l) => l.map((x, k) => (k === i ? e.target.value : x)))} aria-label={"Obrigação " + (i + 1)} className="h-9" />
-            <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => mover(i, -1)} aria-label="Subir" title="Subir">↑</button>
-            <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => mover(i, 1)} aria-label="Descer" title="Descer">↓</button>
-            <button type="button" className="btn-perigo h-9 w-9 p-0" onClick={() => setLista((l) => l.filter((_, k) => k !== i))} aria-label="Tirar" title="Tirar"><Icone nome="fechar" /></button>
+          <li key={i} className="rounded-lg border border-line p-2.5 space-y-2">
+            <div className="flex gap-1.5">
+              <input value={o.nome} onChange={(e) => muda(i, "nome", e.target.value)} aria-label={"Obrigação " + (i + 1)} className="h-9 font-medium" />
+              <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => mover(i, -1)} aria-label="Subir" title="Subir">↑</button>
+              <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => mover(i, 1)} aria-label="Descer" title="Descer">↓</button>
+              <button type="button" className="btn-perigo h-9 w-9 p-0" onClick={() => setLista((l) => l.filter((_, k) => k !== i))} aria-label={"Tirar " + (o.nome || "obrigação")} title="Tirar"><Icone nome="fechar" /></button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+              <select value={o.freq} onChange={(e) => muda(i, "freq", e.target.value)} aria-label={"Frequência de " + o.nome} className="h-8 w-auto text-[12.5px]">
+                {FREQUENCIAS.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+              {o.freq === "anual" && <select value={o.mesAnual} onChange={(e) => muda(i, "mesAnual", e.target.value)} aria-label={"Mês de " + o.nome} className="h-8 w-auto text-[12.5px]">
+                {MESES.map((m, k) => <option key={m} value={String(k + 1).padStart(2, "0")}>em {m}</option>)}</select>}
+              {o.freq === "trimestral" && <span className="text-muted">mar, jun, set e dez</span>}
+              <label className="inline-flex items-center gap-1.5 ml-auto"><span className="text-muted">Desde</span>
+                <input type="month" value={o.inicio} onChange={(e) => muda(i, "inicio", e.target.value)} aria-label={"Início de " + o.nome} className="h-8 w-[150px] text-[12.5px]" /></label>
+            </div>
+            <div className="flex flex-wrap items-center gap-1" role="group" aria-label={"Regimes de " + o.nome}>
+              <span className="text-[12px] text-muted mr-1">Vale para:</span>
+              {REGIMES.map((r) => (
+                <button key={r} type="button" aria-pressed={o.regimes.includes(r)} onClick={() => alternarRegime(i, r)}
+                  className={"rounded-full border px-2 py-0.5 text-[12px] " + (o.regimes.includes(r) ? "bg-brand-soft border-brand text-brand font-semibold" : "border-line text-ink-2")}>{r}</button>
+              ))}
+              {!o.regimes.length && <span className="text-[12px] text-muted ml-1">(nenhum marcado = todos)</span>}
+            </div>
           </li>
         ))}
       </ul>
-      <button type="button" className="btn-contorno btn-sm self-start" onClick={() => setLista((l) => l.concat(""))}><Icone nome="mais" />Obrigação</button>
+      <button type="button" className="btn-contorno btn-sm self-start" onClick={() => setLista((l) => l.concat({ nome: "", regimes: [], inicio: "", freq: "mensal", mesAnual: "12" }))}><Icone nome="mais" />Obrigação</button>
       {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
     </Janela>
   );
@@ -126,7 +144,9 @@ function Grade({ setorId, mes, eu }) {
   const [pessoa, setPessoa] = useState("");
   const [pendentes, setPendentes] = useState(false);
   const [busca, setBusca] = useState("");
-  const g = useMemo(() => svc.grade(mes, setorId, { pessoa, pendentes, busca }), [svc, mes, setorId, pessoa, pendentes, busca, versao]);   // eslint-disable-line
+  const [regime, setRegime] = useState("");
+  const [matrizes, setMatrizes] = useState(false);
+  const g = useMemo(() => svc.grade(mes, setorId, { pessoa, pendentes, busca, regime, matrizes }), [svc, mes, setorId, pessoa, pendentes, busca, regime, matrizes, versao]);   // eslint-disable-line
   const todos = useMemo(() => svc.grade(mes, setorId), [svc, mes, setorId, versao]);   // eslint-disable-line
   const pessoas = svc.pessoas();
   const meu = eu ? todos.porPessoa.find((p) => ehMesmaPessoa(p.pessoa, eu)) : null;
@@ -153,7 +173,11 @@ function Grade({ setorId, mes, eu }) {
       </section>
       <div className="flex flex-wrap items-center gap-2">
         <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar empresa ou CNPJ…" aria-label="Buscar empresa" className="max-w-[280px] h-9" />
+        <select value={regime} onChange={(e) => setRegime(e.target.value)} aria-label="Regime" className="h-9 w-auto">
+          <option value="">Todos os regimes</option>{REGIMES.map((x) => <option key={x} value={x}>{x}</option>)}<option value="(sem)">Sem regime</option>
+        </select>
         <label className="inline-flex items-center gap-2 text-[13.5px]"><input type="checkbox" checked={pendentes} onChange={(e) => setPendentes(e.target.checked)} /> Só com pendência</label>
+        <label className="inline-flex items-center gap-2 text-[13.5px]"><input type="checkbox" checked={matrizes} onChange={(e) => setMatrizes(e.target.checked)} /> Só matrizes</label>
         <span className="text-[12.5px] text-muted ml-auto">Clique na situação para mudar: Pendente → Feito → N/A</span>
       </div>
       <div className="cartao overflow-hidden">
@@ -163,7 +187,11 @@ function Grade({ setorId, mes, eu }) {
               <tr>
                 <th className="px-3 py-2.5 font-semibold min-w-[200px] sticky left-0 bg-surface-2 z-10">Empresa</th>
                 <th className="px-2 py-2.5 font-semibold min-w-[130px]">Responsável</th>
-                {g.setor.obrigacoes.map((o) => <th key={o} className="px-2 py-2.5 font-semibold text-center max-w-[130px]" title={o}><span className="block truncate">{o}</span></th>)}
+                {g.setor.obrigacoes.map((o) => {
+                  const regra = textoRegra(g.setor.regras[o]);
+                  return <th key={o} className="px-2 py-2.5 font-semibold text-center max-w-[130px]" title={o + (regra ? " · " + regra : "")}><span className="block truncate">{o}</span>
+                    {regra && <span className="block truncate normal-case tracking-normal font-normal text-[11px]">{regra}</span>}</th>;
+                })}
                 <th className="px-2 py-2.5 font-semibold text-center">Situação</th>
                 <th className="px-2 py-2.5 font-semibold min-w-[180px]">Observação</th>
                 <th className="px-1 py-2.5"><span className="sr-only">Ocultar</span></th>
@@ -178,8 +206,8 @@ function Grade({ setorId, mes, eu }) {
                     aoGravar={(v) => svc.definirResponsavel(setorId, l.empresa.id, v)} /></td>
                   {l.celulas.map((c) => (
                     <td key={c.obrigacao} className="px-1.5 py-1 text-center">
-                      <button type="button" onClick={() => alternar(l, c)} title={c.obrigacao + ": " + ROTULO[c.status] + (c.por ? " · " + c.por : "") + (c.em ? " em " + dataBR(c.em) : "")}
-                        className={"min-w-[86px] h-7 px-2 rounded-full border text-[12.5px] font-semibold " + CELULA[c.status]}>{c.status === "feito" ? "✓ Feito" : ROTULO[c.status]}</button>
+                      {!c.vale ? <span className="text-muted" title={c.obrigacao + " não vale para esta empresa neste mês"}>—</span> : <button type="button" onClick={() => alternar(l, c)} title={c.obrigacao + ": " + ROTULO[c.status] + (c.por ? " · " + c.por : "") + (c.em ? " em " + dataBR(c.em) : "")}
+                        className={"min-w-[86px] h-7 px-2 rounded-full border text-[12.5px] font-semibold " + CELULA[c.status]}>{c.status === "feito" ? "✓ Feito" : ROTULO[c.status]}</button>}
                     </td>
                   ))}
                   <td className="px-2 py-1 text-center whitespace-nowrap">{l.completo ? <span className="text-credit font-semibold">✓ OK</span> : <span className="text-muted tabular-nums">{l.feitas}/{l.total}</span>}</td>
@@ -193,9 +221,151 @@ function Grade({ setorId, mes, eu }) {
         </div>
         <datalist id="emdia-pessoas">{pessoas.map((p) => <option key={p} value={p} />)}{eu && !pessoas.includes(eu.nome) && <option value={eu.nome} />}</datalist>
       </div>
+      {todos.semObrigacao > 0 && <p className="text-[12.5px] text-muted">{todos.semObrigacao} empresa(s) sem nenhuma obrigação de {g.setor.nome} em {mesTexto(mes)} (pelo regime ou pela frequência) ficaram fora da grade.</p>}
       {todos.ocultas.length > 0 && (
         <p className="text-[12.5px] text-muted">Fora de {g.setor.nome}: {todos.ocultas.map((c, i) => (
           <span key={c.id}>{i ? ", " : ""}{c.nome} <button type="button" className="text-brand underline" onClick={() => svc.ocultar(setorId, c.id, false)}>voltar</button></span>))}</p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- ano (JAN a DEZ) e equipe
+/** Cor da célula do mês: concluído, mês de trabalho, atrasado (mês que já passou) ou ainda não começou. */
+function corMes(m, mesTrabalho, c) {
+  if (c.pct === null) return "text-muted";
+  if (c.pct === 100) return "bg-ok-soft text-credit";
+  if (m < mesTrabalho) return "bg-debit-soft text-debit";
+  if (m === mesTrabalho) return "bg-warn-soft text-warn";
+  return c.pct ? "bg-surface-2 text-ink-2" : "text-muted";
+}
+function CelulaMes({ m, mesTrabalho, c, rotulo, aoAbrir }) {
+  const texto = c.pct === null ? "—" : c.pct + "%";
+  return (
+    <td className="px-0.5 py-0.5 text-center">
+      {c.pct === null ? <span className="text-muted" title={rotulo + ": nada a fazer"}>—</span> : (
+        <button type="button" onClick={() => aoAbrir(m)} title={rotulo + ": " + c.feitas + " de " + c.total + " feitas"} aria-label={rotulo + ": " + texto + ", abrir o mês"}
+          className={"w-full min-w-[46px] h-7 rounded-md text-[12.5px] font-semibold tabular-nums hover:ring-1 hover:ring-brand " + corMes(m, mesTrabalho, c)}>{texto}</button>
+      )}
+    </td>
+  );
+}
+
+function Anual({ setorId, ano, eu, aoAbrirMes }) {
+  const [svc, versao] = useEmDia();
+  const { aviso } = useAvisos();
+  const [pessoa, setPessoa] = useState("");
+  const [regime, setRegime] = useState("");
+  const [matrizes, setMatrizes] = useState(false);
+  const [busca, setBusca] = useState("");
+  const a = useMemo(() => svc.anual(ano, setorId, { pessoa, regime, matrizes, busca }), [svc, ano, setorId, pessoa, regime, matrizes, busca, versao]);   // eslint-disable-line
+  const todos = useMemo(() => svc.anual(ano, setorId), [svc, ano, setorId, versao]);   // eslint-disable-line
+  const mesTrabalho = svc.mesPadrao();
+  const meu = eu ? todos.equipe.find((p) => ehMesmaPessoa(p.pessoa, eu)) : null;
+  const curto = (m) => MESES[Number(m.slice(5)) - 1];
+  const baixar = async () => {
+    try {
+      const XLSX = await carregarXlsx();
+      const pct = (c) => (c.pct === null ? "" : c.pct / 100);
+      const cab = (primeiro) => primeiro.concat(a.meses.map(curto), ["Ano"]);
+      const emp = [cab(["Empresa", "CNPJ", "Responsável"])].concat(a.linhas.map((l) => [l.empresa.nome, l.empresa.documento || "", l.responsavel].concat(l.meses.map(pct), [pct(l)])));
+      emp.push(["Total", "", ""].concat(a.totais.map(pct), [pct(a)]));
+      const eq = [cab(["Pessoa"])].concat(a.equipe.map((p) => [p.pessoa].concat(p.meses.map(pct), [pct(p)])));
+      const wb = XLSX.utils.book_new();
+      [[emp, "Empresas"], [eq, "Equipe"]].forEach(([dados, nome]) => {
+        const ws = XLSX.utils.aoa_to_sheet(dados);
+        Object.keys(ws).forEach((k) => { if (k[0] !== "!" && typeof ws[k].v === "number") ws[k].z = "0%"; });
+        XLSX.utils.book_append_sheet(wb, ws, nome);
+      });
+      XLSX.writeFile(wb, "em-dia-" + a.setor.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + ano + ".xlsx");
+    } catch (e) { aviso("Não consegui gerar o Excel: " + (e.message || e)); }
+  };
+  const chip = (ativo) => "rounded-full border px-3 py-1 text-[13px] " + (ativo ? "bg-brand-soft border-brand text-brand font-semibold" : "border-line");
+  return (
+    <div className="space-y-3">
+      <section className="cartao p-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <strong className="text-[16px]">{todos.pct === null ? 0 : todos.pct}% feito {ano < todos.ate.slice(0, 4) ? "em " + ano : "até " + mesTexto(todos.ate).toLowerCase()}</strong>
+          <span className="text-[13px] text-muted">{numero(todos.feitas)} de {numero(todos.total)} em {todos.setor.nome}{ano > todos.ate.slice(0, 4) ? " (o ano ainda não começou)" : ""}</span>
+          <button type="button" className="btn-contorno btn-sm ml-auto" onClick={baixar}>Baixar Excel</button>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" onClick={() => setPessoa("")} className={chip(!pessoa)}>Todos</button>
+          {meu && <button type="button" onClick={() => setPessoa(meu.pessoa)} className={chip(pessoa === meu.pessoa)}>Meus</button>}
+          {todos.equipe.filter((p) => p !== meu).map((p) => {
+            const k = p.pessoa === "(sem responsável)" ? "(sem)" : p.pessoa;
+            return <button key={p.pessoa} type="button" onClick={() => setPessoa(k)} className={chip(pessoa === k)}>{p.pessoa}</button>;
+          })}
+        </div>
+      </section>
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar empresa ou CNPJ…" aria-label="Buscar empresa" className="max-w-[280px] h-9" />
+        <select value={regime} onChange={(e) => setRegime(e.target.value)} aria-label="Regime" className="h-9 w-auto">
+          <option value="">Todos os regimes</option>{REGIMES.map((x) => <option key={x} value={x}>{x}</option>)}<option value="(sem)">Sem regime</option>
+        </select>
+        <label className="inline-flex items-center gap-2 text-[13.5px]"><input type="checkbox" checked={matrizes} onChange={(e) => setMatrizes(e.target.checked)} /> Só matrizes</label>
+        <span className="text-[12.5px] text-muted ml-auto">Clique num mês para abrir a grade dele</span>
+      </div>
+      <div className="cartao overflow-hidden">
+        <div className="overflow-x-auto relative">
+          <table className="w-full text-[13px]">
+            <thead className="bg-surface-2 text-[12px] uppercase tracking-wide text-muted">
+              <tr>
+                <th className="px-3 py-2.5 font-semibold text-left min-w-[200px] sticky left-0 bg-surface-2 z-10">Empresa</th>
+                <th className="px-2 py-2.5 font-semibold text-left">Responsável</th>
+                {a.meses.map((m) => <th key={m} className={"px-1 py-2.5 font-semibold text-center " + (m === mesTrabalho ? "text-brand" : "")}>{curto(m)}</th>)}
+                <th className="px-2 py-2.5 font-semibold text-center" title="Do começo do ano até o mês de trabalho">Ano</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {!a.linhas.length && <tr><td colSpan={15} className="px-3 py-8 text-center text-muted">Nenhuma empresa com esse filtro.</td></tr>}
+              {a.linhas.map((l) => (
+                <tr key={l.empresa.id} className="group hover:bg-surface-2">
+                  <td className="px-3 py-1 font-medium sticky left-0 bg-surface group-hover:bg-surface-2 z-10">{l.empresa.nome}</td>
+                  <td className="px-2 py-1 text-ink-2 whitespace-nowrap">{l.responsavel || <span className="text-muted">—</span>}</td>
+                  {a.meses.map((m, i) => <CelulaMes key={m} m={m} mesTrabalho={mesTrabalho} c={l.meses[i]} rotulo={l.empresa.nome + ", " + mesTexto(m)} aoAbrir={aoAbrirMes} />)}
+                  <td className="px-2 py-1 text-center font-semibold tabular-nums">{l.pct === null ? "—" : l.pct + "%"}</td>
+                </tr>
+              ))}
+            </tbody>
+            {a.linhas.length > 0 && (
+              <tfoot className="bg-surface-2 font-semibold"><tr>
+                <td className="px-3 py-2 sticky left-0 bg-surface-2">Total</td><td />
+                {a.totais.map((t, i) => <td key={i} className="px-1 py-2 text-center tabular-nums">{t.pct === null ? "—" : t.pct + "%"}</td>)}
+                <td className="px-2 py-2 text-center tabular-nums">{a.pct === null ? "—" : a.pct + "%"}</td>
+              </tr></tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-muted">
+        <span><span className="inline-block w-3 h-3 rounded-sm bg-ok-soft border border-credit/30 align-middle mr-1" />Concluído</span>
+        <span><span className="inline-block w-3 h-3 rounded-sm bg-warn-soft border border-warn/30 align-middle mr-1" />Mês de trabalho ({mesTexto(mesTrabalho)})</span>
+        <span><span className="inline-block w-3 h-3 rounded-sm bg-debit-soft border border-debit/30 align-middle mr-1" />Mês que já passou, incompleto</span>
+        <span>— nada a fazer no mês</span>
+      </div>
+      {a.equipe.length > 0 && (
+        <section className="cartao overflow-hidden">
+          <h2 className="px-4 pt-3.5 pb-2 text-[15px] font-semibold">Equipe mês a mês</h2>
+          <div className="overflow-x-auto relative">
+            <table className="w-full text-[13px]">
+              <thead className="bg-surface-2 text-[12px] uppercase tracking-wide text-muted">
+                <tr><th className="px-3 py-2.5 font-semibold text-left min-w-[160px]">Pessoa</th>
+                  {a.meses.map((m) => <th key={m} className="px-1 py-2.5 font-semibold text-center">{curto(m)}</th>)}
+                  <th className="px-2 py-2.5 font-semibold text-center">Ano</th></tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {a.equipe.map((p) => (
+                  <tr key={p.pessoa}>
+                    <td className="px-3 py-1 font-medium">{p.pessoa}</td>
+                    {a.meses.map((m, i) => <CelulaMes key={m} m={m} mesTrabalho={mesTrabalho} c={p.meses[i]} rotulo={p.pessoa + ", " + mesTexto(m)} aoAbrir={aoAbrirMes} />)}
+                    <td className="px-2 py-1 text-center font-semibold tabular-nums">{p.pct === null ? "—" : p.pct + "%"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
     </div>
   );
@@ -320,14 +490,22 @@ export default function EmDia() {
   return (
     <div className="space-y-4 max-w-[1500px]">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex items-center rounded-lg border border-line bg-surface">
-          <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => setMes(somarMes(mes, -1))} aria-label="Mês anterior">‹</button>
-          <span className="px-2 text-[14px] font-semibold min-w-[130px] text-center">{mesTexto(mes)}</span>
-          <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => setMes(somarMes(mes, 1))} aria-label="Próximo mês">›</button>
-        </div>
+        {aba === "ano" ? (
+          <div className="inline-flex items-center rounded-lg border border-line bg-surface">
+            <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => setMes(somarMes(mes, -12))} aria-label="Ano anterior">‹</button>
+            <span className="px-2 text-[14px] font-semibold min-w-[80px] text-center">{mes.slice(0, 4)}</span>
+            <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => setMes(somarMes(mes, 12))} aria-label="Próximo ano">›</button>
+          </div>
+        ) : (
+          <div className="inline-flex items-center rounded-lg border border-line bg-surface">
+            <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => setMes(somarMes(mes, -1))} aria-label="Mês anterior">‹</button>
+            <span className="px-2 text-[14px] font-semibold min-w-[130px] text-center">{mesTexto(mes)}</span>
+            <button type="button" className="btn-fantasma h-9 w-9 p-0" onClick={() => setMes(somarMes(mes, 1))} aria-label="Próximo mês">›</button>
+          </div>
+        )}
         <Segmentado pequeno rotulo="Setor" valor={setor.id} aoMudar={setSetor} opcoes={setores.map((s) => [s.id, s.nome])} />
         <div className="flex-1" />
-        <Segmentado pequeno rotulo="Ver" valor={aba} aoMudar={setAba} opcoes={[["grade", "Grade"], ["bastao", "Passagem de bastão"], ["diario", "Diário"]]} />
+        <Segmentado pequeno rotulo="Ver" valor={aba} aoMudar={setAba} opcoes={[["grade", "Mês"], ["ano", "Ano"], ["bastao", "Passagem de bastão"], ["diario", "Diário"]]} />
       </div>
       {aba === "grade" && (<>
         {vazio ? (
@@ -344,6 +522,8 @@ export default function EmDia() {
           <button type="button" className="btn-perigo btn-sm" onClick={limpar}>Limpar</button>
         </div>
       </>)}
+      {aba === "ano" && (vazio ? <p className="text-[13.5px] text-muted">Nenhuma empresa cadastrada ainda. Veja a aba Mês para importar ou carregar a demonstração.</p>
+        : <Anual setorId={setor.id} ano={mes.slice(0, 4)} eu={eu} aoAbrirMes={(m) => { setMes(m); setAba("grade"); }} />)}
       {aba === "bastao" && <Bastao setorId={setor.id} mes={mes} setores={setores} />}
       {aba === "diario" && <Diario setorId={setor.id} eu={eu} setores={setores} />}
       {janela === "colunas" && <JanelaColunas setor={setor} aoFechar={() => setJanela("")} />}

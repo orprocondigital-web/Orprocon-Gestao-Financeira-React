@@ -39,6 +39,7 @@ export function montarMenu(pode, ehAdmin) {
     { titulo: "Departamento Pessoal", itens: modulos("Departamento Pessoal") },
     // Departamento Cadastro: o número ao lado é o que venceu ou vence em até 7 dias
     { titulo: "Departamento Cadastro", itens: pode("mod-vencimentos") ? [
+      { id: "dep-empresas", label: "Empresas", para: "/departamento-cadastro/empresas", icone: "empresa" },
       { id: "dep-certidoes", label: "Certidões", para: "/departamento-cadastro/certidoes", icone: "certidao", contador: depCadastro.urgentes("certidoes") },
       { id: "dep-alvaras", label: "Alvarás", para: "/departamento-cadastro/alvaras", icone: "alvara", contador: depCadastro.urgentes("alvaras") },
       { id: "dep-faturamentos", label: "Faturamentos", para: "/departamento-cadastro/faturamentos", icone: "faturamento" },

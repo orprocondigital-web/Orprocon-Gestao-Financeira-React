@@ -154,14 +154,56 @@ describe("importar planilha", () => {
   });
 });
 
+describe("cadastro geral de empresas", () => {
+  test("regime, código e período de cliente; CNPJ repetido é barrado", () => {
+    const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
+    assert.equal(svc.empresas()[0].regime, "Simples Nacional", "o texto antigo vira o regime da lista");
+    const e = svc.salvarEmpresa({ nome: "Nova Ltda", documento: "22.222.222/0001-22", regime: "Lucro Real", codigo: " 77 ", inicio: "2026-03" });
+    assert.deepEqual([e.codigo, e.regime, e.inicio, e.saida], ["77", "Lucro Real", "2026-03", ""]);
+    assert.throws(() => svc.salvarEmpresa({ nome: "Outra", documento: "22222222000122" }), /já está em "Nova Ltda"/);
+    assert.throws(() => svc.salvarEmpresa({ nome: "Outra", regime: "Lucro Imaginário" }), /Regime/);
+    assert.throws(() => svc.salvarEmpresa({ nome: "Outra", inicio: "03/2026" }), /AAAA-MM/);
+    assert.throws(() => svc.salvarEmpresa({ nome: "Outra", inicio: "2026-05", saida: "2026-04" }), /depois/);
+    svc.salvarEmpresa({ nome: "Nova Ltda", documento: "22.222.222/0001-22", regime: "Lucro Presumido", saida: "2026-09" }, e.id);
+    assert.equal(svc.empresas().find((c) => c.id === e.id).regime, "Lucro Presumido");
+    assert.equal(svc.qtdDocumentos().c1, 3);
+  });
+  test("matriz e filial pelo CNPJ; ativa no mês; regime por texto", () => {
+    const { svc } = amb();
+    svc.salvarEmpresa({ nome: "Matriz SA", documento: "33.333.333/0001-33" });
+    svc.salvarEmpresa({ nome: "Matriz SA - Filial Sul", documento: "33.333.333/0002-14" });
+    svc.salvarEmpresa({ nome: "Filial sem matriz", documento: "44.444.444/0003-00" });
+    svc.salvarEmpresa({ nome: "Pessoa", documento: "123.456.789-00" });
+    const l = svc.empresas(), por = (n) => l.find((c) => c.nome === n);
+    assert.equal(por("Matriz SA - Filial Sul").matrizId, por("Matriz SA").id);
+    assert.equal(por("Filial sem matriz").filial, true); assert.equal(por("Filial sem matriz").matrizId, "");
+    assert.equal(por("Pessoa").filial, false);
+    assert.ok(D.ativaNoMes({ inicio: "2026-03", saida: "2026-09" }, "2026-09"));
+    assert.ok(!D.ativaNoMes({ inicio: "2026-03" }, "2026-02"));
+    assert.ok(!D.ativaNoMes({ saida: "2026-09" }, "2026-10"));
+    assert.deepEqual(["SN", "L. Presumido", "lucro real", "MEI", "Isenta", "xyz"].map(D.regimePeloTexto),
+      ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI", "Imune / Isenta", ""]);
+  });
+  test("planilha de empresas traz código e regime", () => {
+    const { svc } = amb();
+    const p = D.lerPlanilhaCadastro([{ nome: "Empresas", rows: [["Cód.", "Empresa", "CNPJ", "Regime"], [12, "Ômega Ltda", "55.555.555/0001-55", "Simples"]] }], (v) => v, 2026);
+    assert.deepEqual(p.empresas, [{ nome: "Ômega Ltda", documento: "55.555.555/0001-55", regime: "Simples Nacional", codigo: "12" }]);
+    svc.aplicarPlanilha(p);
+    assert.equal(svc.empresas()[0].codigo, "12");
+  });
+});
+
 describe("demonstração e limpar", () => {
   test("carrega só onde está vazio, tira só a demonstração e desfaz", () => {
     const exemplo = { clientes: [{ id: "ex-c1", nome: "Alfa" }, { id: "ex-c2", nome: "Beta" }], documentos: [{ id: "ex-d1", clienteId: "ex-c1", tipo: "CND Federal", vencimento: "2026-11-01" }] };
     const { svc } = amb();
     assert.ok(svc.carregarDemonstracao(exemplo));
     assert.ok(svc.temDemonstracao());
-    assert.ok(Object.keys(svc.faturamentos("2026")).length === 2);
-    assert.ok(Object.keys(svc.demonstrativos("2025")).length === 2);
+    assert.equal(Object.keys(svc.faturamentos("2026")).length, 3, "Alfa, Beta e a filial da Alfa");
+    assert.equal(Object.keys(svc.demonstrativos("2025")).length, 3);
+    const alfa = svc.empresas().find((c) => c.id === "ex-c1"), filial = svc.empresas().find((c) => c.id === "ex-filial");
+    assert.ok(alfa.regime && alfa.documento && !alfa.filial);
+    assert.equal(filial.matrizId, "ex-c1");
     assert.equal(svc.carregarDemonstracao(exemplo), false, "não carrega duas vezes");
     svc.salvarEmpresa({ nome: "Empresa de verdade" });
     svc.salvarDocumento({ clienteId: "ex-c2", tipo: "CRF FGTS", vencimento: "2026-12-01" });
@@ -170,7 +212,7 @@ describe("demonstração e limpar", () => {
     assert.equal(svc.documentos("certidoes").length, 1);
     assert.deepEqual(svc.faturamentos("2026"), {});
     desfazer();
-    assert.equal(svc.empresas().length, 3);
+    assert.equal(svc.empresas().length, 4);
     assert.equal(svc.documentos("certidoes").length, 2);
     svc.limpar(false);
     assert.equal(svc.empresas().length, 0);

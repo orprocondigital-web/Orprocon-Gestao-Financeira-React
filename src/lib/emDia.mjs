@@ -8,7 +8,11 @@
  * Sem tela; testado em tests/emDia.test.js.
  */
 
+import { ativaNoMes, ehFilial, regimePeloTexto } from "./depCadastro.mjs";
+
 export const CHAVE = "emDia:v2";
+/** Com que frequência a obrigação aparece: todo mês, no fim do trimestre (03, 06, 09, 12) ou uma vez por ano. */
+export const FREQUENCIAS = [{ id: "mensal", nome: "Mensal" }, { id: "trimestral", nome: "Trimestral" }, { id: "anual", nome: "Anual" }];
 export const STATUS = [
   { id: "", nome: "Pendente" }, { id: "feito", nome: "Feito" }, { id: "na", nome: "Não se aplica" }
 ];
@@ -38,6 +42,29 @@ export function setorDoDepartamento(dep) {
   if (/contab/.test(d)) return "contabil";
   return "";
 }
+/**
+ * A obrigação vale para a empresa na competência? regra: { regimes: [] (vazio = todos), inicio: "AAAA-MM",
+ * freq: mensal | trimestral | anual, mesAnual: "01".."12" }.
+ */
+export function obrigacaoVale(regra, empresa, mes) {
+  const r = regra || {};
+  if (r.inicio && mes < r.inicio) return false;
+  if (Array.isArray(r.regimes) && r.regimes.length && !r.regimes.includes((empresa && empresa.regime) || "")) return false;
+  const m = mes.slice(5, 7);
+  if (r.freq === "trimestral") return ["03", "06", "09", "12"].includes(m);
+  if (r.freq === "anual") return m === (r.mesAnual || "12");
+  return true;
+}
+/** Texto curto da regra, para o cabeçalho da coluna. */
+export function textoRegra(regra) {
+  const r = regra || {}, p = [];
+  if (r.freq === "trimestral") p.push("trimestral");
+  if (r.freq === "anual") p.push("anual (mês " + (r.mesAnual || "12") + ")");
+  if (Array.isArray(r.regimes) && r.regimes.length) p.push(r.regimes.join(", "));
+  if (r.inicio) p.push("desde " + r.inicio.slice(5) + "/" + r.inicio.slice(0, 4));
+  return p.join(" · ");
+}
+
 /** Situação de outro sistema → feito / não se aplica / pendente. */
 export function statusDeTexto(s) {
   const t = chaveNome(s);
@@ -62,7 +89,7 @@ export function criarEmDia(deps) {
     const e = ler(CHAVE, {});
     return {
       setores: Array.isArray(e.setores) && e.setores.length ? e.setores : SETORES_PADRAO.map((s) => Object.assign({}, s, { obrigacoes: s.obrigacoes.slice() })),
-      responsaveis: e.responsaveis || {}, status: e.status || {}, obs: e.obs || {}, ocultas: e.ocultas || {},
+      responsaveis: e.responsaveis || {}, status: e.status || {}, obs: e.obs || {}, ocultas: e.ocultas || {}, regras: e.regras || {},
       diario: Array.isArray(e.diario) ? e.diario : [], bastao: Array.isArray(e.bastao) ? e.bastao : []
     };
   }
@@ -76,15 +103,40 @@ export function criarEmDia(deps) {
   function cadastro() { const e = ler("painelVencimentos:v1", {}); return Object.assign({}, e, { clientes: Array.isArray(e.clientes) ? e.clientes : [], documentos: Array.isArray(e.documentos) ? e.documentos : [] }); }
 
   // ------------------------------------------------------------ setores e obrigações (colunas)
-  function setores() { return dados().setores; }
+  /** Setores com as obrigações (colunas) e a regra de cada uma (regras[nome]). */
+  function setores() { const d = dados(); return d.setores.map((s) => Object.assign({}, s, { regras: regrasDe(d, s) })); }
+  function regrasDe(d, s) {
+    const r = d.regras[s.id] || {}, out = {};
+    s.obrigacoes.forEach((o) => { if (r[chaveNome(o)]) out[o] = r[chaveNome(o)]; });
+    return out;
+  }
+  /**
+   * lista: nomes, ou { nome, regimes, inicio, freq, mesAnual }. Regra vazia (todo mês, todos os regimes)
+   * não é guardada. Renomear uma coluna começa ela sem situações e sem regra.
+   */
   function salvarObrigacoes(setorId, lista) {
     const limpa = [];
-    lista.map(txt).filter(Boolean).forEach((o) => { if (!limpa.some((x) => chaveNome(x) === chaveNome(o))) limpa.push(o); });
+    lista.map((o) => (typeof o === "string" ? { nome: o } : o || {})).forEach((o) => {
+      const nome = txt(o.nome);
+      if (nome && !limpa.some((x) => chaveNome(x.nome) === chaveNome(nome))) limpa.push(Object.assign({}, o, { nome }));
+    });
     if (!limpa.length) throw new Error("Deixe pelo menos uma obrigação.");
+    limpa.forEach((o) => {
+      if (o.inicio && !/^\d{4}-\d{2}$/.test(o.inicio)) throw new Error(o.nome + ": início em mês e ano (AAAA-MM).");
+      if (o.freq && !FREQUENCIAS.some((f) => f.id === o.freq)) throw new Error(o.nome + ": frequência inválida.");
+    });
     const d = dados();
     const s = d.setores.find((x) => x.id === setorId);
     if (!s) throw new Error("Setor não encontrado.");
-    s.obrigacoes = limpa;
+    s.obrigacoes = limpa.map((o) => o.nome);
+    const antigas = d.regras[setorId] || {}, regras = {};
+    limpa.forEach((o) => {
+      const k = chaveNome(o.nome);
+      const temRegra = ["regimes", "inicio", "freq"].some((c) => c in o);
+      const r = temRegra ? { regimes: Array.isArray(o.regimes) ? o.regimes.filter(Boolean) : [], inicio: txt(o.inicio), freq: o.freq || "mensal", mesAnual: o.freq === "anual" ? (o.mesAnual || "12") : "" } : antigas[k];
+      if (r && (r.regimes.length || r.inicio || r.freq !== "mensal")) regras[k] = r;
+    });
+    d.regras[setorId] = regras;
     gravar(d);
   }
   function garantirSetor(d, id, nome) {
@@ -94,7 +146,10 @@ export function criarEmDia(deps) {
   }
 
   // ------------------------------------------------------------ empresas (as do Departamento Cadastro)
-  function empresas() { return cadastro().clientes.slice().sort((a, b) => txt(a.nome).localeCompare(txt(b.nome), "pt-BR")); }
+  function empresas() {
+    return cadastro().clientes.slice().sort((a, b) => txt(a.nome).localeCompare(txt(b.nome), "pt-BR"))
+      .map((c) => (c.regime && !regimePeloTexto(c.regime) ? c : Object.assign({}, c, { regime: regimePeloTexto(c.regime) })));
+  }
   function empresaPara(nome, cnpj, criar) {
     const e = cadastro();
     const dig = digitos(cnpj);
@@ -116,6 +171,8 @@ export function criarEmDia(deps) {
   }
 
   // ------------------------------------------------------------ responsável e situação
+  /** Todos os responsáveis: { setorId: { empresaId: nome } }. */
+  function todosResponsaveis() { return dados().responsaveis; }
   function responsavel(setorId, empresaId) { return ((dados().responsaveis[setorId] || {})[empresaId]) || ""; }
   function definirResponsavel(setorId, empresaId, nome) {
     const d = dados();
@@ -144,19 +201,24 @@ export function criarEmDia(deps) {
    */
   function grade(mes, setorId, filtro) {
     const d = dados();
-    const setor = d.setores.find((s) => s.id === setorId) || d.setores[0];
+    const setor0 = d.setores.find((s) => s.id === setorId) || d.setores[0];
+    const setor = Object.assign({}, setor0, { regras: regrasDe(d, setor0) });
     const ocultas = new Set(d.ocultas[setor.id] || []);
     const resp = d.responsaveis[setor.id] || {};
     const st = d.status[mes] || {};
     const obs = d.obs[mes] || {};
     const f = filtro || {};
-    let linhas = empresas().filter((c) => !ocultas.has(c.id)).map((c) => {
+    // empresas que não eram clientes no mês, ou sem nenhuma obrigação que valha nele, ficam de fora
+    let semObrigacao = 0;
+    let linhas = empresas().filter((c) => !ocultas.has(c.id) && ativaNoMes(c, mes)).map((c) => {
       const s = (st[c.id] || {})[setor.id] || {};
-      const celulas = setor.obrigacoes.map((o) => ({ obrigacao: o, status: (s[o] || {}).s || "", por: (s[o] || {}).por || "", em: (s[o] || {}).em || "" }));
-      const valem = celulas.filter((x) => x.status !== "na");
+      const celulas = setor.obrigacoes.map((o) => ({ obrigacao: o, vale: obrigacaoVale(setor.regras[o], c, mes), status: (s[o] || {}).s || "", por: (s[o] || {}).por || "", em: (s[o] || {}).em || "" }));
+      const valem = celulas.filter((x) => x.vale && x.status !== "na");
       const feitas = valem.filter((x) => x.status === "feito").length;
       return { empresa: c, responsavel: resp[c.id] || "", celulas, feitas, total: valem.length, completo: valem.length > 0 && feitas === valem.length, obs: (obs[c.id] || {})[setor.id] || "" };
-    });
+    }).filter((l) => { if (l.celulas.some((x) => x.vale)) return true; semObrigacao++; return false; });
+    if (f.regime) linhas = linhas.filter((l) => (l.empresa.regime || "(sem)") === f.regime);
+    if (f.matrizes) linhas = linhas.filter((l) => !ehFilial(l.empresa.documento));
     if (f.pessoa) linhas = linhas.filter((l) => (f.pessoa === "(sem)" ? !l.responsavel : chaveNome(l.responsavel) === chaveNome(f.pessoa) || ehMesmaPessoa(l.responsavel, f.pessoaObj)));
     if (f.pendentes) linhas = linhas.filter((l) => !l.completo);
     if (f.busca) { const b = chaveNome(f.busca); linhas = linhas.filter((l) => chaveNome(l.empresa.nome).indexOf(b) > -1 || digitos(l.empresa.documento).indexOf(digitos(f.busca) || "§") > -1); }
@@ -169,7 +231,7 @@ export function criarEmDia(deps) {
       feitas += l.feitas; total += l.total;
     });
     return {
-      setor, linhas, feitas, total, pct: total ? Math.round(feitas / total * 100) : 0,
+      setor, linhas, feitas, total, pct: total ? Math.round(feitas / total * 100) : 0, semObrigacao,
       porPessoa: Object.values(porPessoa).sort((a, b) => a.pessoa.localeCompare(b.pessoa, "pt-BR")),
       ocultas: empresas().filter((c) => ocultas.has(c.id))
     };
@@ -180,6 +242,39 @@ export function criarEmDia(deps) {
     Object.values(d.responsaveis).forEach((r) => Object.values(r).forEach((n) => s.add(n)));
     d.diario.forEach((x) => s.add(x.pessoa));
     return Array.from(s).filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }
+  /**
+   * O ano de um setor: cada empresa com o andamento de JAN a DEZ (feitas, total e %; null quando não
+   * havia nada a fazer no mês) e a equipe (cada responsável, mês a mês). filtro: o mesmo da grade.
+   * O total do ano vai até o mês de trabalho (ate): os meses que ainda não chegaram não puxam o % para baixo.
+   */
+  function anual(ano, setorId, filtro) {
+    const meses = Array.from({ length: 12 }, (_, i) => ano + "-" + String(i + 1).padStart(2, "0"));
+    const grades = meses.map((m) => grade(m, setorId, filtro));
+    const pct = (f, t) => (t ? Math.round(f / t * 100) : null);
+    const porEmpresa = {}, porPessoa = {};
+    const vazio = () => meses.map(() => ({ feitas: 0, total: 0 }));
+    grades.forEach((g, i) => {
+      g.linhas.forEach((l) => {
+        const e = porEmpresa[l.empresa.id] = porEmpresa[l.empresa.id] || { empresa: l.empresa, responsavel: l.responsavel, meses: vazio() };
+        e.meses[i].feitas += l.feitas; e.meses[i].total += l.total;
+      });
+      g.porPessoa.forEach((p) => {
+        const e = porPessoa[p.pessoa] = porPessoa[p.pessoa] || { pessoa: p.pessoa, meses: vazio() };
+        e.meses[i].feitas += p.feitas; e.meses[i].total += p.total;
+      });
+    });
+    const ate = mesPadrao();
+    const conta = (lista) => lista.filter((_, i) => meses[i] <= ate);
+    const fechar = (x) => {
+      const f = conta(x.meses).reduce((a, m) => a + m.feitas, 0), t = conta(x.meses).reduce((a, m) => a + m.total, 0);
+      return Object.assign(x, { meses: x.meses.map((m) => Object.assign(m, { pct: pct(m.feitas, m.total) })), feitas: f, total: t, pct: pct(f, t) });
+    };
+    const linhas = Object.values(porEmpresa).map(fechar).sort((a, b) => txt(a.empresa.nome).localeCompare(txt(b.empresa.nome), "pt-BR"));
+    const equipe = Object.values(porPessoa).map(fechar).sort((a, b) => a.pessoa.localeCompare(b.pessoa, "pt-BR"));
+    const totais = grades.map((g) => ({ feitas: g.feitas, total: g.total, pct: pct(g.feitas, g.total) }));
+    const f = conta(totais).reduce((a, m) => a + m.feitas, 0), t = conta(totais).reduce((a, m) => a + m.total, 0);
+    return { ano, ate, meses, setor: grades[0].setor, linhas, equipe, totais, feitas: f, total: t, pct: pct(f, t) };
   }
   /** Resumo para o Início: o geral do mês (todos os setores) e as pendências de uma pessoa. */
   function resumo(mes, pessoa) {
@@ -318,20 +413,27 @@ export function criarEmDia(deps) {
   // ------------------------------------------------------------ demonstração e limpar
   function carregarDemonstracao(exemploEmpresas) {
     const d = dados();
-    if (Object.keys(d.status).length || Object.keys(d.responsaveis).length) return false;
+    if (Object.keys(d.status).length) return false;   // responsáveis já definidos (no cadastro de empresas) são mantidos
     let lista = empresas();
     if (!lista.length && exemploEmpresas) {
       const e = cadastro(); e.clientes = exemploEmpresas; ls.setItem("painelVencimentos:v1", JSON.stringify(e)); lista = empresas();
     }
     const nomes = ["Ana", "Bruno", "Carla"], mes = mesPadrao();
+    // o mês de trabalho fica pela metade; os meses anteriores do ano, quase todos feitos (para a visão anual)
+    const meses = [];
+    for (let m = 1; m <= Number(mes.slice(5)); m++) meses.push(mes.slice(0, 5) + String(m).padStart(2, "0"));
     d.setores.forEach((s, k) => {
-      d.responsaveis[s.id] = {};
+      const r = d.responsaveis[s.id] = d.responsaveis[s.id] || {};
       lista.forEach((c, i) => {
-        d.responsaveis[s.id][c.id] = nomes[(i + k) % nomes.length];
-        s.obrigacoes.forEach((o, j) => {
-          const v = (i * 3 + j * 2 + k) % 5;
-          if (v < 3) celulasDe(d, mes, c.id, s.id)[o] = { s: "feito", por: nomes[(i + k) % 3], em: hoje() };
-          else if (v === 4 && j === s.obrigacoes.length - 1) celulasDe(d, mes, c.id, s.id)[o] = { s: "na", por: "", em: hoje() };
+        if (!r[c.id]) r[c.id] = nomes[(i + k) % nomes.length];
+        meses.forEach((mm, n) => {
+          const atual = mm === mes, falta = meses.length - 1 - n;
+          s.obrigacoes.forEach((o, j) => {
+            const v = (i * 3 + j * 2 + k + n) % 5;
+            const feito = atual ? v < 3 : falta > 2 || v !== 0 || (falta === 1 && j % 2);
+            if (feito) celulasDe(d, mm, c.id, s.id)[o] = { s: "feito", por: nomes[(i + k) % 3], em: hoje() };
+            else if (atual && v === 4 && j === s.obrigacoes.length - 1) celulasDe(d, mm, c.id, s.id)[o] = { s: "na", por: "", em: hoje() };
+          });
         });
       });
     });
@@ -342,14 +444,15 @@ export function criarEmDia(deps) {
   }
   function limpar() {
     const antes = ls.getItem(CHAVE);
-    ls.setItem(CHAVE, JSON.stringify({ setores: dados().setores }));
+    const d = dados();
+    ls.setItem(CHAVE, JSON.stringify({ setores: d.setores, regras: d.regras }));
     avisar();
     return () => { if (antes !== null) { ls.setItem(CHAVE, antes); avisar(); } };
   }
 
   return {
-    hoje, mesPadrao, setores, salvarObrigacoes, empresas, empresaPara, ocultar, responsavel, definirResponsavel,
-    definirStatus, definirObs, grade, pessoas, resumo, passarBastao, devolverBastao, historicoBastao,
+    hoje, mesPadrao, setores, salvarObrigacoes, empresas, empresaPara, ocultar, responsavel, todosResponsaveis, definirResponsavel,
+    definirStatus, definirObs, grade, anual, pessoas, resumo, passarBastao, devolverBastao, historicoBastao,
     anotar, excluirAnotacao, diario, lerEntregas, lerControle, aplicarImportacao, carregarDemonstracao, limpar
   };
 }

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Core } from "../../lib/legado.js";
 import Icone from "../Icone.jsx";
 
@@ -57,6 +57,15 @@ export function Segmentado({ opcoes, valor, aoMudar, rotulo, pequeno }) {
       ))}
     </div>
   );
+}
+
+/** Campo de texto que grava ao sair (ou com Enter), sem botão Salvar: para tabelas que se editam como planilha. */
+export function TextoRapido({ valor, aoGravar, rotulo, lista, placeholder, className = "" }) {
+  const [v, setV] = useState(valor || "");
+  useEffect(() => { setV(valor || ""); }, [valor]);
+  return <input value={v} onChange={(e) => setV(e.target.value)} onBlur={() => { if (v.trim() !== (valor || "")) aoGravar(v); }}
+    onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} aria-label={rotulo} list={lista} placeholder={placeholder}
+    className={"h-8 px-2 text-[13px] border-transparent bg-transparent hover:border-line focus:bg-surface " + className} />;
 }
 
 /** Faixa de mensagem dentro da tela (resultado de importação, aviso). */

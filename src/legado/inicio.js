@@ -455,7 +455,9 @@
       { tab: "mod-horas", area: "mod-horas", icone: "horas", nome: "Controle de horas", resumo: "Folhas de presença dos clientes que anotam o ponto à mão.",
         itens: ["Gera a planilha para o cliente preencher (uma aba por funcionário)", "Importa e calcula extras, noturno, atrasos e faltas", "Alertas de intervalo e interjornada, e fechamento do mês"] }
     ] },
-    { id: "cadastro", nome: "Departamento Cadastro", texto: "Documentos, faturamento e demonstrativos de cada empresa.", ferramentas: [
+    { id: "cadastro", nome: "Departamento Cadastro", texto: "O cadastro das empresas, com documentos, faturamento e demonstrativos.", ferramentas: [
+      { tab: "dep-empresas", area: "mod-vencimentos", icone: "empresa", nome: "Empresas", resumo: "O cadastro geral, usado por todo o sistema.",
+        itens: ["CNPJ, código e regime de cada empresa", "Matriz e filial reconhecidas pelo CNPJ", "Responsável de cada setor num lugar só"] },
       { tab: "dep-certidoes", area: "mod-vencimentos", icone: "certidao", nome: "Certidões", resumo: "CNDs, CRF FGTS, certificado A1, procurações e licenças, com vencimento.",
         itens: ["O que venceu e o que vence em 7 e 30 dias", "Renovação com histórico do vencimento anterior", "Busca por empresa, tipo e responsável"] },
       { tab: "dep-alvaras", area: "mod-vencimentos", icone: "alvara", nome: "Alvarás", resumo: "Alvarás de funcionamento, sanitário, Bombeiros e ambiental.",

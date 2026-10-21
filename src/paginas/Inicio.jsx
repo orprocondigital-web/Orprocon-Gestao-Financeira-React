@@ -59,7 +59,7 @@ export default function Inicio() {
     if (!alvo) return;
     if (alvo.acaoApp === "extratos") { navegar("/integracao"); return; }
     if (alvo.tab === "mod-em-dia") { navegar("/em-dia"); return; }
-    const dep = { "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-alvaras": "alvaras", "dep-faturamentos": "faturamentos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
+    const dep = { "dep-empresas": "empresas", "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-alvaras": "alvaras", "dep-faturamentos": "faturamentos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
     if (dep) { navegar("/departamento-cadastro/" + dep); return; }
     navegar(alvo.tab === "master" ? "/integracao" : alvo.tab === "conciliacao" ? "/conciliacao" : "/modulo/" + alvo.tab, { state: { prefs: alvo.prefs || null } });
   };

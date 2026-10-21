@@ -32,6 +32,7 @@ export const ICONES = {
   certidao: "M7 3h7l5 5v13H7zM14 3v5h5M9.5 14.5l2 2 3.5-4",
   alvara: "M5 4h14v16H5zM9 9h6M9 13h6M12 17h3",
   faturamento: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  empresa: "M4 21V5h10v16M14 9h6v12M7 9h4M7 13h4M7 17h4M17 13h1M17 17h1M3 21h18",
   demonstrativo: "M5 3h14v18H5zM9 8h6M9 12h6M9 16h3"
 };
 

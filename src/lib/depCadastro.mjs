@@ -17,10 +17,33 @@ export const STATUS_DEMO = [
   { id: "", nome: "Pendente" }, { id: "emitido", nome: "Emitido" }, { id: "entregue", nome: "Entregue" }, { id: "nao_se_aplica", nome: "Não se aplica" }
 ];
 export const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+export const REGIMES = ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI", "Imune / Isenta", "Pessoa física", "Outro"];
 
 const txt = (v) => (v === null || v === undefined ? "" : String(v).trim());
 const iso = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
 export function chaveNome(s) { return txt(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " "); }
+
+/** Regime pelo texto de outra planilha ("SN", "Presumido", "L. Real"…); vazio quando não reconhece. */
+export function regimePeloTexto(t) {
+  const s = chaveNome(t).replace(/[.]/g, "");
+  if (!s) return "";
+  const certo = REGIMES.find((r) => chaveNome(r) === s);
+  if (certo) return certo;
+  if (/^mei\b|microempreendedor/.test(s)) return "MEI";
+  if (/simples|^sn$/.test(s)) return "Simples Nacional";
+  if (/presumid|^lp$/.test(s)) return "Lucro Presumido";
+  if (/real|^lr$/.test(s)) return "Lucro Real";
+  if (/imune|isent/.test(s)) return "Imune / Isenta";
+  if (/fisica|^pf$|^cpf$/.test(s)) return "Pessoa física";
+  return "";
+}
+
+/** CNPJ: os 8 primeiros dígitos são a raiz; 0001 depois da raiz é a matriz, o resto são filiais. CPF não tem filial. */
+export function raizCnpj(doc) { const d = txt(doc).replace(/\D/g, ""); return d.length === 14 ? d.slice(0, 8) : ""; }
+export function ehFilial(doc) { const d = txt(doc).replace(/\D/g, ""); return d.length === 14 && d.slice(8, 12) !== "0001"; }
+
+/** A empresa é cliente na competência (AAAA-MM)? inicio e saida são AAAA-MM ou vazios. */
+export function ativaNoMes(c, mes) { return !!c && (!c.inicio || c.inicio <= mes) && (!c.saida || c.saida >= mes); }
 
 /** Certidões ou alvarás, pelo tipo do documento. */
 export function grupoDoTipo(tipo) { return /^alvar/i.test(txt(tipo)) ? "alvaras" : "certidoes"; }
@@ -103,7 +126,9 @@ const CAB = {
   numero: ["numero", "n", "no", "nº", "numero do documento"],
   emissao: ["emissao", "data de emissao", "emitido em"],
   vencimento: ["vencimento", "validade", "data de vencimento", "vence em", "valido ate"],
-  responsavel: ["responsavel"]
+  responsavel: ["responsavel"],
+  regime: ["regime", "regime tributario", "tributacao", "enquadramento"],
+  codigo: ["cod", "codigo", "cod empresa", "codigo da empresa"]
 };
 const MES_CAB = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const normCab = (v) => semAcento(v).toLowerCase().replace(/[.:]/g, "").replace(/\s+/g, " ").trim();
@@ -126,11 +151,12 @@ function mapaColunas(cab) {
 export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
   const plano = { empresas: [], documentos: [], faturamentos: [], avisos: [], abas: [] };
   const vistas = {};
-  const empresa = (nome, documento) => {
+  const empresa = (nome, documento, extra) => {
     const k = chaveNome(nome);
     if (!k) return;
-    if (!vistas[k]) { vistas[k] = { nome: txt(nome), documento: txt(documento) }; plano.empresas.push(vistas[k]); }
+    if (!vistas[k]) { vistas[k] = { nome: txt(nome), documento: txt(documento), regime: "", codigo: "" }; plano.empresas.push(vistas[k]); }
     else if (!vistas[k].documento && txt(documento)) vistas[k].documento = txt(documento);
+    if (extra) ["regime", "codigo"].forEach((c) => { if (!vistas[k][c] && extra[c]) vistas[k][c] = extra[c]; });
   };
   abas.forEach((a) => {
     const rows = a.rows || [];
@@ -168,7 +194,11 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
       });
     } else {
       tipo = "empresas";
-      rows.slice(h + 1).forEach((r) => { if (r && txt(get(r, "empresa"))) { empresa(get(r, "empresa"), get(r, "documento")); n++; } });
+      rows.slice(h + 1).forEach((r) => {
+        if (!r || !txt(get(r, "empresa"))) return;
+        empresa(get(r, "empresa"), get(r, "documento"), { regime: regimePeloTexto(get(r, "regime")), codigo: txt(get(r, "codigo")) });
+        n++;
+      });
     }
     plano.abas.push({ nome: a.nome, tipo, linhas: n });
   });
@@ -198,19 +228,40 @@ export function criarDepCadastro(deps) {
   }
 
   // ------------------------------------------------------------ empresas
-  function empresas() { return docs().clientes.slice().sort((a, b) => txt(a.nome).localeCompare(txt(b.nome), "pt-BR")); }
+  /**
+   * Empresas em ordem de nome, com o que se calcula do CNPJ: filial (true/false) e matrizId (a empresa
+   * com a mesma raiz e 0001, quando está cadastrada).
+   */
+  function empresas() {
+    const lista = docs().clientes.slice().sort((a, b) => txt(a.nome).localeCompare(txt(b.nome), "pt-BR"));
+    const matrizes = {};
+    lista.forEach((c) => { const r = raizCnpj(c.documento); if (r && !ehFilial(c.documento)) matrizes[r] = c.id; });
+    return lista.map((c) => Object.assign({}, c, { regime: regimePeloTexto(c.regime) || txt(c.regime), filial: ehFilial(c.documento), matrizId: ehFilial(c.documento) ? matrizes[raizCnpj(c.documento)] || "" : "" }));
+  }
+  const MES = /^\d{4}-\d{2}$/;
+  /** Cadastro geral: nome, CNPJ/CPF, código, regime, cliente desde (inicio) e até (saida), em AAAA-MM. */
   function salvarEmpresa(dadosEmp, id) {
     const nome = txt(dadosEmp.nome);
     if (!nome) throw new Error("Preencha o nome da empresa.");
+    const campos = { nome, documento: txt(dadosEmp.documento), codigo: txt(dadosEmp.codigo), regime: txt(dadosEmp.regime), inicio: txt(dadosEmp.inicio), saida: txt(dadosEmp.saida) };
+    if (campos.regime && !REGIMES.includes(campos.regime)) throw new Error("Regime inválido.");
+    if ((campos.inicio && !MES.test(campos.inicio)) || (campos.saida && !MES.test(campos.saida))) throw new Error("Use mês e ano (AAAA-MM).");
+    if (campos.inicio && campos.saida && campos.saida < campos.inicio) throw new Error("A saída precisa ser depois do início.");
     const e = docs();
     const rep = e.clientes.find((c) => c.id !== id && chaveNome(c.nome) === chaveNome(nome));
     if (rep) throw new Error("Já existe a empresa \"" + rep.nome + "\".");
+    const dig = campos.documento.replace(/\D/g, "");
+    const mesmoDoc = dig.length >= 11 && e.clientes.find((c) => c.id !== id && txt(c.documento).replace(/\D/g, "") === dig);
+    if (mesmoDoc) throw new Error("O CNPJ/CPF já está em \"" + mesmoDoc.nome + "\".");
     let salvo;
-    if (id) e.clientes = e.clientes.map((c) => (c.id === id ? (salvo = Object.assign({}, c, { nome, documento: txt(dadosEmp.documento) })) : c));
-    else e.clientes = e.clientes.concat(salvo = { id: novoId("cli-"), nome, documento: txt(dadosEmp.documento), regime: "", contato: "", email: "", telefone: "" });
+    if (id) e.clientes = e.clientes.map((c) => (c.id === id ? (salvo = Object.assign({}, c, campos)) : c));
+    else e.clientes = e.clientes.concat(salvo = Object.assign({ id: novoId("cli-"), contato: "", email: "", telefone: "" }, campos));
+    if (!salvo) throw new Error("Empresa não encontrada.");
     gravar(CHAVE_DOCS, e);
     return salvo;
   }
+  /** Quantos documentos (certidões + alvarás) cada empresa tem. */
+  function qtdDocumentos() { const n = {}; docs().documentos.forEach((d) => { n[d.clienteId] = (n[d.clienteId] || 0) + 1; }); return n; }
   /** Só exclui empresa sem documentos (para não sumir certidão sem querer). */
   function excluirEmpresa(id) {
     const e = docs();
@@ -348,8 +399,8 @@ export function criarDepCadastro(deps) {
     e.clientes.forEach((c) => { porNome[chaveNome(c.nome)] = c; });
     plano.empresas.forEach((p) => {
       const k = chaveNome(p.nome);
-      if (porNome[k]) { if (!porNome[k].documento && p.documento) porNome[k].documento = p.documento; return; }
-      const c = { id: novoId("cli-"), nome: p.nome, documento: p.documento || "", regime: "", contato: "", email: "", telefone: "" };
+      if (porNome[k]) { ["documento", "regime", "codigo"].forEach((x) => { if (!porNome[k][x] && p[x]) porNome[k][x] = p[x]; }); return; }
+      const c = { id: novoId("cli-"), nome: p.nome, documento: p.documento || "", codigo: p.codigo || "", regime: p.regime || "", contato: "", email: "", telefone: "" };
       e.clientes.push(c); porNome[k] = c; novasEmp++;
     });
     plano.documentos.forEach((d) => {
@@ -383,7 +434,17 @@ export function criarDepCadastro(deps) {
   function carregarDemonstracao(exemploDocs) {
     const e = docs();
     let fez = false;
-    if (!e.clientes.length && !e.documentos.length) { gravar(CHAVE_DOCS, Object.assign(e, exemploDocs)); fez = true; }
+    if (!e.clientes.length && !e.documentos.length) {
+      // a demonstração ganha CNPJ, regime e código fictícios, e uma filial da primeira empresa
+      const ex = Object.assign({}, exemploDocs, { clientes: (exemploDocs.clientes || []).map((c, i) => Object.assign({}, c, {
+        documento: c.documento || (String(i + 1).repeat(2) + "." + String(i + 1).repeat(3) + "." + String(i + 1).repeat(3) + "/0001-" + String(i + 1).repeat(2)),
+        regime: c.regime || REGIMES[i % 3], codigo: c.codigo || String(101 + i) })) });
+      if (ex.clientes.length) {
+        const m = ex.clientes[0];
+        ex.clientes = ex.clientes.concat({ id: "ex-filial", nome: m.nome + " (filial)", documento: m.documento.replace("/0001-", "/0002-"), regime: m.regime, codigo: "", contato: "", email: "", telefone: "" });
+      }
+      gravar(CHAVE_DOCS, Object.assign(e, ex)); fez = true;
+    }
     const ids = docs().clientes.map((c) => c.id);
     const d = dados();
     const ano = String(agora().getFullYear()), mesAtual = agora().getMonth() + 1;
@@ -446,7 +507,7 @@ export function criarDepCadastro(deps) {
 
   return {
     aplicarPlanilha, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
-    hoje, empresas, salvarEmpresa, excluirEmpresa, documentos, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
+    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
     faturamentos, definirFaturamento, totalAno, ultimos12, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };
 }
