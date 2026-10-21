@@ -7,6 +7,6 @@ export default defineConfig({
   // pluginSw: gera dist/sw.js (app instalável e sem internet) a cada build
   plugins: [react(), pluginSw()],
   base: "./",
-  server: { port: 5173 },
+  server: { port: 5173, strictPort: true },
   build: { outDir: "dist", sourcemap: false }
 });
