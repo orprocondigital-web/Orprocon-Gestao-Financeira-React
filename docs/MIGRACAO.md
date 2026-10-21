@@ -11,7 +11,12 @@ anterior é arquivada.
 | Menu, topo, tema claro/escuro, menu no celular, menu recolhido | ✅ React |
 | Início (capa com as ferramentas e mini cards do dia) | ✅ React |
 | Suporte (WhatsApp) | ✅ React |
-| Apuração de ICMS, Auditor IBS/CBS, ISS, Vencimentos, Em Dia, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
+| Departamento Cadastro: Certidões e Alvarás (com vencimento e renovação), Faturamentos e Demonstrativos contábeis | ✅ React (substitui o Painel de vencimentos; os dados dele continuam) |
+| Departamento Cadastro: importar PDFs (lê tipo, CNPJ, datas e número; PDF anexado), planilha do Excel, demonstração e limpar | ✅ React (PDFs em `src/lib/arquivos.js`, banco próprio do navegador, fora do backup) |
+| Em Dia simples: grade empresas × obrigações por setor e mês, responsáveis, passagem de bastão, diário, importar CSV de entregas e planilha de controle | ✅ React (`src/lib/emDia.mjs`, dados em `emDia:v2`; o Em Dia antigo saiu do menu) |
+| Cadastro geral de empresas (Departamento Cadastro › Empresas): código, regime, matriz/filial pelo CNPJ, cliente desde/até, responsável de cada setor | ✅ React (mesma chave `painelVencimentos:v1`; responsáveis gravados no Em Dia) |
+| Em Dia: obrigação por regime, frequência (mensal, trimestral, anual) e início; visão do ano (JAN–DEZ) por empresa e por pessoa, com Excel | ✅ React (regras em `emDia:v2`, campo `regras`) |
+| Apuração de ICMS, Auditor IBS/CBS, ISS, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
 | Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
 | Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |
 | Cadastros (importar a aba ou cadastrar à mão, editar, excluir com Desfazer) | ✅ React |
@@ -32,4 +37,5 @@ simples (Vencimentos, ISS) aos maiores. Cada parte numa branch `feat/...` com Pu
 - `src/lib/useContabil.js`: a instância única e o hook que redesenha as telas a cada gravação.
 - `src/lib/leitores.js`: leitura de planilha, PDF, OFX e download de arquivos (os leitores grandes só baixam quando usados).
 - `src/lib/conciliar.mjs`: resultado da conciliação (cruzamento + o que foi feito à mão), testado em `tests/conciliar.test.js`.
-- Telas: `src/paginas/Conciliacao.jsx`, `src/paginas/Integracao.jsx`, `Conta.jsx`, `Cadastro.jsx` e as janelas em `src/componentes/contabil/`.
+- `src/lib/depCadastro.mjs`: Departamento Cadastro. Certidões e alvarás continuam na chave do antigo painel (`painelVencimentos:v1`); faturamentos e demonstrativos em `depCadastro:v1`. Testado em `tests/depCadastro.test.js`.
+- Telas: `src/paginas/DepCadastro.jsx`, `src/paginas/Conciliacao.jsx`, `src/paginas/Integracao.jsx`, `Conta.jsx`, `Cadastro.jsx` e as janelas em `src/componentes/contabil/`.

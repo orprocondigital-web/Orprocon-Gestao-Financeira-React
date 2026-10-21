@@ -47,7 +47,7 @@ export default function Modulo() {
   if (!m) return <p className="p-8 text-muted">Módulo não encontrado.</p>;
   if (!pode(m.id)) return <p className="p-8 text-muted">Você não tem acesso a este módulo. Fale com o administrador.</p>;
   return (
-    <iframe key={id + (prefs ? local.key : "")} ref={quadro} title={m.label} src={"./" + m.pasta}
+    <iframe key={id + (prefs ? local.key : "")} ref={quadro} title={m.label} src={"./" + m.pasta + "index.html"}
       allow="fullscreen; clipboard-read; clipboard-write" onLoad={(e) => preparar(m, e.currentTarget)}
       className="block w-full border-0 h-[calc(100vh-82px)]" />
   );

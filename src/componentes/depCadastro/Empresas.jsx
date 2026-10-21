@@ -1,0 +1,192 @@
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { REGIMES, ativaNoMes } from "../../lib/depCadastro.mjs";
+import { useDepCadastro } from "../../lib/useDepCadastro.js";
+import { useEmDia } from "../../lib/useEmDia.js";
+import { useAvisos } from "../Avisos.jsx";
+import Janela from "../Janela.jsx";
+import Icone from "../Icone.jsx";
+import { Campo, Selo, TextoRapido, numero } from "../contabil/ui.jsx";
+import { carregarDemo } from "./Importar.jsx";
+
+/*
+ * Cadastro geral de empresas: o mesmo cadastro que Certidões, Faturamentos, Demonstrativos e o Em Dia
+ * usam. CNPJ, código, regime, período de cliente e o responsável de cada setor (gravado no Em Dia).
+ * Matriz e filial saem do CNPJ (0001 = matriz).
+ */
+const mesBR = (m) => (m ? m.slice(5) + "/" + m.slice(0, 4) : "");
+
+function FormEmpresa({ editando, aoFechar }) {
+  const [svc] = useDepCadastro();
+  const [emDia] = useEmDia();
+  const { aviso } = useAvisos();
+  const setores = emDia.setores();
+  const resp = emDia.todosResponsaveis();
+  const [f, setF] = useState(() => Object.assign({ nome: "", documento: "", codigo: "", regime: "", inicio: "", saida: "" }, editando || {}));
+  const [r, setR] = useState(() => {
+    const o = {};
+    setores.forEach((s) => { o[s.id] = editando ? ((resp[s.id] || {})[editando.id] || "") : ""; });
+    return o;
+  });
+  const [erro, setErro] = useState("");
+  const muda = (c) => (e) => setF((x) => Object.assign({}, x, { [c]: e.target.value }));
+  const salvar = (ev) => {
+    ev.preventDefault();
+    try {
+      const e = svc.salvarEmpresa(f, editando && editando.id);
+      setores.forEach((s) => { if ((r[s.id] || "") !== ((resp[s.id] || {})[e.id] || "")) emDia.definirResponsavel(s.id, e.id, r[s.id]); });
+      aviso(editando ? "Empresa atualizada." : "Empresa cadastrada.");
+      aoFechar();
+    } catch (e) { setErro(e.message); }
+  };
+  return (
+    <Janela aberta titulo={editando ? "Editar empresa" : "Nova empresa"} aoFechar={aoFechar} largura="max-w-[620px]"
+      rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button><button type="submit" form="form-emp" className="btn-primario">Salvar</button></>}>
+      <form id="form-emp" onSubmit={salvar} className="grid sm:grid-cols-6 gap-3">
+        <Campo rotulo="Razão social" id="emp-nome" className="sm:col-span-6"><input id="emp-nome" value={f.nome} onChange={muda("nome")} data-foco autoComplete="off" /></Campo>
+        <Campo rotulo="CNPJ/CPF" id="emp-doc" className="sm:col-span-3" dica="0001 no CNPJ = matriz; os outros números são filiais.">
+          <input id="emp-doc" value={f.documento} onChange={muda("documento")} autoComplete="off" inputMode="numeric" /></Campo>
+        <Campo rotulo="Código" id="emp-cod" className="sm:col-span-1"><input id="emp-cod" value={f.codigo} onChange={muda("codigo")} autoComplete="off" /></Campo>
+        <Campo rotulo="Regime" id="emp-reg" className="sm:col-span-2">
+          <select id="emp-reg" value={f.regime} onChange={muda("regime")}><option value="">—</option>{REGIMES.map((x) => <option key={x} value={x}>{x}</option>)}</select></Campo>
+        <Campo rotulo="Cliente desde" id="emp-ini" className="sm:col-span-3" dica="Vazio = sempre. Antes disso a empresa não aparece no Em Dia.">
+          <input id="emp-ini" type="month" value={f.inicio} onChange={muda("inicio")} /></Campo>
+        <Campo rotulo="Saiu em" id="emp-sai" className="sm:col-span-3" dica="Último mês como cliente. Vazio = ainda é cliente.">
+          <input id="emp-sai" type="month" value={f.saida} onChange={muda("saida")} /></Campo>
+        <fieldset className="sm:col-span-6 space-y-2">
+          <legend className="rotulo mb-1.5">Responsável em cada setor</legend>
+          <div className="grid sm:grid-cols-3 gap-2">
+            {setores.map((s) => (
+              <Campo key={s.id} rotulo={s.nome} id={"emp-r-" + s.id}>
+                <input id={"emp-r-" + s.id} list="emp-pessoas" value={r[s.id] || ""} onChange={(e) => setR((x) => Object.assign({}, x, { [s.id]: e.target.value }))} autoComplete="off" />
+              </Campo>
+            ))}
+          </div>
+          <datalist id="emp-pessoas">{emDia.pessoas().map((p) => <option key={p} value={p} />)}</datalist>
+        </fieldset>
+        <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+      </form>
+      {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
+    </Janela>
+  );
+}
+
+export default function Empresas() {
+  const [svc, versao] = useDepCadastro();
+  const [emDia, versaoEmDia] = useEmDia();
+  const { aviso, confirmar } = useAvisos();
+  const [busca, setBusca] = useState("");
+  const [regime, setRegime] = useState("");
+  const [matrizes, setMatrizes] = useState(false);
+  const [saidas, setSaidas] = useState(false);
+  const [form, setForm] = useState(null);   // { editando }
+  const lista = useMemo(() => svc.empresas(), [svc, versao]);   // eslint-disable-line
+  const qtdDocs = useMemo(() => svc.qtdDocumentos(), [svc, versao]);   // eslint-disable-line
+  const resp = useMemo(() => emDia.todosResponsaveis(), [emDia, versaoEmDia]);   // eslint-disable-line
+  const setores = useMemo(() => emDia.setores(), [emDia, versaoEmDia]);   // eslint-disable-line
+  const pessoas = emDia.pessoas();
+  const mesAtual = svc.hoje().slice(0, 7);
+  const nomes = {};
+  lista.forEach((c) => { nomes[c.id] = c.nome; });
+  const ativas = lista.filter((c) => ativaNoMes(c, mesAtual) || (c.inicio && c.inicio > mesAtual));
+  const visiveis = lista.filter((c) => {
+    if (!saidas && c.saida && c.saida < mesAtual) return false;
+    if (regime && (c.regime || "(sem)") !== regime) return false;
+    if (matrizes && c.filial) return false;
+    const b = busca.trim().toLowerCase(), dig = busca.replace(/\D/g, "");
+    return !b || String(c.nome).toLowerCase().indexOf(b) > -1 || String(c.codigo || "").toLowerCase() === b || (dig.length >= 3 && String(c.documento || "").replace(/\D/g, "").indexOf(dig) > -1);
+  });
+  const saiu = lista.length - ativas.length;
+  const semRegime = ativas.filter((c) => !c.regime).length;
+  const filiais = ativas.filter((c) => c.filial).length;
+  const excluir = async (c) => {
+    if (qtdDocs[c.id]) { aviso(c.nome + " tem " + qtdDocs[c.id] + " documento(s). Exclua os documentos antes, ou marque o mês em que ela saiu."); return; }
+    if (!(await confirmar({ titulo: "Excluir " + c.nome + "?", perigo: true, botao: "Excluir", texto: "Os faturamentos e demonstrativos dela também saem. Se ela só deixou de ser cliente, prefira marcar o mês em que saiu: o histórico fica." }))) return;
+    try { svc.excluirEmpresa(c.id); aviso("Empresa excluída."); } catch (e) { aviso(e.message); }
+  };
+  const mudarRegime = (c, v) => { try { svc.salvarEmpresa(Object.assign({}, c, { regime: v }), c.id); } catch (e) { aviso(e.message); } };
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13.5px]">
+        <span><strong className="text-[16px]">{numero(ativas.length)}</strong> empresa(s) cliente(s)</span>
+        {filiais > 0 && <span className="text-muted">{filiais} filial(is)</span>}
+        {semRegime > 0 && <button type="button" className="text-warn font-semibold hover:underline" onClick={() => setRegime("(sem)")}>{semRegime} sem regime</button>}
+        {saiu > 0 && <span className="text-muted">{saiu} já saíram</span>}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nome, código ou CNPJ…" aria-label="Buscar empresa" className="max-w-[260px] h-9" />
+        <select value={regime} onChange={(e) => setRegime(e.target.value)} aria-label="Regime" className="h-9 w-auto">
+          <option value="">Todos os regimes</option>{REGIMES.map((x) => <option key={x} value={x}>{x}</option>)}<option value="(sem)">Sem regime</option>
+        </select>
+        <label className="inline-flex items-center gap-2 text-[13.5px]"><input type="checkbox" checked={matrizes} onChange={(e) => setMatrizes(e.target.checked)} /> Só matrizes</label>
+        {saiu > 0 && <label className="inline-flex items-center gap-2 text-[13.5px]"><input type="checkbox" checked={saidas} onChange={(e) => setSaidas(e.target.checked)} /> Mostrar quem saiu</label>}
+        <div className="flex-1" />
+        <button type="button" className="btn-primario btn-sm" onClick={() => setForm({ editando: null })}><Icone nome="mais" />Nova empresa</button>
+      </div>
+      <div className="cartao overflow-hidden">
+        {!lista.length ? (
+          <div className="p-10 text-center space-y-3">
+            <strong className="block text-[15px]">Nenhuma empresa cadastrada</strong>
+            <span className="block text-muted text-[13.5px]">Este é o cadastro que o sistema inteiro usa. Cadastre em Nova empresa, importe uma planilha (Empresa, CNPJ, Código, Regime) ou veja como fica com a demonstração.</span>
+            <div className="flex flex-wrap justify-center gap-2 pt-1">
+              <button type="button" className="btn-contorno btn-sm" onClick={() => aviso(carregarDemo(svc) ? "Demonstração carregada." : "Já há dados: a demonstração só entra onde está vazio.")}>Carregar demonstração</button>
+              <Link to="/departamento-cadastro/importar" className="btn-contorno btn-sm">Importar planilha</Link>
+            </div>
+          </div>
+        ) : !visiveis.length ? (
+          <div className="p-10 text-center"><strong className="block text-[15px]">Nenhuma empresa com esse filtro</strong></div>
+        ) : (
+          <div className="overflow-x-auto relative">
+            <table className="w-full text-[13.5px]">
+              <thead className="bg-surface-2 text-left text-[12px] uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="px-3 py-2.5 font-semibold w-[60px]">Cód.</th>
+                  <th className="px-3 py-2.5 font-semibold min-w-[230px]">Empresa</th>
+                  <th className="px-2 py-2.5 font-semibold">Regime</th>
+                  {setores.map((s) => <th key={s.id} className="px-2 py-2.5 font-semibold min-w-[112px]">{s.nome}</th>)}
+                  <th className="px-2 py-2.5 font-semibold whitespace-nowrap">Cliente</th>
+                  <th className="px-2 py-2.5 font-semibold text-right">Docs</th>
+                  <th className="px-2 py-2.5"><span className="sr-only">Ações</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {visiveis.map((c) => {
+                  const saiuJa = c.saida && c.saida < mesAtual;
+                  return (
+                    <tr key={c.id} className={"hover:bg-surface-2 " + (saiuJa ? "opacity-60" : "")}>
+                      <td className="px-3 py-1.5 tabular-nums text-muted">{c.codigo}</td>
+                      <td className="px-3 py-1.5">
+                        <strong className="block font-medium">{c.nome}</strong>
+                        <span className="text-[12px] text-muted tabular-nums">{c.documento || "sem CNPJ/CPF"}</span>
+                        {c.filial && <span className="ml-1.5 align-middle"><Selo tipo="neutro" title="Pelo CNPJ (não é 0001)">{c.matrizId ? "Filial de " + nomes[c.matrizId] : "Filial"}</Selo></span>}
+                      </td>
+                      <td className="px-1 py-1">
+                        <select value={c.regime || ""} onChange={(e) => mudarRegime(c, e.target.value)} aria-label={"Regime de " + c.nome}
+                          className={"h-8 w-[142px] px-2 text-[13px] " + (c.regime ? "border-transparent bg-transparent hover:border-line" : "border-warn/40 bg-warn-soft text-warn")}>
+                          <option value="">Escolher…</option>{REGIMES.map((x) => <option key={x} value={x}>{x}</option>)}
+                        </select>
+                      </td>
+                      {setores.map((s) => (
+                        <td key={s.id} className="px-1 py-1"><TextoRapido valor={(resp[s.id] || {})[c.id] || ""} lista="emp-pessoas-tab" rotulo={"Responsável em " + s.nome + " de " + c.nome} placeholder="—" className="w-[108px]"
+                          aoGravar={(v) => emDia.definirResponsavel(s.id, c.id, v)} /></td>
+                      ))}
+                      <td className="px-2 py-1.5 whitespace-nowrap text-[12.5px] text-muted tabular-nums">{c.inicio || c.saida ? (c.inicio ? "desde " + mesBR(c.inicio) : "") + (c.saida ? (c.inicio ? " · " : "") + "saiu " + mesBR(c.saida) : "") : "—"}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{qtdDocs[c.id] ? <Link to="/departamento-cadastro/certidoes" className="text-brand hover:underline">{qtdDocs[c.id]}</Link> : <span className="text-muted">0</span>}</td>
+                      <td className="px-2 py-1 whitespace-nowrap text-right">
+                        <button type="button" className="btn-fantasma btn-sm" onClick={() => setForm({ editando: c })}>Editar</button>
+                        <button type="button" className="btn-perigo btn-sm" onClick={() => excluir(c)}>Excluir</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <datalist id="emp-pessoas-tab">{pessoas.map((p) => <option key={p} value={p} />)}</datalist>
+          </div>
+        )}
+      </div>
+      <p className="text-[12.5px] text-muted">Os responsáveis são os mesmos da grade do Em Dia: mudar aqui muda lá. Empresa com documentos não pode ser excluída; quando deixar de ser cliente, marque o mês em que saiu (Editar).</p>
+      {form && <FormEmpresa editando={form.editando} aoFechar={() => setForm(null)} />}
+    </div>
+  );
+}

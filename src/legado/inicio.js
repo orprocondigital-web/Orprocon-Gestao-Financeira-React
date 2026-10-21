@@ -428,7 +428,11 @@
     iss: '<path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/>',
     horas: '<path d="M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/>',
     venc: '<path d="M7 3v3M17 3v3M4 8h16M5 5h14v15H5zM12 12v3l2 1"/>',
-    emdia: '<path d="M9 3h6v3H9zM7 4.5H5V21h14V4.5h-2M9 13l2 2 4-4"/>'
+    emdia: '<path d="M9 3h6v3H9zM7 4.5H5V21h14V4.5h-2M9 13l2 2 4-4"/>',
+    certidao: '<path d="M7 3h7l5 5v13H7zM14 3v5h5M9.5 14.5l2 2 3.5-4"/>',
+    alvara: '<path d="M5 4h14v16H5zM9 9h6M9 13h6M12 17h3"/>',
+    faturamento: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    demonstrativo: '<path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h3"/>'
   };
 
   /** As ferramentas, por setor, com o que cada uma faz (o texto da capa). */
@@ -451,11 +455,21 @@
       { tab: "mod-horas", area: "mod-horas", icone: "horas", nome: "Controle de horas", resumo: "Folhas de presença dos clientes que anotam o ponto à mão.",
         itens: ["Gera a planilha para o cliente preencher (uma aba por funcionário)", "Importa e calcula extras, noturno, atrasos e faltas", "Alertas de intervalo e interjornada, e fechamento do mês"] }
     ] },
-    { id: "escritorio", nome: "Escritório", texto: "Prazos dos clientes e o andamento da equipe.", ferramentas: [
-      { tab: "mod-vencimentos", area: "mod-vencimentos", icone: "venc", nome: "Painel de vencimentos", resumo: "Tudo o que vence nos clientes, numa tela.",
-        itens: ["Certificado A1, CNDs, CRF FGTS, alvarás, procurações e licenças", "O que vence em 7, 15 e 30 dias e o que já venceu", "Registra a renovação e prepara o aviso ao cliente"] },
-      { tab: "mod-em-dia", area: "mod-em-dia", icone: "emdia", nome: "Em Dia", resumo: "O fechamento de cada cliente e o diário de cada setor.",
-        itens: ["Etapas do mês por cliente, com responsável e prazo", "Diário do Contábil, Fiscal e DP: o que fiz e onde parei", "Passagem de bastão quando alguém falta"] }
+    { id: "cadastro", nome: "Departamento Cadastro", texto: "O cadastro das empresas, com documentos, faturamento e demonstrativos.", ferramentas: [
+      { tab: "dep-empresas", area: "mod-vencimentos", icone: "empresa", nome: "Empresas", resumo: "O cadastro geral, usado por todo o sistema.",
+        itens: ["CNPJ, código e regime de cada empresa", "Matriz e filial reconhecidas pelo CNPJ", "Responsável de cada setor num lugar só"] },
+      { tab: "dep-certidoes", area: "mod-vencimentos", icone: "certidao", nome: "Certidões", resumo: "CNDs, CRF FGTS, certificado A1, procurações e licenças, com vencimento.",
+        itens: ["O que venceu e o que vence em 7 e 30 dias", "Renovação com histórico do vencimento anterior", "Busca por empresa, tipo e responsável"] },
+      { tab: "dep-alvaras", area: "mod-vencimentos", icone: "alvara", nome: "Alvarás", resumo: "Alvarás de funcionamento, sanitário, Bombeiros e ambiental.",
+        itens: ["Vencimento de cada alvará por empresa", "Renovação com histórico", "Link para o arquivo do documento"] },
+      { tab: "dep-faturamentos", area: "mod-vencimentos", icone: "faturamento", nome: "Faturamentos", resumo: "O faturamento de cada empresa, mês a mês.",
+        itens: ["Digita direto na tabela, como numa planilha", "Total do ano e dos últimos 12 meses", "Total do escritório por mês"] },
+      { tab: "dep-demonstrativos", area: "mod-vencimentos", icone: "demonstrativo", nome: "Demonstrativos contábeis", resumo: "Balanço, DRE e balancete de cada empresa por exercício.",
+        itens: ["Situação: pendente, emitido ou entregue", "Progresso do exercício de todas as empresas", "Marca o que não se aplica à empresa"] }
+    ] },
+    { id: "escritorio", nome: "Escritório", texto: "O andamento da equipe e o fechamento de cada cliente.", ferramentas: [
+      { tab: "mod-em-dia", area: "mod-em-dia", icone: "emdia", nome: "Em Dia", resumo: "O que cada um faz no mês, numa grade simples.",
+        itens: ["Empresas × obrigações de cada setor, com um clique para marcar feito", "Quanto cada pessoa já fez, e o que falta", "Passagem de bastão quando alguém falta e diário curto"] }
     ] }
   ];
 
@@ -494,7 +508,7 @@
     return '<div class="capa">' +
       '<header class="capa-hero"><div class="capa-hero-texto"><span class="capa-data">' + esc(r.data) + "</span>" +
       "<h2>" + esc(r.saudacao) + (r.nome ? ", " + esc(r.nome) : "") + "</h2>" +
-      "<p>As ferramentas da Orprocon num lugar só: contábil, fiscal, departamento pessoal e escritório. " +
+      "<p>As ferramentas da Orprocon num lugar só: contábil, fiscal, departamento pessoal, cadastro e escritório. " +
       "Escolha abaixo por onde começar.</p></div>" +
       '<div class="capa-hero-num"><strong>' + qtd + "</strong><span>ferramentas<br>disponíveis para você</span></div></header>" +
       htmlMiniCards(r) +
@@ -539,7 +553,7 @@
     }
     if (pode("mod-vencimentos")) {
       var v = ler(CHAVES.venc);
-      if (!v || !Array.isArray(v.documentos) || !v.documentos.length) { gravar(CHAVES.venc, vencimentosExemplo(hoje)); feitos.push("Painel de vencimentos"); }
+      if (!v || !Array.isArray(v.documentos) || !v.documentos.length) { gravar(CHAVES.venc, vencimentosExemplo(hoje)); feitos.push("Certidões e alvarás"); }
     }
     return feitos;
   }

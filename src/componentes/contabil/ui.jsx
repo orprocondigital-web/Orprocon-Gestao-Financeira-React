@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Core } from "../../lib/legado.js";
 import Icone from "../Icone.jsx";
 
@@ -50,13 +50,22 @@ export function Campo({ rotulo, id, children, dica, className = "" }) {
 /** Escolha entre poucas opções lado a lado (C/D, Todos/Pendentes…). */
 export function Segmentado({ opcoes, valor, aoMudar, rotulo, pequeno }) {
   return (
-    <div className={"inline-flex p-1 gap-1 rounded-lg bg-surface-2 border border-line " + (pequeno ? "" : "w-full")} role="radiogroup" aria-label={rotulo}>
+    <div className={"inline-flex p-1 gap-1 rounded-lg bg-surface-2 border border-line max-w-full overflow-x-auto " + (pequeno ? "" : "w-full")} role="radiogroup" aria-label={rotulo}>
       {opcoes.map(([id, nome, cls]) => (
         <button key={id} type="button" role="radio" aria-checked={valor === id} onClick={() => aoMudar(id)}
           className={"flex-1 whitespace-nowrap rounded-md px-3 py-1 text-[13.5px] " + (valor === id ? "bg-surface font-semibold shadow-sm " + (cls || "text-brand") : "text-ink-2 hover:text-ink")}>{nome}</button>
       ))}
     </div>
   );
+}
+
+/** Campo de texto que grava ao sair (ou com Enter), sem botão Salvar: para tabelas que se editam como planilha. */
+export function TextoRapido({ valor, aoGravar, rotulo, lista, placeholder, className = "" }) {
+  const [v, setV] = useState(valor || "");
+  useEffect(() => { setV(valor || ""); }, [valor]);
+  return <input value={v} onChange={(e) => setV(e.target.value)} onBlur={() => { if (v.trim() !== (valor || "")) aoGravar(v); }}
+    onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} aria-label={rotulo} list={lista} placeholder={placeholder}
+    className={"h-8 px-2 text-[13px] border-transparent bg-transparent hover:border-line focus:bg-surface " + className} />;
 }
 
 /** Faixa de mensagem dentro da tela (resultado de importação, aviso). */

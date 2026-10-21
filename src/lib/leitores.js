@@ -104,3 +104,16 @@ export function baixarArquivos(arquivos) {
     }, i * 300);   // vários de uma vez: o navegador bloqueia se forem juntos
   });
 }
+
+/** Texto de um PDF (linhas na ordem da página). Vazio quando o PDF é imagem (digitalizado). */
+export async function textoDoPdf(file) {
+  const paginas = await itensDoPdf(await lerBuffer(file));
+  return paginas.map((itens) => {
+    const linhas = [];
+    itens.slice().sort((a, b) => b.y - a.y || a.x - b.x).forEach((i) => {
+      const l = linhas.find((x) => Math.abs(x.y - i.y) < 3);
+      if (l) l.partes.push(i); else linhas.push({ y: i.y, partes: [i] });
+    });
+    return linhas.map((l) => l.partes.sort((a, b) => a.x - b.x).map((p) => p.s).join(" ")).join("\n");
+  }).join("\n");
+}
