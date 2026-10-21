@@ -1,62 +1,81 @@
-/* Cores da Orprocon em "R G B" (o Tailwind usa com transparência: bg-brand-fill/20). */
+/* Cores em "R G B" (o Tailwind usa com transparência: bg-brand-fill/20): o dourado da logo da Orprocon com azul-marinho. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --canvas: 247 245 241;
+  /* claro: fundo levemente azulado, cartões brancos, menu azul-marinho e o dourado da logo */
+  --canvas: 244 247 251;
   --surface: 255 255 255;
-  --surface-2: 251 249 246;
-  --line: 233 227 217;
-  --line-strong: 216 208 195;
-  --ink: 43 38 32;
-  --ink-2: 73 67 58;
-  --muted: 110 102 91;
-  --brand: 154 98 18;
-  --brand-hover: 122 78 12;
-  --brand-soft: 251 239 217;
-  --brand-fill: 225 154 42;
-  --brand-fill-hover: 207 138 30;
+  --surface-2: 247 249 252;
+  --line: 225 231 239;
+  --line-strong: 203 212 224;
+  --ink: 17 24 39;
+  --ink-2: 51 61 77;
+  --muted: 92 104 122;
+  --brand: 176 101 0;
+  --brand-hover: 140 80 0;
+  --brand-soft: 255 241 212;
+  --brand-fill: 245 166 35;
+  --brand-fill-hover: 232 150 18;
   --on-fill: 36 31 25;
-  --grafite: 58 52 44;
-  --on-grafite: 244 239 230;
-  --credit: 47 125 79;
-  --debit: 180 35 24;
-  --debit-soft: 251 234 231;
-  --warn: 154 74 7;
-  --warn-soft: 255 241 224;
-  --info: 59 91 169;
-  --info-soft: 233 238 249;
-  --ok-soft: 229 242 234;
+  --grafite: 27 39 61;
+  --on-grafite: 244 247 252;
+  --credit: 21 128 61;
+  --debit: 200 34 34;
+  --debit-soft: 254 228 226;
+  --warn: 180 83 9;
+  --warn-soft: 255 239 211;
+  --info: 29 98 216;
+  --info-soft: 225 236 254;
+  --ok-soft: 220 247 229;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --canvas: 20 18 15;
-  --surface: 29 26 22;
-  --surface-2: 36 32 27;
-  --line: 50 44 37;
-  --line-strong: 62 55 46;
-  --ink: 236 228 216;
-  --ink-2: 207 198 184;
-  --muted: 161 152 138;
-  --brand: 242 193 119;
-  --brand-hover: 246 210 154;
-  --brand-soft: 58 44 23;
-  --brand-fill: 233 169 64;
-  --brand-fill-hover: 242 184 90;
+  /* escuro: grafite azulado, mesmo dourado */
+  --canvas: 17 20 26;
+  --surface: 26 30 38;
+  --surface-2: 34 39 48;
+  --line: 46 52 63;
+  --line-strong: 62 70 83;
+  --ink: 240 243 248;
+  --ink-2: 213 219 228;
+  --muted: 160 170 185;
+  --brand: 250 200 110;
+  --brand-hover: 252 216 150;
+  --brand-soft: 60 46 22;
+  --brand-fill: 245 170 45;
+  --brand-fill-hover: 250 186 80;
   --on-fill: 26 22 15;
-  --grafite: 42 36 29;
-  --on-grafite: 242 193 119;
-  --credit: 121 207 156;
-  --debit: 244 144 127;
-  --debit-soft: 58 30 26;
-  --warn: 243 168 106;
-  --warn-soft: 58 39 23;
-  --info: 169 188 240;
-  --info-soft: 34 42 64;
-  --ok-soft: 28 46 34;
+  --grafite: 26 30 38;
+  --on-grafite: 250 200 110;
+  --credit: 110 220 150;
+  --debit: 248 140 125;
+  --debit-soft: 62 30 28;
+  --warn: 250 176 100;
+  --warn-soft: 60 40 20;
+  --info: 140 180 250;
+  --info-soft: 28 40 66;
+  --ok-soft: 22 50 34;
   color-scheme: dark;
 }
+/* menu lateral (e o lado da marca no login): azul-marinho nos dois temas; as variáveis valem só dentro dele */
+.menu-lateral {
+  --surface: 27 39 61;
+  --surface-2: 39 54 82;
+  --line: 52 68 97;
+  --line-strong: 70 88 120;
+  --ink: 244 247 252;
+  --ink-2: 214 223 238;
+  --muted: 158 174 200;
+  --brand: 252 205 120;
+  --brand-hover: 253 220 160;
+  --brand-soft: 72 63 40;
+  color-scheme: dark;
+}
+:root[data-theme="dark"] .menu-lateral { --surface: 14 18 26; --surface-2: 28 34 46; --line: 36 43 56; --brand-soft: 60 50 28; }
+.cartao { box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 6px 18px rgb(30 50 90 / .06); }
+:root[data-theme="dark"] .cartao { box-shadow: 0 1px 2px rgb(0 0 0 / .3); }
 
 @layer base {
   html, body, #raiz { height: 100%; }

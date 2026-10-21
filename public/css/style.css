@@ -6,38 +6,38 @@
    Números sempre em colunas alinhadas.
    ========================================================================= */
 :root {
-  --canvas: #F7F5F1;
+  --canvas: #F4F7FB;
   --surface: #FFFFFF;
-  --surface-2: #FBF9F6;
-  --line: #E9E3D9;
-  --line-strong: #D8D0C3;
-  --ink: #2B2620;
-  --ink-2: #49433A;
-  --muted: #6E665B;
+  --surface-2: #F7F9FC;
+  --line: #E1E7EF;
+  --line-strong: #CBD4E0;
+  --ink: #111827;
+  --ink-2: #333D4D;
+  --muted: #5C687A;
 
-  --brand: #9A6212;
-  --brand-hover: #7A4E0C;
-  --brand-soft: #FBEFD9;
-  --brand-fill: #E19A2A;
-  --brand-fill-hover: #CF8A1E;
+  --brand: #B06500;
+  --brand-hover: #8C5000;
+  --brand-soft: #FFF1D4;
+  --brand-fill: #F5A623;
+  --brand-fill-hover: #E89612;
   --on-fill: #241F19;
-  --grafite: #3A342C;
-  --on-grafite: #F4EFE6;
+  --grafite: #1B273D;
+  --on-grafite: #F4F7FC;
 
-  --credit: #2F7D4F;
-  --debit: #B42318;
-  --debit-soft: #FBEAE7;
-  --warn: #9A4A07;
-  --warn-soft: #FFF1E0;
-  --info: #3B5BA9;
-  --info-soft: #E9EEF9;
-  --ok-soft: #E5F2EA;
+  --credit: #15803D;
+  --debit: #C82222;
+  --debit-soft: #FEE4E2;
+  --warn: #B45309;
+  --warn-soft: #FFEFD3;
+  --info: #1D62D8;
+  --info-soft: #E1ECFE;
+  --ok-soft: #DCF7E5;
 
   --r-sm: 6px;
   --r: 8px;
   --r-lg: 12px;
-  --shadow-pop: 0 12px 32px rgba(43, 38, 32, .14), 0 2px 6px rgba(43, 38, 32, .06);
-  --focus: 0 0 0 3px rgba(225, 154, 42, .35);
+  --shadow-pop: 0 12px 32px rgba(30, 50, 90, .14), 0 2px 6px rgba(30, 50, 90, .06);
+  --focus: 0 0 0 3px rgba(245, 166, 35, .35);
   --on-brand: #FFFFFF;
   --sidebar-w: 256px;
 }
@@ -45,24 +45,24 @@
 /* Tema escuro: segue o sistema, a menos que a pessoa escolha no botão (data-theme). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --canvas: #14120F; --surface: #1D1A16; --surface-2: #24201B; --line: #322C25; --line-strong: #3E372E;
-    --ink: #ECE4D8; --ink-2: #CFC6B8; --muted: #A1988A;
-    --brand: #F2C177; --brand-hover: #F6D29A; --brand-soft: #3A2C17;
-    --brand-fill: #E9A940; --brand-fill-hover: #F2B85A; --on-fill: #1A160F; --grafite: #3A2C17; --on-grafite: #F2C177;
-    --credit: #79CF9C; --debit: #F4907F; --debit-soft: #3A1E1A;
-    --warn: #F3A86A; --warn-soft: #3A2717; --info: #A9BCF0; --info-soft: #222A40; --ok-soft: #1C2E22;
+    --canvas: #11141A; --surface: #1A1E26; --surface-2: #222730; --line: #2E343F; --line-strong: #3E4653;
+    --ink: #F0F3F8; --ink-2: #D5DBE4; --muted: #A0AAB9;
+    --brand: #FAC86E; --brand-hover: #FCD896; --brand-soft: #3C2E16;
+    --brand-fill: #F5AA2D; --brand-fill-hover: #FABA50; --on-fill: #1A160F; --grafite: #1A1E26; --on-grafite: #FAC86E;
+    --credit: #6EDC96; --debit: #F88C7D; --debit-soft: #3E1E1C;
+    --warn: #FAB064; --warn-soft: #3C2814; --info: #8CB4FA; --info-soft: #1C2842; --ok-soft: #163222;
     --on-brand: #1A160F;
     --focus: 0 0 0 3px rgba(233, 169, 64, .4);
     --shadow-pop: 0 12px 32px rgba(0,0,0,.5);
   }
 }
 :root[data-theme="dark"] {
-    --canvas: #14120F; --surface: #1D1A16; --surface-2: #24201B; --line: #322C25; --line-strong: #3E372E;
-    --ink: #ECE4D8; --ink-2: #CFC6B8; --muted: #A1988A;
-    --brand: #F2C177; --brand-hover: #F6D29A; --brand-soft: #3A2C17;
-    --brand-fill: #E9A940; --brand-fill-hover: #F2B85A; --on-fill: #1A160F; --grafite: #3A2C17; --on-grafite: #F2C177;
-    --credit: #79CF9C; --debit: #F4907F; --debit-soft: #3A1E1A;
-    --warn: #F3A86A; --warn-soft: #3A2717; --info: #A9BCF0; --info-soft: #222A40; --ok-soft: #1C2E22;
+    --canvas: #11141A; --surface: #1A1E26; --surface-2: #222730; --line: #2E343F; --line-strong: #3E4653;
+    --ink: #F0F3F8; --ink-2: #D5DBE4; --muted: #A0AAB9;
+    --brand: #FAC86E; --brand-hover: #FCD896; --brand-soft: #3C2E16;
+    --brand-fill: #F5AA2D; --brand-fill-hover: #FABA50; --on-fill: #1A160F; --grafite: #1A1E26; --on-grafite: #FAC86E;
+    --credit: #6EDC96; --debit: #F88C7D; --debit-soft: #3E1E1C;
+    --warn: #FAB064; --warn-soft: #3C2814; --info: #8CB4FA; --info-soft: #1C2842; --ok-soft: #163222;
     --on-brand: #1A160F;
     --focus: 0 0 0 3px rgba(233, 169, 64, .4);
     --shadow-pop: 0 12px 32px rgba(0,0,0,.5);
