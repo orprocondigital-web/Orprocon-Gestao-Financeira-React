@@ -30,6 +30,7 @@
   var AREAS = [
     { id: "integracao", nome: "Integração contábil", detalhe: "Bancos, unidades, movimentos, cadastros e TXTs do Único" },
     { id: "conciliacao", nome: "Conciliação", detalhe: "Extrato × sistema e extrato × planilha" },
+    { id: "contabil-lucros", nome: "Distribuição de lucros e REINF", detalhe: "Sócios, IRRF, saldo de ata e REINF por competência" },
     { id: "mod-icms", nome: "Apuração de ICMS", detalhe: "" },
     { id: "mod-ibs-cbs", nome: "Auditor IBS/CBS", detalhe: "" },
     { id: "mod-iss", nome: "ISS Tubarão", detalhe: "Meu ISS: ISS retido e retenções federais por XML" },

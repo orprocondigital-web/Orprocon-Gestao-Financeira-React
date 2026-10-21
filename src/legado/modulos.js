@@ -36,7 +36,7 @@
 
   /** Chaves do localStorage que pertencem aos módulos (vão no backup do sistema). */
   // painelVencimentos e depCadastro: Departamento Cadastro (tela em React; o antigo painel saiu)
-  var PREFIXOS_DADOS = ["icms.", "painelVencimentos:", "depCadastro:", "emDia:", "horas:", "iss:"];
+  var PREFIXOS_DADOS = ["icms.", "painelVencimentos:", "depCadastro:", "emDia:", "lucros:", "horas:", "iss:"];
 
   function porId(id) { return LISTA.filter(function (m) { return m.id === id; })[0] || null; }
   function ehDadoDeModulo(chave) { return PREFIXOS_DADOS.some(function (p) { return chave.indexOf(p) === 0; }); }

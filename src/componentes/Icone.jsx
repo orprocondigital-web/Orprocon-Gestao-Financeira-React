@@ -32,6 +32,8 @@ export const ICONES = {
   certidao: "M7 3h7l5 5v13H7zM14 3v5h5M9.5 14.5l2 2 3.5-4",
   alvara: "M5 4h14v16H5zM9 9h6M9 13h6M12 17h3",
   faturamento: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  lucros: "M12 3c3.9 0 7 1.3 7 3s-3.1 3-7 3-7-1.3-7-3 3.1-3 7-3zM5 6v4c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 10v4c0 1.7 3.1 3 7 3s7-1.3 7-3v-4M5 14v4c0 1.7 3.1 3 7 3s7-1.3 7-3v-4",
+  reinf: "M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h4",
   empresa: "M4 21V5h10v16M14 9h6v12M7 9h4M7 13h4M7 17h4M17 13h1M17 17h1M3 21h18",
   demonstrativo: "M5 3h14v18H5zM9 8h6M9 12h6M9 16h3"
 };

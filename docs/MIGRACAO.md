@@ -18,6 +18,8 @@ anterior é arquivada.
 | Em Dia: regras de cada obrigação (meses, regimes, tipo do Lucro Real, vencimento em dia fixo ou último dia útil, código, ativa) e pendência atrasada; visão do ano (JAN–DEZ) por empresa e por pessoa, com Excel | ✅ React (regras em `emDia:v2`, campo `regras`; o formato antigo com `freq` continua sendo lido) |
 | Cadastro de empresas: sócios (filial usa os da matriz), tipo do Lucro Real, Imune e Isenta, data de baixa, segmento e contato; importa a aba Empresas do sistema do Depto. Contábil (sem as colunas de senha) | ✅ React |
 | Em Dia: responsável por competência (histórico); a troca vale a partir de um mês e não muda os meses anteriores | ✅ React (`histResp` em `emDia:v2`) |
+| Distribuição de lucros (do sistema do Depto. Contábil): registro por sócio, IRRF de 10% (base = líquido ÷ 90 × 100), sugestão de retenção acima de R$ 50 mil no mês, saldo de ata, prazos do DARF 1841 e da REINF, Excel | ✅ React (`src/lib/lucros.mjs`, dados em `lucros:v1`, área `contabil-lucros`) |
+| REINF por competência: matrizes clientes no mês, notas de serviço, lucros distribuídos, confirmação, prazo do mês | ✅ React (mesmo módulo) |
 | Apuração de ICMS, Auditor IBS/CBS, ISS, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
 | Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
 | Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |
