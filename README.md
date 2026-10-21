@@ -1,6 +1,6 @@
-# Gestão Financeira – Orprocon (React)
+# Central Orprocon (React)
 
-Nova versão da Gestão Financeira, em **React + Tailwind CSS**, que vai substituir a versão em HTML/JS
+Nova versão da Central Orprocon, em **React + Tailwind CSS**, que vai substituir a versão em HTML/JS
 (repositório `Orprocon-Gestao-Financeira`). Mesma identidade visual, mesmas regras e mesmo backend
 (API Java/Spring + PostgreSQL).
 

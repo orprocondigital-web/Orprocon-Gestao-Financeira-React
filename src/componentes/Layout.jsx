@@ -12,7 +12,7 @@ import { useContabil } from "../lib/useContabil.js";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
 import { instalarApp, usePwa } from "../lib/pwa.js";
 
-const VERSAO = "1.0.0-alpha.10";
+const VERSAO = "1.0.0-alpha.11";
 const FECHADAS_PADRAO = { "Outras movimentações": 1, "Cadastros": 1 };
 
 function iniciais(nome) {
@@ -94,7 +94,7 @@ export default function Layout() {
     }
     return local.pathname === "/" ? { sub: "Visão geral", titulo: "Início" } : { sub: "", titulo: "" };
   }, [secoes, local.pathname]);
-  useEffect(() => { document.title = (titulo.titulo ? titulo.titulo + " – " : "") + "Gestão Financeira – Orprocon"; }, [titulo]);
+  useEffect(() => { document.title = (titulo.titulo ? titulo.titulo + " – " : "") + "Central Orprocon"; }, [titulo]);
 
   const ehTeste = usuario && (usuario.teste || usuario.email === AuthCore.TESTE_EMAIL);
   const naModulo = local.pathname.indexOf("/modulo/") === 0;
@@ -104,7 +104,7 @@ export default function Layout() {
     <nav aria-label="Menu principal" className="flex flex-col h-full">
       <div className={"flex items-center gap-2.5 px-3.5 pt-4 pb-3 " + (recolhido ? "flex-col" : "")}>
         <img src="./icons/orprocon-simbolo.png" alt="" className="w-8 h-8 shrink-0" />
-        {!recolhido && <div className="flex-1 leading-tight min-w-0"><strong className="block text-[15px] tracking-tight truncate">Gestão Financeira</strong><span className="text-[12.5px] text-muted">Orprocon</span></div>}
+        {!recolhido && <div className="flex-1 leading-tight min-w-0"><strong className="block text-[15px] tracking-tight truncate">Central Orprocon</strong><span className="text-[12.5px] text-muted">Empresa Contábil</span></div>}
         <button type="button" onClick={() => setRecolhido(!recolhido)} aria-label={recolhido ? "Abrir o menu" : "Recolher o menu"} title={recolhido ? "Abrir o menu" : "Recolher o menu"}
           className={"hidden lg:inline-flex btn-fantasma h-8 w-8 p-0 border border-line " + (recolhido ? "-scale-x-100" : "")}><Icone nome="recolher" /></button>
       </div>
@@ -153,11 +153,11 @@ export default function Layout() {
 
   return (
     <div className={"min-h-full lg:grid " + (recolhido ? "lg:grid-cols-[72px_minmax(0,1fr)]" : "lg:grid-cols-[256px_minmax(0,1fr)]")}>
-      <aside className="hidden lg:block sticky top-0 h-screen bg-surface border-r border-line">{menu}</aside>
+      <aside className="menu-lateral text-ink hidden lg:block sticky top-0 h-screen bg-surface border-r border-line">{menu}</aside>
       {gaveta && (
         <div className="lg:hidden fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setGaveta(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-[280px] max-w-[85vw] bg-surface shadow-pop">{menu}</aside>
+          <aside className="menu-lateral text-ink absolute left-0 top-0 bottom-0 w-[280px] max-w-[85vw] bg-surface shadow-pop">{menu}</aside>
         </div>
       )}
       <main className="min-w-0 flex flex-col min-h-screen">
@@ -181,7 +181,7 @@ export default function Layout() {
       <TrocarSenha aberta={trocarSenha} aoFechar={() => setTrocarSenha(false)} />
       <Suporte compacto={naModulo} contexto={() => ({
         tela: (titulo.sub && titulo.sub !== titulo.titulo ? titulo.sub + " › " : "") + titulo.titulo,
-        usuario: usuario ? { nome: usuario.nome, email: usuario.email } : null, versao: VERSAO, sistema: "Gestão Financeira"
+        usuario: usuario ? { nome: usuario.nome, email: usuario.email } : null, versao: VERSAO, sistema: "Central Orprocon"
       })} />
     </div>
   );

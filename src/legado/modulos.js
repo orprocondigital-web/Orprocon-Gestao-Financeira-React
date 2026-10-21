@@ -1,5 +1,5 @@
 /*
- * modulos.js — ferramentas independentes que abrem dentro da Gestão Financeira.
+ * modulos.js — ferramentas independentes que abrem dentro da Central Orprocon.
  *
  * Cada módulo continua sendo um site próprio em modulos/<pasta>/ e abre num quadro
  * (iframe) na área principal. Assim um não interfere no código, no visual nem nos

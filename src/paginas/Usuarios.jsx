@@ -23,7 +23,7 @@ function Selo({ tipo, children, title }) {
 function linkDoSistema() { return location.origin + location.pathname.replace(/index\.html$/, ""); }
 
 function mensagemAcesso(u, senha, servidor) {
-  return "Olá, " + u.nome.split(" ")[0] + "! Segue o seu acesso à Gestão Financeira da Orprocon:\n\n" +
+  return "Olá, " + u.nome.split(" ")[0] + "! Segue o seu acesso à Central Orprocon:\n\n" +
     "Link: " + linkDoSistema() + "\n" + "E-mail: " + u.email + "\n" + "Senha provisória: " + senha + "\n\n" +
     "No primeiro acesso o sistema pede para você criar a sua própria senha." +
     (servidor ? "" : "\nNesta fase de testes, na primeira vez neste computador, escolha \"Importar o arquivo de acessos\" e use o arquivo que vou te enviar junto.");
@@ -98,7 +98,7 @@ function JanelaAcesso({ dados, aoFechar, servidor }) {
       rodape={<>
         <button type="button" className="btn-fantasma" onClick={aoFechar}>Fechar</button>
         <a className="btn-contorno" target="_blank" rel="noopener noreferrer"
-          href={"mailto:" + encodeURIComponent(dados.usuario.email) + "?subject=" + encodeURIComponent("Acesso à Gestão Financeira — Orprocon") + "&body=" + encodeURIComponent(texto)}>Enviar por e-mail</a>
+          href={"mailto:" + encodeURIComponent(dados.usuario.email) + "?subject=" + encodeURIComponent("Acesso à Central Orprocon") + "&body=" + encodeURIComponent(texto)}>Enviar por e-mail</a>
         <a className="btn-contorno" target="_blank" rel="noopener noreferrer" href={"https://wa.me/?text=" + encodeURIComponent(texto)}>WhatsApp</a>
         <button type="button" className="btn-primario" onClick={copiar}>Copiar mensagem</button>
       </>}>

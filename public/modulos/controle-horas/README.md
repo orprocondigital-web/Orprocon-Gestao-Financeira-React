@@ -1,6 +1,6 @@
 # Controle de horas
 
-Módulo do DP dentro da Gestão Financeira (menu **Visão geral → Controle de horas**).
+Módulo do DP dentro da Central Orprocon (menu **Visão geral → Controle de horas**).
 Serve para os **clientes que não têm cartão ponto**: o funcionário anota os horários à mão,
 o cliente passa para a planilha padrão e devolve; o DP importa, confere e fecha o mês.
 

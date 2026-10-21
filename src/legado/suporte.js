@@ -23,7 +23,7 @@
   function mensagem(d) {
     d = d || {};
     var tipo = TIPOS.filter(function (t) { return t.id === d.tipo; })[0] || TIPOS[0];
-    var linhas = ["Olá" + (d.atendente ? ", " + d.atendente : "") + "! " + tipo.frase + " no " + (d.sistema || "Gestão Financeira") + "."];
+    var linhas = ["Olá" + (d.atendente ? ", " + d.atendente : "") + "! " + tipo.frase + " na " + (d.sistema || "Central Orprocon") + "."];
     var texto = String(d.texto || "").trim();
     if (texto) linhas.push("", texto.slice(0, 1500));
     linhas.push("");

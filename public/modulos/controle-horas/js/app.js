@@ -3,7 +3,7 @@
  *
  * Fluxo do mês: Gerar planilha para o cliente → o cliente preenche e devolve → Importar → conferir cada folha
  * (corrigir na tela) → marcar como revisada → Fechar o mês → Exportar o resumo.
- * Quem usa vem do login da Gestão Financeira ("gf.sessao"). Dados no navegador, chave "horas:v1" (vão no backup do sistema).
+ * Quem usa vem do login da Central Orprocon ("gf.sessao"). Dados no navegador, chave "horas:v1" (vão no backup do sistema).
  */
 (function () {
   "use strict";
@@ -222,7 +222,7 @@
   // ---------------------------------------------------------------- Regras de cálculo
 
   function painelLimpeza() {
-    return '<section class="panel"><div class="panel-head"><h2>Começar do zero</h2><p class="muted small">Para os testes: tirar o exemplo ou apagar tudo deste módulo. Não mexe na Gestão Financeira nem nos outros módulos.</p></div>' +
+    return '<section class="panel"><div class="panel-head"><h2>Começar do zero</h2><p class="muted small">Para os testes: tirar o exemplo ou apagar tudo deste módulo. Não mexe na Central Orprocon nem nos outros módulos.</p></div>' +
       '<div class="hr-acoes" style="border-bottom:0">' +
       (H.temExemplo(estado) ? '<button type="button" class="btn btn-outline btn-sm" data-acao="remover-exemplo">Remover dados de exemplo</button>' : "") +
       '<button type="button" class="btn btn-danger-ghost btn-sm" data-acao="limpar-tudo">Apagar tudo do Controle de horas</button></div></section>';
@@ -590,7 +590,7 @@
   // ---------------------------------------------------------------- início
 
   if (!eu) {
-    document.querySelector(".hr-app").innerHTML = '<div class="panel" style="margin-top:40px"><div class="hr-vazio"><strong>Abra o Controle de horas pelo sistema</strong>Entre na Gestão Financeira e escolha <b>Controle de horas</b> no menu.</div></div>';
+    document.querySelector(".hr-app").innerHTML = '<div class="panel" style="margin-top:40px"><div class="hr-vazio"><strong>Abra o Controle de horas pelo sistema</strong>Entre na Central Orprocon e escolha <b>Controle de horas</b> no menu.</div></div>';
     return;
   }
   render();
