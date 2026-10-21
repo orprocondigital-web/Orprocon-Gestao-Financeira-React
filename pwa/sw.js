@@ -1,5 +1,5 @@
 /*
- * Service worker da Gestão Financeira (React): deixa o sistema instalável e abrindo sem internet.
+ * Service worker da Central Orprocon (React): deixa o sistema instalável e abrindo sem internet.
  *
  * Este é o MODELO. No build (npm run build), pwa/plugin.mjs preenche VERSAO e ARQUIVOS com a versão
  * e pela lista de arquivos daquele build e grava dist/sw.js. Não precisa mexer em número de versão à mão:

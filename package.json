@@ -1,8 +1,8 @@
 {
   "name": "gestao-financeira-react",
-  "version": "1.0.0-alpha.10",
+  "version": "1.0.0-alpha.11",
   "private": true,
-  "description": "Gestão Financeira Orprocon em React + Tailwind (substitui a versão HTML/JS)",
+  "description": "Central Orprocon em React + Tailwind (substitui a versão HTML/JS)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

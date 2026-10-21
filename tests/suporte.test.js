@@ -6,13 +6,13 @@ const S = require("../src/legado/suporte.js");
 test("mensagem com assunto, texto e contexto", () => {
   const m = S.mensagem({ tipo: "problema", texto: "  O extrato não importa.  ", tela: "Contábil › Conciliação",
     usuario: { nome: "Ana Exemplo", email: "ana@exemplo.com" }, versao: "0.19.1", atendente: "Mauricio" });
-  assert.equal(m, "Olá, Mauricio! Encontrei um problema no Gestão Financeira.\n\nO extrato não importa.\n\n" +
+  assert.equal(m, "Olá, Mauricio! Encontrei um problema na Central Orprocon.\n\nO extrato não importa.\n\n" +
     "Tela: Contábil › Conciliação\nUsuário: Ana Exemplo · ana@exemplo.com\nVersão: 0.19.1");
 });
 
 test("sem texto e sem usuário (tela de login), vira uma dúvida", () => {
   const m = S.mensagem({ tela: "Tela de login" });
-  assert.match(m, /^Olá! Tenho uma dúvida no Gestão Financeira\./);
+  assert.match(m, /^Olá! Tenho uma dúvida na Central Orprocon\./);
   assert.ok(!/Usuário:/.test(m));
 });
 

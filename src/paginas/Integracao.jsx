@@ -23,7 +23,7 @@ function ApagarTudo({ aoFechar }) {
     <Janela aberta titulo="Apagar todos os dados?" aoFechar={aoFechar}
       rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button>
         <button type="button" disabled={!ok} className="btn bg-debit text-white hover:opacity-90" onClick={() => svc.apagarTudo().then(() => location.reload())}>Apagar tudo</button></>}>
-      <p className="text-[14px] leading-relaxed text-ink-2">Apaga os dados da Gestão Financeira neste navegador: meses, contas, unidades, cadastros e conciliações.
+      <p className="text-[14px] leading-relaxed text-ink-2">Apaga os dados da Central Orprocon neste navegador: meses, contas, unidades, cadastros e conciliações.
         Os usuários e os módulos (ICMS, IBS/CBS, vencimentos…) continuam. Baixe o backup antes se quiser guardar.</p>
       <label className="space-y-1.5 block"><span className="rotulo">Para confirmar, digite APAGAR</span>
         <input value={txt} onChange={(e) => setTxt(e.target.value)} autoComplete="off" data-foco /></label>

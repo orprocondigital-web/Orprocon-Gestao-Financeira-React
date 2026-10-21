@@ -1,6 +1,6 @@
 # ISS Tubarão
 
-Módulo do fiscal dentro da Gestão Financeira (menu **Módulos → ISS Tubarão**). Substitui o robô do
+Módulo do fiscal dentro da Central Orprocon (menu **Módulos → ISS Tubarão**). Substitui o robô do
 Prefeitura Moderna 2.0: em vez de o sistema entrar no Meu ISS, o fiscal exporta o XML e importa aqui.
 
 ## Fluxo do mês

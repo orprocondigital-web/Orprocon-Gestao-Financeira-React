@@ -3,7 +3,7 @@
  *
  * Fluxo: no Meu ISS, para cada empresa, Movimento Econômico → Períodos → Exportar XML → Gerar Arquivo.
  * Aqui: arrastar os XML (todos de uma vez) → conferir cada empresa → marcar como conferida → exportar o Excel.
- * Quem usa vem do login da Gestão Financeira ("gf.sessao"). Dados no navegador, chave "iss:v1" (vão no backup do sistema).
+ * Quem usa vem do login da Central Orprocon ("gf.sessao"). Dados no navegador, chave "iss:v1" (vão no backup do sistema).
  */
 (function () {
   "use strict";
@@ -325,7 +325,7 @@
   // ---------------------------------------------------------------- início
 
   if (!eu) {
-    document.querySelector(".hr-app").innerHTML = '<div class="panel" style="margin-top:40px"><div class="hr-vazio"><strong>Abra o ISS Tubarão pelo sistema</strong>Entre na Gestão Financeira e escolha <b>ISS Tubarão</b> no menu.</div></div>';
+    document.querySelector(".hr-app").innerHTML = '<div class="panel" style="margin-top:40px"><div class="hr-vazio"><strong>Abra o ISS Tubarão pelo sistema</strong>Entre na Central Orprocon e escolha <b>ISS Tubarão</b> no menu.</div></div>';
     return;
   }
   render();

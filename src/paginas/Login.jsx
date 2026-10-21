@@ -114,7 +114,7 @@ export default function Login() {
         <div className="w-full max-w-[420px] space-y-8">
         <Logo escuro className="w-60 max-w-full" />
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Gestão Financeira</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">Central Orprocon</h2>
           <ul className="mt-5 space-y-2.5">
             {RECURSOS.map((r) => (
               <li key={r} className="flex gap-3 text-[14.5px] leading-snug text-ink-2">

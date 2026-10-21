@@ -1,6 +1,6 @@
 {
-  "name": "Gestão Financeira – Orprocon",
-  "short_name": "Gestão Financeira",
+  "name": "Central Orprocon",
+  "short_name": "Orprocon",
   "description": "Integração contábil, extratos bancários e conciliação (Orprocon).",
   "id": "./",
   "start_url": "./",
