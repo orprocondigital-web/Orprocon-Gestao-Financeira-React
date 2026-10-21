@@ -26,7 +26,9 @@ function CampoSenha({ id, value, onChange, autoComplete }) {
   );
 }
 
-function Logo({ className = "" }) {
+/** escuro: a versão da logo para fundo escuro (o lado azul-marinho), nos dois temas. */
+function Logo({ className = "", escuro }) {
+  if (escuro) return <img src="./icons/orprocon-logo-escuro.png" alt="Orprocon Empresa Contábil" className={className} />;
   return (
     <>
       <img src="./icons/orprocon-logo.png" alt="Orprocon Empresa Contábil" className={"dark:hidden " + className} />
@@ -108,9 +110,9 @@ export default function Login() {
   return (
     <main className="min-h-full grid lg:grid-cols-[minmax(0,1fr)_minmax(440px,46%)] bg-canvas">
       {/* lado da marca: bloco centralizado na coluna, nos dois sentidos */}
-      <section className="hidden lg:flex items-center justify-center px-10 xl:px-16 py-12 bg-surface border-r border-line" aria-hidden="true">
+      <section className="menu-lateral text-ink hidden lg:flex items-center justify-center px-10 xl:px-16 py-12 bg-surface" aria-hidden="true">
         <div className="w-full max-w-[420px] space-y-8">
-        <Logo className="w-60 max-w-full" />
+        <Logo escuro className="w-60 max-w-full" />
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Gestão Financeira</h2>
           <ul className="mt-5 space-y-2.5">

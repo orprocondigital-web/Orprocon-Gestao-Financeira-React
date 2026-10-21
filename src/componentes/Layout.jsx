@@ -153,11 +153,11 @@ export default function Layout() {
 
   return (
     <div className={"min-h-full lg:grid " + (recolhido ? "lg:grid-cols-[72px_minmax(0,1fr)]" : "lg:grid-cols-[256px_minmax(0,1fr)]")}>
-      <aside className="hidden lg:block sticky top-0 h-screen bg-surface border-r border-line">{menu}</aside>
+      <aside className="menu-lateral text-ink hidden lg:block sticky top-0 h-screen bg-surface border-r border-line">{menu}</aside>
       {gaveta && (
         <div className="lg:hidden fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setGaveta(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-[280px] max-w-[85vw] bg-surface shadow-pop">{menu}</aside>
+          <aside className="menu-lateral text-ink absolute left-0 top-0 bottom-0 w-[280px] max-w-[85vw] bg-surface shadow-pop">{menu}</aside>
         </div>
       )}
       <main className="min-w-0 flex flex-col min-h-screen">
