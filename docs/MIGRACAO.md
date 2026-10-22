@@ -22,7 +22,9 @@ anterior é arquivada.
 | REINF por competência: matrizes clientes no mês, notas de serviço, lucros distribuídos, confirmação, prazo do mês | ✅ React (mesmo módulo) |
 | Encerramento do exercício: estoque inicial, compras, estoque final, receita, CMV, lucro bruto e %, resultado antes do estoque e do período; matriz + filiais + consolidado; encerrar/reabrir; sócios com o distribuído no ano e "Adicionar distribuição" em 31/12; Excel. Falta o rateio por faturamento (a fórmula está no JavaScript.html, que não veio) | ✅ React (`/encerramento`, `src/lib/encerramento.mjs`, dados em `encerramento:v1`) |
 | Fechamento contábil (o "mês fechado" do Depto. Contábil): visto por empresa e mês, filial segue a matriz, progresso por pessoa e equipe, Excel; cartões no Início com o fechamento e a REINF | ✅ React (`/fechamento`, regras em `src/lib/emDia.mjs`, dados em `emDia:v2`) |
-| Apuração de ICMS, Auditor IBS/CBS, ISS, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
+| ISS Tubarão: importar o XML do Meu ISS, conferir por empresa (ISS retido, federais, alertas), marcar conferida, Excel | ✅ React (`/iss`, regras em `src/lib/iss/`, dados em `iss:v1`) |
+| Apuração de ICMS: XML/zip de NF-e e NFC-e, débitos e créditos por CFOP, regras por CFOP, ajustes, gráfico, Excel | ✅ React (`/icms`, `src/lib/icms.mjs`; notas só na memória; regras `icms.rules`, ajustes `icms.aj.*`) |
+| Auditor IBS/CBS, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
 | Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
 | Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |
 | Cadastros (importar a aba ou cadastrar à mão, editar, excluir com Desfazer) | ✅ React |

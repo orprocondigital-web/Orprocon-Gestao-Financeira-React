@@ -1,8 +1,8 @@
 // ISS Tubarão: leitor do XML do Meu ISS (movimento_economico) e os meses importados. Dados fictícios.
-const { describe, test } = require("node:test");
+const { describe, test, before } = require("node:test");
 const assert = require("node:assert/strict");
-const L = require("../public/modulos/iss-tubarao/js/leitor.js");
-const D = require("../public/modulos/iss-tubarao/js/dados.js");
+let L, D;
+before(async () => { L = (await import("../src/lib/iss/leitor.mjs")).default; D = (await import("../src/lib/iss/dados.mjs")).default; });
 
 function xml(notas, tomador) {
   tomador = tomador || "<tomador><cpf_cnpj>00.000.000/0001-01</cpf_cnpj><razao_social>Cliente Exemplo &amp; Cia</razao_social><cmc>900001</cmc></tomador>";

@@ -22,6 +22,8 @@ function script(url, global, nome) {
   });
   return carregando[url];
 }
+const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+export function carregarJsZip() { return script(JSZIP_URL, "JSZip", "leitor de .zip"); }
 export function carregarXlsx() { return script(XLSX_URL, "XLSX", "leitor de planilhas"); }
 function carregarPdfJs() {
   return script(PDFJS_URL, "pdfjsLib", "leitor de PDF").then((p) => { p.GlobalWorkerOptions.workerSrc = PDFJS_WORKER; return p; });

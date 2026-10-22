@@ -9,6 +9,8 @@ import { depCadastro } from "./useDepCadastro.js";
 
 export { MOVIMENTOS, CADASTROS } from "./contabil.mjs";
 import { MOVIMENTOS, CADASTROS } from "./contabil.mjs";
+/** Módulos que já viraram tela em React: o menu vai direto para a rota nova. */
+export const ROTA_REACT = { "mod-iss": "/iss", "mod-icms": "/icms" };
 const ICONE_MODULO = { "mod-icms": "icms", "mod-ibs-cbs": "ibs", "mod-iss": "iss", "mod-vencimentos": "venc", "mod-em-dia": "emdia", "mod-horas": "horas" };
 
 export const nomeDaConta = nomeDaFonte;
@@ -16,7 +18,7 @@ export const nomeDaConta = nomeDaFonte;
 /** Seções do menu para a pessoa logada. pode(area) vem do login. */
 export function montarMenu(pode, ehAdmin) {
   const modulos = (secao) => Modulos.LISTA.filter((m) => m.secao === secao && pode(m.id))
-    .map((m) => ({ id: m.id, label: m.label, para: "/modulo/" + m.id, icone: ICONE_MODULO[m.id] || "cadastro", descricao: m.descricao }));
+    .map((m) => ({ id: m.id, label: m.label, para: ROTA_REACT[m.id] || "/modulo/" + m.id, icone: ICONE_MODULO[m.id] || "cadastro", descricao: m.descricao }));
   const integracao = pode("integracao");
   const contabil = [];
   if (integracao) {

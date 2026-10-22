@@ -14,6 +14,8 @@ import EmDia from "./paginas/EmDia.jsx";
 import Lucros from "./paginas/Lucros.jsx";
 import Fechamento from "./paginas/Fechamento.jsx";
 import Encerramento from "./paginas/Encerramento.jsx";
+import Iss from "./paginas/Iss.jsx";
+import Icms from "./paginas/Icms.jsx";
 import { AvisosProvider } from "./componentes/Avisos.jsx";
 import AvisoAtualizacao from "./componentes/AvisoAtualizacao.jsx";
 
@@ -56,7 +58,11 @@ export default function App() {
             <Route path="reinf" element={<SoArea area="contabil-lucros"><Lucros secao="reinf" /></SoArea>} />
             <Route path="fechamento" element={<SoArea area="contabil-lucros"><Fechamento /></SoArea>} />
             <Route path="encerramento" element={<SoArea area="contabil-lucros"><Encerramento /></SoArea>} />
+            <Route path="iss" element={<SoArea area="mod-iss"><Iss /></SoArea>} />
             <Route path="modulo/mod-em-dia" element={<Navigate to="/em-dia" replace />} />
+            <Route path="modulo/mod-iss" element={<Navigate to="/iss" replace />} />
+            <Route path="icms" element={<SoArea area="mod-icms"><Icms /></SoArea>} />
+            <Route path="modulo/mod-icms" element={<Navigate to="/icms" replace />} />
             {/* o antigo Painel de vencimentos virou Certidões e Alvarás */}
             <Route path="modulo/mod-vencimentos" element={<Navigate to="/departamento-cadastro/certidoes" replace />} />
             <Route path="usuarios" element={<SoAdmin><Usuarios /></SoAdmin>} />

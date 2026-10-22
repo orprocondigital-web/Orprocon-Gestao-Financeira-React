@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthCore, Inicio as I, Store } from "../lib/legado.js";
 import { useAuth } from "../lib/auth.jsx";
 import { lerJson, lerLocal } from "../lib/tema.js";
-import { nomeDaConta } from "../lib/menu.js";
+import { nomeDaConta, ROTA_REACT } from "../lib/menu.js";
 import { emDia, useEmDia } from "../lib/useEmDia.js";
 import { lucros, useLucros } from "../lib/useLucros.js";
 import Icone from "../componentes/Icone.jsx";
@@ -77,6 +77,7 @@ export default function Inicio() {
     if (!alvo) return;
     if (alvo.acaoApp === "extratos") { navegar("/integracao"); return; }
     if (alvo.tab === "mod-em-dia") { navegar("/em-dia"); return; }
+    if (ROTA_REACT[alvo.tab]) { navegar(ROTA_REACT[alvo.tab], { state: { prefs: alvo.prefs || null } }); return; }
     if (alvo.tab === "lucros") { navegar("/lucros"); return; }
     if (alvo.tab === "fechamento") { navegar("/fechamento"); return; }
     if (alvo.tab === "encerramento") { navegar("/encerramento"); return; }
