@@ -8,7 +8,7 @@
  * Sem tela; testado em tests/emDia.test.js.
  */
 
-import { ativaNoMes, ehFilial, regimePeloTexto } from "./depCadastro.mjs";
+import { ativaNoMes, ehFilial, raizCnpj, regimePeloTexto } from "./depCadastro.mjs";
 
 export const CHAVE = "emDia:v2";
 const MESES_NUM = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
@@ -130,7 +130,7 @@ export function criarEmDia(deps) {
     const e = ler(CHAVE, {});
     return {
       setores: Array.isArray(e.setores) && e.setores.length ? e.setores : SETORES_PADRAO.map((s) => Object.assign({}, s, { obrigacoes: s.obrigacoes.slice() })),
-      responsaveis: e.responsaveis || {}, histResp: e.histResp || {}, status: e.status || {}, obs: e.obs || {}, ocultas: e.ocultas || {}, regras: e.regras || {},
+      responsaveis: e.responsaveis || {}, histResp: e.histResp || {}, status: e.status || {}, obs: e.obs || {}, ocultas: e.ocultas || {}, regras: e.regras || {}, fechados: e.fechados || {},
       diario: Array.isArray(e.diario) ? e.diario : [], bastao: Array.isArray(e.bastao) ? e.bastao : []
     };
   }
@@ -370,6 +370,81 @@ export function criarEmDia(deps) {
     const f = conta(totais).reduce((a, m) => a + m.feitas, 0), t = conta(totais).reduce((a, m) => a + m.total, 0);
     return { ano, ate, meses, setor: grades[0].setor, linhas, equipe, totais, feitas: f, total: t, pct: pct(f, t) };
   }
+  // ------------------------------------------------------------ fechamento contábil (o "mês fechado")
+  /**
+   * Um visto por empresa e mês, como o "Contabilidade › Minhas empresas" do sistema do Depto. Contábil.
+   * A filial segue a matriz (não se marca à parte) e não entra nos totais; o mês em que a empresa não era
+   * cliente fica "fora". O responsável é o do setor Contábil naquele mês.
+   */
+  function marcarFechado(empresaId, mes, sim, quem) {
+    if (!/^\d{4}-\d{2}$/.test(mes || "")) throw new Error("Mês inválido.");
+    const d = dados();
+    const e = d.fechados[empresaId] = d.fechados[empresaId] || {};
+    if (sim) e[mes] = { por: txt(quem), em: hoje() }; else delete e[mes];
+    if (!Object.keys(e).length) delete d.fechados[empresaId];
+    gravar(d);
+  }
+  function fechamento(ano, filtro) {
+    const d = dados(), f = filtro || {};
+    const meses = Array.from({ length: 12 }, (_, i) => ano + "-" + String(i + 1).padStart(2, "0"));
+    const ate = mesPadrao();
+    const lista = empresas();
+    const matrizes = {};
+    lista.forEach((c) => { const r = raizCnpj(c.documento); if (r && !ehFilial(c.documento)) matrizes[r] = c; });
+    const pct = (a, b) => (b ? Math.round(a / b * 100) : null);
+    const linhaDe = (c, base) => {
+      const fx = d.fechados[base.id] || {};
+      const cel = meses.map((m) => {
+        if (!ativaNoMes(c, m)) return { mes: m, estado: "fora" };
+        const x = fx[m];
+        return x ? { mes: m, estado: "fechado", por: x.por, em: x.em } : { mes: m, estado: "aberto" };
+      });
+      const conta = cel.filter((x) => x.mes <= ate && x.estado !== "fora");
+      const feitos = conta.filter((x) => x.estado === "fechado").length;
+      return { empresa: c, responsavel: respNoMes(d, "contabil", c.id, ate), meses: cel, feitos, total: conta.length, pct: pct(feitos, conta.length) };
+    };
+    let linhas = [];
+    lista.filter((c) => !ehFilial(c.documento) || !matrizes[raizCnpj(c.documento)]).forEach((c) => {
+      // a empresa só aparece no ano em que foi cliente em algum mês
+      if (!meses.some((m) => ativaNoMes(c, m))) return;
+      linhas.push(Object.assign(linhaDe(c, c), { filial: false }));
+      lista.filter((x) => ehFilial(x.documento) && raizCnpj(x.documento) === raizCnpj(c.documento) && raizCnpj(c.documento) && x.id !== c.id)
+        .forEach((fl) => { if (meses.some((m) => ativaNoMes(fl, m))) linhas.push(Object.assign(linhaDe(fl, c), { filial: true, matrizId: c.id })); });
+    });
+    const b = chaveNome(f.busca);
+    if (f.regime) linhas = linhas.filter((l) => (l.empresa.regime || "(sem)") === f.regime);
+    if (f.matrizes) linhas = linhas.filter((l) => !l.filial);
+    if (f.pessoa) linhas = linhas.filter((l) => (f.pessoa === "(sem)" ? !l.responsavel : chaveNome(l.responsavel) === chaveNome(f.pessoa)));
+    if (b) linhas = linhas.filter((l) => chaveNome(l.empresa.nome).indexOf(b) > -1 || digitos(l.empresa.documento).indexOf(digitos(f.busca) || "§") > -1);
+    // totais e equipe: só as matrizes (a filial segue a matriz), por responsável do mês
+    const totais = meses.map(() => ({ feitos: 0, total: 0 }));
+    const eq = {};
+    linhas.filter((l) => !l.filial).forEach((l) => {
+      l.meses.forEach((x, i) => {
+        if (x.estado === "fora") return;
+        totais[i].total++; if (x.estado === "fechado") totais[i].feitos++;
+        const p = respNoMes(d, "contabil", l.empresa.id, x.mes) || "(sem responsável)";
+        const e = eq[p] = eq[p] || { pessoa: p, meses: meses.map(() => ({ feitos: 0, total: 0 })) };
+        e.meses[i].total++; if (x.estado === "fechado") e.meses[i].feitos++;
+      });
+    });
+    const somaAte = (arr) => arr.reduce((a, x, i) => (meses[i] <= ate ? { f: a.f + x.feitos, t: a.t + x.total } : a), { f: 0, t: 0 });
+    const equipe = Object.values(eq).map((e) => { const s = somaAte(e.meses); return Object.assign(e, { meses: e.meses.map((m) => Object.assign(m, { pct: pct(m.feitos, m.total) })), feitos: s.f, total: s.t, pct: pct(s.f, s.t) }); })
+      .sort((a, c) => a.pessoa.localeCompare(c.pessoa, "pt-BR"));
+    const s = somaAte(totais);
+    return { ano: String(ano), ate, meses, linhas, totais: totais.map((t) => Object.assign(t, { pct: pct(t.feitos, t.total) })), equipe, feitos: s.f, total: s.t, pct: pct(s.f, s.t) };
+  }
+  /** Para o Início: empresas (matrizes) com o mês fechado, no geral e as minhas. */
+  function resumoFechamento(mes, pessoa) {
+    const fz = fechamento(mes.slice(0, 4));
+    const i = Number(mes.slice(5)) - 1;
+    let minhas = 0, minhasFeitas = 0;
+    fz.linhas.filter((l) => !l.filial && l.meses[i].estado !== "fora").forEach((l) => {
+      if (pessoa && ehMesmaPessoa(l.responsavel, pessoa)) { minhas++; if (l.meses[i].estado === "fechado") minhasFeitas++; }
+    });
+    return { mes, feitos: fz.totais[i].feitos, total: fz.totais[i].total, minhas, minhasFeitas };
+  }
+
   /** Resumo para o Início: o geral do mês (todos os setores) e as pendências de uma pessoa. */
   function resumo(mes, pessoa) {
     let feitas = 0, total = 0, minhas = 0;
@@ -529,6 +604,10 @@ export function criarEmDia(deps) {
         });
       });
     });
+    // fechamento contábil: os meses anteriores quase todos fechados, o de trabalho pela metade
+    lista.filter((c) => !ehFilial(c.documento)).forEach((c, i) => {
+      meses.forEach((mm, n) => { const falta = meses.length - 1 - n; if (falta > 1 || (falta === 1 && i % 3 !== 2) || (falta === 0 && i % 2 === 0)) (d.fechados[c.id] = d.fechados[c.id] || {})[mm] = { por: nomes[i % 3], em: hoje() }; });
+    });
     d.diario = [{ id: "ex-n1", data: hoje(), pessoa: "Ana", setor: "dp", texto: "Folhas conferidas; falta o FGTS de 2 empresas (exemplo)." },
       { id: "ex-n2", data: hoje(), pessoa: "Bruno", setor: "fiscal", texto: "Apuração feita até a metade da lista; parei na letra G (exemplo)." }].concat(d.diario);
     gravar(d);
@@ -544,7 +623,7 @@ export function criarEmDia(deps) {
 
   return {
     hoje, mesPadrao, setores, salvarObrigacoes, empresas, empresaPara, ocultar, responsavel, todosResponsaveis, definirResponsavel, historicoResponsavel, importarHistorico,
-    definirStatus, definirObs, grade, anual, pessoas, resumo, passarBastao, devolverBastao, historicoBastao,
+    definirStatus, definirObs, grade, anual, pessoas, resumo, marcarFechado, fechamento, resumoFechamento, passarBastao, devolverBastao, historicoBastao,
     anotar, excluirAnotacao, diario, lerEntregas, lerControle, aplicarImportacao, carregarDemonstracao, limpar
   };
 }

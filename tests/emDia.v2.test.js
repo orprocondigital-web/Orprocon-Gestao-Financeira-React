@@ -165,6 +165,35 @@ describe("vencimento, Lucro Real e responsável por mês", () => {
   });
 });
 
+describe("fechamento contábil (mês fechado)", () => {
+  test("visto por empresa e mês; filial segue a matriz; fora do período; equipe e Início", () => {
+    const { svc, ls } = amb();
+    const cad = JSON.parse(ls["painelVencimentos:v1"]);
+    cad.clientes.push({ id: "c1f", nome: "Alfa Comércio (filial)", documento: "11.111.111/0002-92" });
+    cad.clientes.push({ id: "c3", nome: "Zeta Nova", documento: "", inicio: "2026-07" });
+    ls["painelVencimentos:v1"] = JSON.stringify(cad);
+    svc.definirResponsavel("contabil", "c1", "Ana"); svc.definirResponsavel("contabil", "c2", "Bruno");
+    svc.marcarFechado("c1", "2026-01", true, "Ana");
+    svc.marcarFechado("c1", "2026-09", true, "Ana");
+    svc.marcarFechado("c3", "2026-08", true);
+    assert.throws(() => svc.marcarFechado("c1", "09/2026", true), /inválido/);
+    const f = svc.fechamento("2026");
+    assert.deepEqual(f.linhas.map((l) => [l.empresa.id, l.filial]), [["c1", false], ["c1f", true], ["c2", false], ["c3", false]]);
+    const fil = f.linhas[1];
+    assert.equal(fil.meses[0].estado, "fechado", "a filial segue a matriz");
+    assert.equal(f.linhas[3].meses[5].estado, "fora", "Zeta só a partir de julho");
+    assert.equal(f.linhas[0].pct, 22, "2 de 9 meses até setembro");
+    assert.deepEqual([f.totais[8].feitos, f.totais[8].total], [1, 3], "setembro: Alfa fechada de 3 matrizes; a filial não conta");
+    assert.deepEqual(f.equipe.map((e) => e.pessoa), ["(sem responsável)", "Ana", "Bruno"]);
+    assert.equal(svc.fechamento("2026", { pessoa: "Bruno" }).linhas.length, 1);
+    assert.equal(svc.fechamento("2026", { matrizes: true }).linhas.length, 3);
+    const r = svc.resumoFechamento("2026-09", { nome: "Ana" });
+    assert.deepEqual([r.feitos, r.total, r.minhas, r.minhasFeitas], [1, 3, 1, 1]);
+    svc.marcarFechado("c1", "2026-09", false);
+    assert.equal(svc.resumoFechamento("2026-09").feitos, 0);
+  });
+});
+
 describe("passagem de bastão e diário", () => {
   test("passa só as empresas com pendência, devolve e desfaz", () => {
     const { svc } = amb();

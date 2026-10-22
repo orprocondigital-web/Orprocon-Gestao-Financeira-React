@@ -147,7 +147,7 @@ describe("Início", () => {
   test("capa: só as ferramentas que a pessoa pode abrir, por setor", () => {
     const r = I.resumir({}, ctx());
     const tudo = I.capa(r);
-    assert.equal((tudo.match(/class="capa-card"/g) || []).length, 13);
+    assert.equal((tudo.match(/class="capa-card"/g) || []).length, 15);
     assert.match(tudo, /Departamento Cadastro/);
     assert.ok(!/Painel de vencimentos/.test(tudo), "o painel saiu: os vencimentos ficam em Certidões e Alvarás");
     assert.match(tudo, /Departamento Pessoal/);

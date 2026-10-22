@@ -51,14 +51,15 @@ function Resultado({ c, data, comp, retencao }) {
 }
 
 // ---------------------------------------------------------------- registrar
-function FormDistribuicao({ editando, aoFechar }) {
+/** Também usado no Encerramento contábil (inicial: { empresaId, data }). */
+export function FormDistribuicao({ editando, aoFechar, inicial }) {
   const [svc] = useLucros();
   const { aviso } = useAvisos();
   const empresas = svc.empresas().filter((c) => c.socios.length || (editando && c.id === editando.empresaId));
   const [f, setF] = useState(() => editando
     ? { empresaId: editando.empresaId, socio: editando.socio, data: editando.data, valor: Core.formatBR(editando.liquido), modo: "liquido",
       retencao: editando.retencao, ata: editando.ata, compReinf: editando.compReinf, obs: editando.obs }
-    : { empresaId: empresas.length === 1 ? empresas[0].id : "", socio: "", data: svc.hoje(), valor: "", modo: "liquido", retencao: false, ata: false, compReinf: "", obs: "" });
+    : Object.assign({ empresaId: empresas.length === 1 ? empresas[0].id : "", socio: "", data: svc.hoje(), valor: "", modo: "liquido", retencao: false, ata: false, compReinf: "", obs: "" }, inicial || {}));
   const [tocouRet, setTocouRet] = useState(!!editando);
   const [erro, setErro] = useState("");
   const muda = (c, v) => setF((x) => Object.assign({}, x, { [c]: v }));
