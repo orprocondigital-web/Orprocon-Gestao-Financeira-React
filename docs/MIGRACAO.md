@@ -20,6 +20,8 @@ anterior é arquivada.
 | Em Dia: responsável por competência (histórico); a troca vale a partir de um mês e não muda os meses anteriores | ✅ React (`histResp` em `emDia:v2`) |
 | Distribuição de lucros (do sistema do Depto. Contábil): registro por sócio, IRRF de 10% (base = líquido ÷ 90 × 100), sugestão de retenção acima de R$ 50 mil no mês, saldo de ata, prazos do DARF 1841 e da REINF, Excel | ✅ React (`src/lib/lucros.mjs`, dados em `lucros:v1`, área `contabil-lucros`) |
 | REINF por competência: matrizes clientes no mês, notas de serviço, lucros distribuídos, confirmação, prazo do mês | ✅ React (mesmo módulo) |
+| Encerramento do exercício: estoque inicial, compras, estoque final, receita, CMV, lucro bruto e %, resultado antes do estoque e do período; matriz + filiais + consolidado; encerrar/reabrir; sócios com o distribuído no ano e "Adicionar distribuição" em 31/12; Excel. Falta o rateio por faturamento (a fórmula está no JavaScript.html, que não veio) | ✅ React (`/encerramento`, `src/lib/encerramento.mjs`, dados em `encerramento:v1`) |
+| Fechamento contábil (o "mês fechado" do Depto. Contábil): visto por empresa e mês, filial segue a matriz, progresso por pessoa e equipe, Excel; cartões no Início com o fechamento e a REINF | ✅ React (`/fechamento`, regras em `src/lib/emDia.mjs`, dados em `emDia:v2`) |
 | Apuração de ICMS, Auditor IBS/CBS, ISS, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
 | Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
 | Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |

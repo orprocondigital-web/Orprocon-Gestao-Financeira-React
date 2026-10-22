@@ -12,6 +12,8 @@ import Conciliacao from "./paginas/Conciliacao.jsx";
 import DepCadastro from "./paginas/DepCadastro.jsx";
 import EmDia from "./paginas/EmDia.jsx";
 import Lucros from "./paginas/Lucros.jsx";
+import Fechamento from "./paginas/Fechamento.jsx";
+import Encerramento from "./paginas/Encerramento.jsx";
 import { AvisosProvider } from "./componentes/Avisos.jsx";
 import AvisoAtualizacao from "./componentes/AvisoAtualizacao.jsx";
 
@@ -52,6 +54,8 @@ export default function App() {
             <Route path="em-dia" element={<SoArea area="mod-em-dia"><EmDia /></SoArea>} />
             <Route path="lucros" element={<SoArea area="contabil-lucros"><Lucros secao="distribuicoes" /></SoArea>} />
             <Route path="reinf" element={<SoArea area="contabil-lucros"><Lucros secao="reinf" /></SoArea>} />
+            <Route path="fechamento" element={<SoArea area="contabil-lucros"><Fechamento /></SoArea>} />
+            <Route path="encerramento" element={<SoArea area="contabil-lucros"><Encerramento /></SoArea>} />
             <Route path="modulo/mod-em-dia" element={<Navigate to="/em-dia" replace />} />
             {/* o antigo Painel de vencimentos virou Certidões e Alvarás */}
             <Route path="modulo/mod-vencimentos" element={<Navigate to="/departamento-cadastro/certidoes" replace />} />
