@@ -5,6 +5,7 @@ import { useAuth } from "../lib/auth.jsx";
 import { lerJson, lerLocal } from "../lib/tema.js";
 import { nomeDaConta } from "../lib/menu.js";
 import { emDia, useEmDia } from "../lib/useEmDia.js";
+import { lucros, useLucros } from "../lib/useLucros.js";
 import Icone from "../componentes/Icone.jsx";
 
 const COR_SETOR = { contabil: "border-brand-fill", fiscal: "border-ink-2", pessoal: "border-credit", cadastro: "border-warn", escritorio: "border-info" };
@@ -17,6 +18,7 @@ function mesAtual() { const d = new Date(); return d.getFullYear() + "-" + Strin
 function useResumo(usuario, pode) {
   const [versao, setVersao] = useState(0);
   const [, versaoEmDia] = useEmDia();
+  const [, versaoLucros] = useLucros();
   useEffect(() => {
     const f = () => setVersao((n) => n + 1);
     window.addEventListener("storage", f);
@@ -37,13 +39,29 @@ function useResumo(usuario, pode) {
       const ed = emDia.resumo(emDia.mesPadrao(), ctx.usuario);
       if (ed.total) r.vazio = false;
       if (ed.total) r.numeros = r.numeros.map((n) => {
-        if (n.id === "fechamento") return Object.assign({}, n, { rotulo: "Fechamento de " + I.rotuloMes(ed.mes).split("/")[0], valor: ed.pct + "%", sub: ed.feitas + " de " + ed.total + " feitas", pct: ed.pct, ir: pode("mod-em-dia") ? { tab: "mod-em-dia" } : null });
+        if (n.id === "fechamento") return Object.assign({}, n, { rotulo: "Em Dia de " + I.rotuloMes(ed.mes).split("/")[0], valor: ed.pct + "%", sub: ed.feitas + " de " + ed.total + " feitas", pct: ed.pct, ir: pode("mod-em-dia") ? { tab: "mod-em-dia" } : null });
         if (n.id === "hoje") return Object.assign({}, n, { rotulo: "Minhas pendências", valor: String(ed.minhas), sub: ed.minhas ? "no Em Dia de " + I.rotuloMes(ed.mes).split("/")[0] : "Nada pendente com você", tom: ed.minhas ? "alerta" : "", ir: pode("mod-em-dia") ? { tab: "mod-em-dia" } : null });
         return n;
       });
+      // Contábil: fechamento do mês por empresa e REINF da competência
+      if (pode("contabil-lucros")) {
+        const fc = emDia.resumoFechamento(emDia.mesPadrao(), ctx.usuario);
+        if (fc.total) {
+          r.vazio = false;
+          const pct = Math.round((fc.feitos / fc.total) * 100);
+          r.numeros.push({ id: "fech-contabil", rotulo: "Contábil fechado em " + I.rotuloMes(fc.mes).split("/")[0], valor: pct + "%",
+            sub: fc.minhas ? "seus: " + fc.minhasFeitas + " de " + fc.minhas : fc.feitos + " de " + fc.total + " empresas", tom: fc.minhas && fc.minhasFeitas < fc.minhas ? "alerta" : "", ir: { tab: "fechamento" } });
+        }
+        const rf = lucros.reinf(lucros.mesPadrao());
+        if (rf.total) {
+          r.vazio = false;
+          r.numeros.push({ id: "reinf", rotulo: "REINF de " + I.rotuloMes(rf.comp).split("/")[0], valor: rf.confirmadas + "/" + rf.total,
+            sub: rf.pendentes ? rf.pendentes + " a confirmar até " + rf.prazo.slice(8) + "/" + rf.prazo.slice(5, 7) : "Todas confirmadas", tom: rf.pendentes && rf.prazo < ctx.hoje ? "perigo" : rf.pendentes ? "alerta" : "", ir: { tab: "reinf" } });
+        }
+      }
       return r;
     } catch (e) { console.error("Início:", e); return null; }
-  }, [usuario, pode, versao, versaoEmDia]);   // eslint-disable-line
+  }, [usuario, pode, versao, versaoEmDia, versaoLucros]);   // eslint-disable-line
 }
 
 export default function Inicio() {
@@ -60,6 +78,8 @@ export default function Inicio() {
     if (alvo.acaoApp === "extratos") { navegar("/integracao"); return; }
     if (alvo.tab === "mod-em-dia") { navegar("/em-dia"); return; }
     if (alvo.tab === "lucros") { navegar("/lucros"); return; }
+    if (alvo.tab === "fechamento") { navegar("/fechamento"); return; }
+    if (alvo.tab === "reinf") { navegar("/reinf"); return; }
     const dep = { "dep-empresas": "empresas", "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-alvaras": "alvaras", "dep-faturamentos": "faturamentos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
     if (dep) { navegar("/departamento-cadastro/" + dep); return; }
     navegar(alvo.tab === "master" ? "/integracao" : alvo.tab === "conciliacao" ? "/conciliacao" : "/modulo/" + alvo.tab, { state: { prefs: alvo.prefs || null } });
@@ -91,7 +111,7 @@ export default function Inicio() {
       </header>
 
       {!r.vazio && (
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5">
+        <div className={"grid grid-cols-2 gap-2.5 " + (r.numeros.length > 4 ? "md:grid-cols-3 2xl:grid-cols-6" : "xl:grid-cols-4")}>
           {r.numeros.map((x) => (
             <button key={x.id} type="button" disabled={!x.ir} onClick={() => ir(x.ir)}
               className="cartao text-left px-3.5 py-2.5 flex flex-col gap-1 min-w-0 enabled:hover:border-brand-fill disabled:cursor-default transition-colors">
