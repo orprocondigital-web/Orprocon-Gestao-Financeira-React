@@ -445,6 +445,8 @@
         itens: ["Cruza cada movimento por valor, sinal e data", "Extrato × planilha de clientes e fornecedores ou XML de NF-e", "Concilia à mão, marca conferido e exporta o resultado"] },
       { tab: "fechamento", area: "contabil-lucros", icone: "fechamento", nome: "Fechamento contábil", resumo: "Qual empresa já teve o mês fechado, por responsável.",
         itens: ["Um visto por empresa e mês, a filial segue a matriz", "Progresso por pessoa e da equipe no ano", "Exporta a grade para Excel"] },
+      { tab: "encerramento", area: "contabil-lucros", icone: "encerramento", nome: "Encerramento do exercício", resumo: "Estoque, compras, CMV e lucro bruto do ano, por empresa.",
+        itens: ["Matriz e filiais com o consolidado", "CMV, lucro bruto e resultado do período calculados", "Sócios com o que foi distribuído no ano"] },
       { tab: "lucros", area: "contabil-lucros", icone: "lucros", nome: "Distribuição de lucros e REINF", resumo: "O que cada sócio recebeu, o IRRF e a REINF do mês.",
         itens: ["Calcula base e IRRF de 10% e avisa quando o mês passa de R$ 50 mil", "Saldo de lucros aprovados em ata, sem IRRF", "REINF por competência: notas, distribuído e confirmação"] }
     ] },
