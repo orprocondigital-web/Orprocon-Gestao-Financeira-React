@@ -23,6 +23,9 @@ function script(url, global, nome) {
   return carregando[url];
 }
 const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+const EXCELJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js";
+/** ExcelJS: para planilhas com formatação, fórmulas e listas (a planilha que vai para o cliente). */
+export function carregarExcelJs() { return script(EXCELJS_URL, "ExcelJS", "gerador de planilhas"); }
 export function carregarJsZip() { return script(JSZIP_URL, "JSZip", "leitor de .zip"); }
 export function carregarXlsx() { return script(XLSX_URL, "XLSX", "leitor de planilhas"); }
 function carregarPdfJs() {
