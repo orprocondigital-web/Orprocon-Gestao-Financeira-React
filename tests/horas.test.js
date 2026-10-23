@@ -1,7 +1,10 @@
 // Controle de horas: regras em modulos/controle-horas/js/regras.js. Nomes fictícios.
 const { test, describe } = require("node:test");
 const assert = require("node:assert/strict");
-const R = require("../public/modulos/controle-horas/js/regras.js");
+// require de módulo ES (Node 22+): as regras são usadas já na montagem dos testes
+const R = require("../src/lib/horas/regras.mjs").default;
+const P = require("../src/lib/horas/planilha.mjs").default;
+const H = require("../src/lib/horas/dados.mjs").default, D = H;
 
 const h = (s) => R.paraMin(s);
 const dia = (e1, s1, e2, s2, oc) => ({ e1: h(e1), s1: h(s1), e2: h(e2), s2: h(s2), oc: oc || "" });
@@ -134,7 +137,7 @@ describe("feriados e cadastro", () => {
 
 // Planilha do cliente: gerar (ExcelJS) e ler (SheetJS). Só roda se as bibliotecas estiverem instaladas
 // (npm install exceljs xlsx --no-save); o navegador as carrega da CDN.
-const P = require("../public/modulos/controle-horas/js/planilha.js");
+
 function lib(nome) {
   for (const p of [nome, (process.env.HORAS_LIBS || "") + "/" + nome]) { try { return require(p); } catch (e) {} }
   return null;
@@ -179,7 +182,6 @@ describe("planilha do cliente", { skip: !(ExcelJS && XLSX) && "exceljs/xlsx não
     const lido = P.ler(XLSX, XLSX.read(buf, { type: "buffer" }));
     const cheias = lido.folhas.filter((f) => Object.keys(f.dias).length);
     assert.deepEqual(cheias.map((f) => [f.nome, f.funcao]), [["Paula Exemplo", "Auxiliar"]]);
-    const D = require("../public/modulos/controle-horas/js/dados.js");
     const e = D.estadoVazio(), emp = D.salvarEmpresa(e, { nome: "Cliente Exemplo Ltda" }, 2026);
     const r = D.aplicarImportacao(e, emp.id, "2026-09", lido);
     assert.deepEqual([r.importadas, r.criados, r.ignoradas], [1, ["Paula Exemplo"], []], "abas que sobraram em branco não atrapalham");
@@ -196,7 +198,7 @@ describe("planilha do cliente", { skip: !(ExcelJS && XLSX) && "exceljs/xlsx não
   });
 });
 
-const H = require("../public/modulos/controle-horas/js/dados.js");
+
 describe("cadastro, meses e importação", () => {
   function base() {
     const e = H.estadoVazio();

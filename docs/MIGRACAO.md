@@ -24,7 +24,9 @@ anterior é arquivada.
 | Fechamento contábil (o "mês fechado" do Depto. Contábil): visto por empresa e mês, filial segue a matriz, progresso por pessoa e equipe, Excel; cartões no Início com o fechamento e a REINF | ✅ React (`/fechamento`, regras em `src/lib/emDia.mjs`, dados em `emDia:v2`) |
 | ISS Tubarão: importar o XML do Meu ISS, conferir por empresa (ISS retido, federais, alertas), marcar conferida, Excel | ✅ React (`/iss`, regras em `src/lib/iss/`, dados em `iss:v1`) |
 | Apuração de ICMS: XML/zip de NF-e e NFC-e, débitos e créditos por CFOP, regras por CFOP, ajustes, gráfico, Excel | ✅ React (`/icms`, `src/lib/icms.mjs`; notas só na memória; regras `icms.rules`, ajustes `icms.aj.*`) |
-| Auditor IBS/CBS, Controle de horas | 🟡 Abrem no quadro (versão anterior); refazer um por um |
+| Controle de horas (DP): empresas, funcionários, gerar a planilha do cliente, importar, conferir e corrigir a folha, regras, feriados, fechar o mês, resumo em Excel | ✅ React (`/horas`, regras em `src/lib/horas/`, dados em `horas:v1`) |
+| Auditor IBS/CBS: XML de NF-e e NFS-e, conferência de CST, base, alíquota nominal e efetiva (gRed) e valores, item manual, calculadora, referência de CST, CSV | ✅ React (`/ibs-cbs`, `src/lib/ibsCbs.mjs`; itens só na memória) |
+| Módulos antigos em `public/modulos/` | 🧹 Nenhum é mais usado pelo menu; apagar na limpeza final |
 | Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
 | Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |
 | Cadastros (importar a aba ou cadastrar à mão, editar, excluir com Desfazer) | ✅ React |
