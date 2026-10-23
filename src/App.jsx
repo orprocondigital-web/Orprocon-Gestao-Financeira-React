@@ -16,6 +16,8 @@ import Fechamento from "./paginas/Fechamento.jsx";
 import Encerramento from "./paginas/Encerramento.jsx";
 import Iss from "./paginas/Iss.jsx";
 import Icms from "./paginas/Icms.jsx";
+import Horas from "./paginas/Horas.jsx";
+import IbsCbs from "./paginas/IbsCbs.jsx";
 import { AvisosProvider } from "./componentes/Avisos.jsx";
 import AvisoAtualizacao from "./componentes/AvisoAtualizacao.jsx";
 
@@ -63,6 +65,10 @@ export default function App() {
             <Route path="modulo/mod-iss" element={<Navigate to="/iss" replace />} />
             <Route path="icms" element={<SoArea area="mod-icms"><Icms /></SoArea>} />
             <Route path="modulo/mod-icms" element={<Navigate to="/icms" replace />} />
+            <Route path="horas" element={<SoArea area="mod-horas"><Horas /></SoArea>} />
+            <Route path="modulo/mod-horas" element={<Navigate to="/horas" replace />} />
+            <Route path="ibs-cbs" element={<SoArea area="mod-ibs-cbs"><IbsCbs /></SoArea>} />
+            <Route path="modulo/mod-ibs-cbs" element={<Navigate to="/ibs-cbs" replace />} />
             {/* o antigo Painel de vencimentos virou Certidões e Alvarás */}
             <Route path="modulo/mod-vencimentos" element={<Navigate to="/departamento-cadastro/certidoes" replace />} />
             <Route path="usuarios" element={<SoAdmin><Usuarios /></SoAdmin>} />
