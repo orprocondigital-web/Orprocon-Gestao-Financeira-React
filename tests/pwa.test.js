@@ -36,6 +36,6 @@ describe("sw.js gerado", () => {
     const lista = P.listarPasta(path.join(__dirname, "../public"));
     assert.ok(lista.includes("manifest.webmanifest"));
     assert.ok(lista.includes("icons/icon-192-v2.png"));
-    assert.ok(lista.some((c) => /^modulos\/iss-tubarao\/index\.html$/.test(c)));
+    assert.ok(!lista.some((c) => /^modulos\//.test(c)), "os módulos antigos saíram");
   });
 });

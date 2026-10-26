@@ -1,7 +1,8 @@
 /*
  * modulos.js — ferramentas independentes que abrem dentro da Central Orprocon.
  *
- * Cada módulo continua sendo um site próprio em modulos/<pasta>/ e abre num quadro
+ * Todos os módulos já são telas em React (src/paginas); LISTA só dá nome, seção e área de cada um ao menu.
+ * (Histórico: cada módulo era um site próprio em modulos/<pasta>/ e abria num quadro)
  * (iframe) na área principal. Assim um não interfere no código, no visual nem nos
  * dados do outro. O sistema principal cuida de:
  *   - abrir o módulo (uma vez; ao trocar de tela ele fica como estava);
