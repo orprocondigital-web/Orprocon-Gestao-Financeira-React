@@ -12,7 +12,7 @@ import { useContabil } from "../lib/useContabil.js";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
 import { instalarApp, usePwa } from "../lib/pwa.js";
 
-const VERSAO = "1.0.0-alpha.16";
+const VERSAO = "1.0.0-alpha.17";
 const FECHADAS_PADRAO = { "Outras movimentações": 1, "Cadastros": 1 };
 
 function iniciais(nome) {
