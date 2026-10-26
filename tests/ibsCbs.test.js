@@ -39,6 +39,34 @@ describe("conferência", () => {
     const t = A.csv(itens());
     assert.ok(t.startsWith("﻿Documento;Item"));
     assert.equal(t.split("\r\n").length, 4);
-    assert.match(t, /"Erro"$/);
+    assert.match(t, /"Erro";"[^"]*CBS divergente[^"]*"$/);
+  });
+});
+
+describe("tabela de referência", () => {
+  const linhas = [["Tabela"], ["NCM", "Descrição", "CST", "cClassTrib", "Redução (%)", "Observação"],
+    ["8471.30.12", "Notebook", "000", "000001", 0, ""], ["3004", "Medicamentos", "200", "200001", "60", "Saúde"],
+    ["9403", "Móveis", "000", "200001", 0, ""], ["12", "Sem CST", "", "", "", ""], ["1234567890", "x", "000", "000001", 0, ""]];
+  test("lê a planilha, valida e acha por prefixo", () => {
+    const r = A.lerReferencia(linhas);
+    assert.equal(r.total, 3);
+    assert.equal(r.avisos.length, 3, "cClassTrib de outro CST, falta CST, NCM longo");
+    assert.equal(A.referenciaDoNcm(r.itens, "30049099").desc, "Medicamentos");
+    assert.equal(A.referenciaDoNcm(r.itens, "84713012").ncm, "84713012");
+    assert.equal(A.referenciaDoNcm(r.itens, "11111111"), null);
+    assert.throws(() => A.lerReferencia([["Produto"]]), /NCM/);
+  });
+  test("confere cada item com a tabela e o cClassTrib com o CST", () => {
+    const ref = A.lerReferencia(linhas).itens;
+    const [[n1, nfe]] = A.xmlsDeExemplo();
+    const [a, b, c] = A.lerXml(nfe, n1).itens.map((x) => A.conferir(x, ref));
+    assert.equal(a.nivel, "ok"); assert.match(a.msgs.map((m) => m.texto).join(), /Confere com a tabela.*Notebook/);
+    const fora = A.itemManual({ desc: "Z", ncm: "11111111", bc: "100", pCbs: "0,9", cst: "000", cClassTrib: "000001" }, 1);
+    assert.equal(A.conferir(fora, ref).nivel, "atencao"); assert.match(A.conferir(fora, ref).msgs.map((m) => m.texto).join(), /11111111 não está na tabela/);
+    assert.equal(b.nivel, "ok"); assert.match(b.msgs.map((m) => m.texto).join(), /Confere com a tabela.*Medicamentos/);
+    assert.match(c.msgs.map((m) => m.texto).join(), /Diferente da tabela.*cClassTrib — \(esperado 200001\)/);
+    const x = A.itemManual({ desc: "Y", bc: "100", pCbs: "0,9", cst: "000", cClassTrib: "200001" }, 1);
+    assert.match(A.conferir(x).msgs.map((m) => m.texto).join(), /não pertence ao CST 000/);
+    assert.match(A.csv([x]), /Motivo/);
   });
 });

@@ -88,7 +88,45 @@ export const brl = (n) => (n === null || n === undefined || isNaN(n) ? "—" : n
 export const pct = (n) => (n === null || n === undefined || isNaN(n) ? "—" : n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + "%");
 
 /** { nivel: "ok"|"atencao"|"erro", msgs: [{ nivel, texto }] } */
-export function conferir(row) {
+// ------------------------------------------------------------ tabela de referência (NCM → tratamento esperado)
+const soDig = (v) => String(v == null ? "" : v).replace(/\D/g, "");
+const cab = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+/**
+ * Lê a planilha da equipe fiscal (linhas como arrays, a 1ª com os títulos): NCM, Descrição, CST, cClassTrib,
+ * Redução (%), Observação. Devolve { itens: { ncm: {...} }, total, avisos }. NCM com 2 a 8 dígitos (vale por prefixo).
+ */
+export function lerReferencia(linhas) {
+  const ini = (linhas || []).findIndex((l) => (l || []).some((c) => cab(c) === "ncm"));
+  if (ini < 0) throw new Error("A planilha precisa de uma coluna NCM (veja o modelo).");
+  const h = linhas[ini].map(cab);
+  const col = (...nomes) => h.findIndex((x) => nomes.includes(x));
+  const cN = col("ncm"), cD = col("descricao", "produto"), cC = col("cst"), cT = col("cclasstrib", "classtrib"), cR = col("reducao", "reducaodealiquota"), cO = col("observacao", "obs");
+  if (cC < 0 || cT < 0) throw new Error("A planilha precisa das colunas CST e cClassTrib.");
+  const itens = {}, avisos = [];
+  linhas.slice(ini + 1).forEach((l, i) => {
+    if (!l) return;
+    const ncm = soDig(l[cN]);
+    if (!ncm) return;
+    const linha = ini + i + 2;
+    if (ncm.length < 2 || ncm.length > 8) { avisos.push("Linha " + linha + ": NCM " + l[cN] + " inválido (use de 2 a 8 dígitos)."); return; }
+    const cst = soDig(l[cC]).padStart(3, "0"), ct = soDig(l[cT]).padStart(6, "0");
+    if (!soDig(l[cC]) || !soDig(l[cT])) { avisos.push("Linha " + linha + ": falta CST ou cClassTrib do NCM " + ncm + "."); return; }
+    if (ct.slice(0, 3) !== cst) avisos.push("Linha " + linha + ": cClassTrib " + ct + " não pertence ao CST " + cst + ".");
+    const red = cR >= 0 ? num(l[cR]) : null;
+    itens[ncm] = { ncm, desc: cD >= 0 ? String(l[cD] || "").trim() : "", cst, cClassTrib: ct, reducao: red === null ? 0 : red, obs: cO >= 0 ? String(l[cO] || "").trim() : "" };
+  });
+  return { itens, total: Object.keys(itens).length, avisos };
+}
+/** A referência do NCM: a mais específica (8 dígitos, depois 6, 4, 2). */
+export function referenciaDoNcm(ref, ncm) {
+  const n = soDig(ncm);
+  if (!ref || !n) return null;
+  for (let k = n.length; k >= 2; k--) if (ref[n.slice(0, k)]) return ref[n.slice(0, k)];
+  return null;
+}
+
+/** ref (opcional) = itens da tabela de referência. */
+export function conferir(row, ref) {
   const msgs = [];
   const add = (nivel, texto) => msgs.push({ nivel, texto });
   if (!row.found) { add("erro", "Grupo IBS/CBS não encontrado neste item: verifique se o XML já contempla a NT 2025.002."); return { nivel: "erro", msgs }; }
@@ -110,6 +148,25 @@ export function conferir(row) {
     if (Math.abs(esp - row.vIbs) > TOLERANCIA) add("erro", "Total do IBS (vIBS) não bate com UF + Município: esperado R$ " + brl(esp) + ", informado R$ " + brl(row.vIbs) + ".");
   }
   parte("CBS", row.vCbs, row.pCbs, row.pAliqEfetCbs, row.pRedAliqCbs);
+  // o cClassTrib começa pelo CST (200003 → CST 200)
+  if (row.cst && row.cClassTrib && soDig(row.cClassTrib).slice(0, 3) !== soDig(row.cst).padStart(3, "0"))
+    add("erro", "cClassTrib " + row.cClassTrib + " não pertence ao CST " + row.cst + " (os 3 primeiros dígitos do cClassTrib são o CST).");
+  // comparação com a tabela de referência da equipe
+  if (ref && Object.keys(ref).length) {
+    const r = referenciaDoNcm(ref, row.ncm);
+    if (!row.ncm) add("atencao", "Item sem NCM: não dá para comparar com a tabela de referência.");
+    else if (!r) add("atencao", "NCM " + row.ncm + " não está na tabela de referência.");
+    else {
+      const red = row.pRedAliqUf ?? row.pRedAliqCbs ?? row.pRedAliqMun ?? 0;
+      const dif = [];
+      if (soDig(row.cst).padStart(3, "0") !== r.cst) dif.push("CST " + (row.cst || "—") + " (esperado " + r.cst + ")");
+      if (soDig(row.cClassTrib).padStart(6, "0") !== r.cClassTrib) dif.push("cClassTrib " + (row.cClassTrib || "—") + " (esperado " + r.cClassTrib + ")");
+      if (Math.abs((red || 0) - (r.reducao || 0)) > 0.001) dif.push("redução " + pct(red || 0) + " (esperado " + pct(r.reducao || 0) + ")");
+      const quem = "NCM " + r.ncm + (r.desc ? " – " + r.desc : "") + (r.obs ? " (" + r.obs + ")" : "");
+      if (dif.length) add("erro", "Diferente da tabela de referência (" + quem + "): " + dif.join("; ") + ".");
+      else add("ok", "Confere com a tabela de referência (" + quem + ").");
+    }
+  }
   if (!msgs.length) add("ok", "Valores e alíquotas consistentes para os campos informados.");
   return { nivel: msgs.some((m) => m.nivel === "erro") ? "erro" : msgs.some((m) => m.nivel === "atencao") ? "atencao" : "ok", msgs };
 }
@@ -149,19 +206,19 @@ export function calcular(c) {
 }
 
 /** CSV para o Excel (separador ;, vírgula decimal, BOM para os acentos). */
-export function csv(rows) {
+export function csv(rows, ref) {
   const n = (v) => (v === null || v === undefined || v === "" ? "" : String(v).replace(".", ","));
   const q = (v) => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
   const cab = ["Documento", "Item", "Descrição do produto", "Código", "NCM", "CFOP", "Quantidade", "Valor Unitário", "Valor Produto", "CST IBS", "cClassTrib", "BC IBS/CBS",
     "Alíquota Nominal IBS-UF (%)", "Redução IBS-UF (%)", "Alíquota Efetiva IBS-UF (%)", "Valor IBS-UF", "Alíquota Nominal IBS-Mun (%)", "Redução IBS-Mun (%)", "Alíquota Efetiva IBS-Mun (%)", "Valor IBS-Mun",
-    "Valor IBS - Total", "CST CBS", "Alíquota Nominal CBS (%)", "Redução CBS (%)", "Alíquota Efetiva CBS (%)", "Valor CBS", "Valor Total (IBS + CBS)", "Situação"];
+    "Valor IBS - Total", "CST CBS", "Alíquota Nominal CBS (%)", "Redução CBS (%)", "Alíquota Efetiva CBS (%)", "Valor CBS", "Valor Total (IBS + CBS)", "Situação", "Motivo"];
   const linhas = [cab.join(";")];
   rows.forEach((r) => {
-    const v = conferir(r);
+    const v = conferir(r, ref);
     const tot = r.vIbs !== null || r.vCbs !== null ? (r.vIbs || 0) + (r.vCbs || 0) : null;
     linhas.push([q(r.doc), r.nItem, q(r.desc || ""), q(r.cProd || ""), q(r.ncm || ""), q(r.cfop || ""), n(r.qCom), n(r.vUnCom), n(r.vProd), q(r.cst || ""), q(r.cClassTrib || ""), n(r.bc),
       n(r.pIbsUf), n(r.pRedAliqUf), n(r.pAliqEfetUf ?? r.pIbsUf), n(r.vIbsUf), n(r.pIbsMun), n(r.pRedAliqMun), n(r.pAliqEfetMun ?? r.pIbsMun), n(r.vIbsMun), n(r.vIbs),
-      q(r.cst || ""), n(r.pCbs), n(r.pRedAliqCbs), n(r.pAliqEfetCbs ?? r.pCbs), n(r.vCbs), n(tot), q(v.nivel === "ok" ? "OK" : v.nivel === "atencao" ? "Atenção" : "Erro")].join(";"));
+      q(r.cst || ""), n(r.pCbs), n(r.pRedAliqCbs), n(r.pAliqEfetCbs ?? r.pCbs), n(r.vCbs), n(tot), q(v.nivel === "ok" ? "OK" : v.nivel === "atencao" ? "Atenção" : "Erro"), q(v.msgs.filter((m) => m.nivel !== "ok").map((m) => m.texto).join(" | "))].join(";"));
   });
   return "﻿" + linhas.join("\r\n");
 }

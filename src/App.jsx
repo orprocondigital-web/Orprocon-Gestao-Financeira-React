@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from "./lib/auth.jsx";
 import Layout from "./componentes/Layout.jsx";
 import Login from "./paginas/Login.jsx";
 import Inicio from "./paginas/Inicio.jsx";
-import Modulo from "./paginas/Modulo.jsx";
+import ModuloAntigo from "./paginas/ModuloAntigo.jsx";
 import Usuarios from "./paginas/Usuarios.jsx";
 import Integracao from "./paginas/Integracao.jsx";
 import Conta from "./paginas/Conta.jsx";
@@ -49,7 +49,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route element={<Protegida><Layout /></Protegida>}>
             <Route index element={<Inicio />} />
-            <Route path="modulo/:id" element={<Modulo />} />
+            <Route path="modulo/:id" element={<ModuloAntigo />} />
             <Route path="integracao" element={<SoArea area="integracao"><Integracao /></SoArea>} />
             <Route path="conciliacao" element={<SoArea area="conciliacao"><Conciliacao /></SoArea>} />
             <Route path="conta/:id" element={<SoArea area="integracao"><Conta /></SoArea>} />
@@ -61,14 +61,9 @@ export default function App() {
             <Route path="fechamento" element={<SoArea area="contabil-lucros"><Fechamento /></SoArea>} />
             <Route path="encerramento" element={<SoArea area="contabil-lucros"><Encerramento /></SoArea>} />
             <Route path="iss" element={<SoArea area="mod-iss"><Iss /></SoArea>} />
-            <Route path="modulo/mod-em-dia" element={<Navigate to="/em-dia" replace />} />
-            <Route path="modulo/mod-iss" element={<Navigate to="/iss" replace />} />
             <Route path="icms" element={<SoArea area="mod-icms"><Icms /></SoArea>} />
-            <Route path="modulo/mod-icms" element={<Navigate to="/icms" replace />} />
             <Route path="horas" element={<SoArea area="mod-horas"><Horas /></SoArea>} />
-            <Route path="modulo/mod-horas" element={<Navigate to="/horas" replace />} />
             <Route path="ibs-cbs" element={<SoArea area="mod-ibs-cbs"><IbsCbs /></SoArea>} />
-            <Route path="modulo/mod-ibs-cbs" element={<Navigate to="/ibs-cbs" replace />} />
             {/* o antigo Painel de vencimentos virou Certidões e Alvarás */}
             <Route path="modulo/mod-vencimentos" element={<Navigate to="/departamento-cadastro/certidoes" replace />} />
             <Route path="usuarios" element={<SoAdmin><Usuarios /></SoAdmin>} />

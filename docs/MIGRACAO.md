@@ -26,7 +26,7 @@ anterior é arquivada.
 | Apuração de ICMS: XML/zip de NF-e e NFC-e, débitos e créditos por CFOP, regras por CFOP, ajustes, gráfico, Excel | ✅ React (`/icms`, `src/lib/icms.mjs`; notas só na memória; regras `icms.rules`, ajustes `icms.aj.*`) |
 | Controle de horas (DP): empresas, funcionários, gerar a planilha do cliente, importar, conferir e corrigir a folha, regras, feriados, fechar o mês, resumo em Excel | ✅ React (`/horas`, regras em `src/lib/horas/`, dados em `horas:v1`) |
 | Auditor IBS/CBS: XML de NF-e e NFS-e, conferência de CST, base, alíquota nominal e efetiva (gRed) e valores, item manual, calculadora, referência de CST, CSV | ✅ React (`/ibs-cbs`, `src/lib/ibsCbs.mjs`; itens só na memória) |
-| Módulos antigos em `public/modulos/` | 🧹 Nenhum é mais usado pelo menu; apagar na limpeza final |
+| Módulos antigos em `public/modulos/` e o quadro (`Modulo.jsx`) | ✅ Removidos; endereços antigos `#/modulo/...` levam para a tela nova |
 | Integração contábil: painel do mês, importar planilha e extratos, distribuir por unidade, gerar TXTs (atual e Único), backup | ✅ React |
 | Contas bancárias, unidades, outras movimentações (lançamentos, busca, filtros, editar, excluir com Desfazer) | ✅ React |
 | Cadastros (importar a aba ou cadastrar à mão, editar, excluir com Desfazer) | ✅ React |

@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from "react";
-import { CSTS, brl, calcular, conferir, csv, itemManual, lerXml, pct, xmlsDeExemplo } from "../lib/ibsCbs.mjs";
+import { CSTS, brl, calcular, conferir, csv, itemManual, lerReferencia, lerXml, pct, xmlsDeExemplo } from "../lib/ibsCbs.mjs";
+import { carregarXlsx } from "../lib/leitores.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import { Campo, Selo } from "../componentes/contabil/ui.jsx";
 
@@ -8,6 +9,10 @@ import { Campo, Selo } from "../componentes/contabil/ui.jsx";
  * Regras em src/lib/ibsCbs.mjs (testadas em tests/ibsCbs.test.js). Os itens ficam só na memória desta aba.
  */
 let itens = [], arquivos = [], versao = 0;
+// tabela de referência da equipe fiscal (NCM → CST, cClassTrib, redução): fica guardada neste navegador
+const CHAVE_REF = "ibscbs:referencia:v1";
+let referencia = (() => { try { return JSON.parse(localStorage.getItem(CHAVE_REF) || "null"); } catch (e) { return null; } })();
+function guardarReferencia(r) { referencia = r; try { if (r) localStorage.setItem(CHAVE_REF, JSON.stringify(r)); else localStorage.removeItem(CHAVE_REF); } catch (e) { /* ignora */ } mudou(); }
 const ouvintes = new Set();
 const mudou = () => { versao++; ouvintes.forEach((f) => f()); };
 const usarItens = () => useSyncExternalStore((f) => { ouvintes.add(f); return () => ouvintes.delete(f); }, () => versao);
@@ -27,6 +32,27 @@ function Conferencia() {
   const [m, setM] = useState({});
   const [abertos, setAbertos] = useState({});
   const [filtro, setFiltro] = useState("");
+  async function importarReferencia(f) {
+    try {
+      const XLSX = await carregarXlsx();
+      const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+      const linhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" });
+      const r = lerReferencia(linhas);
+      if (!r.total) { aviso("Nenhum NCM válido na planilha." + (r.avisos.length ? " " + r.avisos.join(" ") : "")); return; }
+      guardarReferencia({ itens: r.itens, total: r.total, arquivo: f.name, em: new Date().toISOString() });
+      aviso("Tabela de referência carregada: " + r.total + " NCM(s)." + (r.avisos.length ? " Avisos: " + r.avisos.join(" ") : ""));
+    } catch (err) { aviso("Não consegui ler a tabela: " + (err.message || err)); }
+  }
+  async function baixarModelo() {
+    try {
+      const XLSX = await carregarXlsx();
+      const ws = XLSX.utils.aoa_to_sheet([["NCM", "Descrição", "CST", "cClassTrib", "Redução (%)", "Observação"],
+        ["10063021", "Arroz", "200", "200003", 60, "Exemplo: cesta básica"], ["84713012", "Notebook", "000", "000001", 0, "Exemplo: tributação integral"]]);
+      ws["!cols"] = [{ wch: 12 }, { wch: 30 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 32 }];
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Referência IBS-CBS");
+      XLSX.writeFile(wb, "Tabela_referencia_IBS_CBS.xlsx");
+    } catch (err) { aviso("Não consegui gerar o modelo: " + (err.message || err)); }
+  }
   async function adicionar(lista) {
     const xs = Array.from(lista || []).filter((f) => f.name.toLowerCase().endsWith(".xml"));
     if (!xs.length) { aviso("Escolha arquivos .xml de NF-e ou NFS-e."); return; }
@@ -38,11 +64,12 @@ function Conferencia() {
   };
   const baixar = () => {
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv(itens)], { type: "text/csv;charset=utf-8;" }));
+    a.href = URL.createObjectURL(new Blob([csv(itens, ref)], { type: "text/csv;charset=utf-8;" }));
     a.download = "conferencia_ibs_cbs_" + new Date().toISOString().slice(0, 10) + ".csv";
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   };
-  const conf = itens.map(conferir);
+  const ref = referencia && referencia.itens;
+  const conf = itens.map((r) => conferir(r, ref));
   const cont = { ok: 0, atencao: 0, erro: 0 }; conf.forEach((c) => cont[c.nivel]++);
   const notas = [...new Set(itens.map((r) => r.nfNumber).filter(Boolean))];
   const visiveis = itens.map((r, i) => [r, conf[i], i]).filter(([, c]) => !filtro || c.nivel === filtro);
@@ -58,6 +85,16 @@ function Conferencia() {
           <span className="text-[13px] text-muted">Os arquivos são lidos só neste navegador e não ficam guardados.</span>
         </label>
       </div>
+      <section className="cartao p-4 flex flex-wrap items-center gap-3">
+        <div className="flex-1 min-w-[240px]">
+          <strong className="block text-[14px]">Tabela de referência por NCM</strong>
+          <span className="text-[12.5px] text-muted">{referencia ? referencia.total + " NCM(s) de " + referencia.arquivo + ", carregada em " + new Date(referencia.em).toLocaleDateString("pt-BR") + ". Cada item é comparado com o CST, o cClassTrib e a redução esperados."
+            : "Sem tabela: o auditor confere só a conta da nota. Carregue a planilha da equipe fiscal (NCM, CST, cClassTrib, redução) para conferir se a tributação de cada produto está certa."}</span>
+        </div>
+        <label className="btn-contorno btn-sm cursor-pointer"><input type="file" hidden accept=".xlsx,.xls,.csv" onChange={(e) => { if (e.target.files[0]) importarReferencia(e.target.files[0]); e.target.value = ""; }} />{referencia ? "Trocar tabela" : "Carregar tabela"}</label>
+        <button type="button" className="btn-fantasma btn-sm" onClick={baixarModelo}>Baixar modelo</button>
+        {referencia && <button type="button" className="btn-fantasma btn-sm text-debit" onClick={() => guardarReferencia(null)}>Tirar tabela</button>}
+      </section>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="btn-contorno btn-sm" onClick={() => setManual(!manual)}>{manual ? "Fechar inclusão manual" : "Incluir item à mão"}</button>
         {!itens.length && <button type="button" className="btn-fantasma btn-sm" onClick={() => xmlsDeExemplo().forEach(([n, t]) => carregarTexto(n, t))}>Usar exemplo</button>}
