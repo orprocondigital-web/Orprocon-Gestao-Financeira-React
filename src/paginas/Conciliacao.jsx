@@ -8,12 +8,13 @@ import { baixarArquivos, lerArquivoExtrato } from "../lib/leitores.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import { BotaoArquivo, Campo, Mensagem, Segmentado } from "../componentes/contabil/ui.jsx";
 import { BarraSelecao, JanelaObs, Resumo, Tabela } from "../componentes/conciliacao/Resultado.jsx";
-import { CONFIG } from "../lib/legado.js";
+import ConciliacaoAvulsa from "../componentes/conciliacao/Avulsa.jsx";
 
 /*
  * Conciliação. Por conta: o extrato do banco contra os lançamentos da conta no sistema, pelo valor,
  * pelo sinal (C/D) e pela data (com tolerância). O que a regra não casa sozinha a pessoa junta à mão
  * ou marca como conferido; isso fica guardado por conta e vale nas próximas vezes.
+ * Extrato × planilha (avulsa): componentes/conciliacao/Avulsa.jsx.
  */
 const POR_PAGINA = 400;
 // o extrato lido fica na memória enquanto o sistema está aberto: sair da tela e voltar não perde nada
@@ -137,16 +138,6 @@ function ConciliacaoPorConta() {
   );
 }
 
-function EmBreveAvulsa() {
-  return (
-    <section className="cartao p-6 text-center space-y-3">
-      <h2 className="text-[16px] font-semibold">Extrato × planilha</h2>
-      <p className="text-[13.5px] text-muted max-w-[560px] mx-auto">O extrato contra uma planilha de contas pagas ou recebidas, contra o balancete de fornecedores do Único ou contra os XMLs das NF-e. Chega na próxima atualização; enquanto isso, use na versão anterior.</p>
-      {CONFIG.sistemaAnterior && <a href={CONFIG.sistemaAnterior + "#conciliacao"} target="_blank" rel="noopener noreferrer" className="btn-contorno">Abrir na versão anterior</a>}
-    </section>
-  );
-}
-
 export default function Conciliacao() {
   const [modo, setModo] = useState(memoria.modo);
   return (
@@ -155,7 +146,7 @@ export default function Conciliacao() {
         <Segmentado rotulo="Tipo de conciliação" valor={modo} aoMudar={(m) => { memoria.modo = m; setModo(m); }}
           opcoes={[["conta", "Conta do sistema"], ["avulsa", "Extrato × planilha"]]} />
       </div>
-      {modo === "conta" ? <ConciliacaoPorConta /> : <EmBreveAvulsa />}
+      {modo === "conta" ? <ConciliacaoPorConta /> : <ConciliacaoAvulsa />}
     </div>
   );
 }
