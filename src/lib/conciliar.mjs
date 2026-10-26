@@ -117,3 +117,62 @@ export function gruposDaConta(Store, contaId) { return (contaId && Store.get("co
 export function salvarGruposDaConta(Store, contaId, grupos) {
   return grupos.length ? Store.set("conciliacao-manual:" + contaId, grupos) : Store.remove("conciliacao-manual:" + contaId);
 }
+
+/*
+ * Conciliação avulsa (extrato × planilha): o estado tem o mesmo formato da versão HTML, então a
+ * conciliação aberta e as salvas passam entre as duas versões e entram no backup do Master.
+ *   "conciliacao-avulsa:atual"   o que está na tela (salvo a cada mudança; volta depois de um F5)
+ *   "conciliacao-salva:<id>"     as conciliações salvas com nome
+ */
+export const CHAVE_AVULSA = "conciliacao-avulsa:atual";
+export const PREFIXO_SALVA = "conciliacao-salva:";
+
+/** Estado vazio da conciliação avulsa. */
+export function avulsaVazia(tolerancia = 3) {
+  return { extrato: null, formato: "", conferencia: "", extratoNome: "", rows: null, nfe: null, planilhaNome: "",
+    tipo: "pagamentos", tolerancia, manuais: [], salvaId: null, salvaNome: "" };
+}
+
+/** Vários extratos lidos (lerArquivoExtrato) → um só: { itens, formato, conferencia, erros }. */
+export function juntarExtratos(lidos) {
+  const ok = lidos.filter((l) => !l.erro), erros = lidos.filter((l) => l.erro);
+  const itens = ok.reduce((t, l) => t.concat(prepararExtrato(l.itens || [], l.arquivo)), []);
+  const confs = ok.filter((l) => l.conferencia && l.conferencia.total).map((l) => l.conferencia.conferidos === l.conferencia.total);
+  let conferencia = confs.length ? (confs.every(Boolean) ? ", saldos conferidos" : ", atenção: saldo de algum extrato não fecha") : "";
+  if (erros.length && ok.length) conferencia += ". Não li: " + erros.map((l) => l.arquivo).join(", ");
+  return { itens, formato: ok.length === 1 ? ok[0].formato : ok.length + " arquivos", conferencia, erros };
+}
+
+/** Lista das conciliações salvas, da mais recente para a mais antiga: [{ id, nome, em }]. */
+export function listarSalvas(Store) {
+  return Store.keys().filter((k) => k.indexOf(PREFIXO_SALVA) === 0).map((k) => {
+    const v = Store.get(k) || {};
+    return { id: k.slice(PREFIXO_SALVA.length), nome: v.salvaNome || "(sem nome)", em: v.salvoEm || v.em || "" };
+  }).sort((a, b) => String(b.em).localeCompare(String(a.em)));
+}
+
+/** Há conciliação à mão que não está salva? (só aí "Limpar" e "Abrir outra" pedem confirmação) */
+export function trabalhoNaoSalvo(Store, av) {
+  if (!av || !av.manuais || !av.manuais.length) return false;
+  if (!av.salvaId) return true;
+  const salva = Store.get(PREFIXO_SALVA + av.salvaId);
+  return !salva || JSON.stringify(salva.manuais || []) !== JSON.stringify(av.manuais);
+}
+
+/** Nome sugerido ao salvar: "<planilha> – <mês com mais movimentações>". */
+export function nomeSugerido(av, nomeCompetencia) {
+  if (av.salvaNome) return av.salvaNome;
+  const meses = {};
+  (av.extrato || []).forEach((x) => { const m = String(x.data).slice(0, 7); meses[m] = (meses[m] || 0) + 1; });
+  const mes = Object.keys(meses).sort((a, b) => meses[b] - meses[a])[0];
+  const base = String(av.planilhaNome || "Conciliação").replace(/\.[^.]+$/, "");
+  return mes ? base + " – " + nomeCompetencia(mes) : base;
+}
+
+/** Grava a conciliação com nome. Mesmo nome da aberta = atualiza; nome novo = outra salva. Devolve o estado novo. */
+export function salvarAvulsa(Store, av, nome, agora = new Date(), novoId = () => "av" + agora.getTime()) {
+  const id = av.salvaId && nome === av.salvaNome ? av.salvaId : novoId();
+  const e = Object.assign({}, av, { salvaId: id, salvaNome: nome, em: agora.toISOString(), salvoEm: agora.toISOString() });
+  Store.set(PREFIXO_SALVA + id, e);
+  return e;
+}

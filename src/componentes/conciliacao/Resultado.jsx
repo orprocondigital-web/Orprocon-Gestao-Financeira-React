@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Core } from "../../lib/legado.js";
 import { STATUS, somaCents } from "../../lib/conciliar.mjs";
 import Janela from "../Janela.jsx";
@@ -148,6 +148,7 @@ export function BarraSelecao({ itensExt, itensSis, avulso, aoJuntar, aoConferir,
 /** Pergunta a observação (motivo da diferença ou do "conferido"). */
 export function JanelaObs({ pedido, aoFechar }) {
   const [obs, setObs] = useState("");
+  useEffect(() => { setObs((pedido && pedido.inicial) || ""); }, [pedido]);   // ex.: nome sugerido ao salvar
   if (!pedido) return null;
   const confirmar = () => { pedido.ok(obs.trim()); setObs(""); };
   return (
