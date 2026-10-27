@@ -7,6 +7,7 @@ import { abrirArquivo, apagarArquivo, guardarArquivo } from "../lib/arquivos.js"
 import { textoDoPdf } from "../lib/leitores.js";
 import Importar, { carregarDemo } from "../componentes/depCadastro/Importar.jsx";
 import Empresas from "../componentes/depCadastro/Empresas.jsx";
+import Mensagem from "../componentes/depCadastro/Mensagem.jsx";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import Janela from "../componentes/Janela.jsx";
@@ -139,6 +140,7 @@ function Documentos({ grupo }) {
   const [busca, setBusca] = useState("");
   const [form, setForm] = useState(null);   // { editando }
   const [renovando, setRenovando] = useState(null);
+  const [mensagem, setMensagem] = useState(null);
   useEffect(() => { setFiltro("atencao"); setBusca(""); }, [grupo]);
   const nome = grupo === "alvaras" ? "alvará" : "certidão";
   const visiveis = lista.filter((d) => {
@@ -194,6 +196,7 @@ function Documentos({ grupo }) {
                     <td className="px-3 py-2">{d.responsavel}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap text-right">
                       <button type="button" className="btn-contorno btn-sm" onClick={() => setRenovando(d)}>Renovar</button>
+                      <button type="button" className="btn-fantasma btn-sm" onClick={() => setMensagem(d)} title="Mensagem pronta para o cliente">Mensagem</button>
                       <button type="button" className="btn-fantasma btn-sm" onClick={() => setForm({ editando: d })}>Editar</button>
                       <button type="button" className="btn-perigo btn-sm" onClick={() => excluir(d)}>Excluir</button>
                     </td>
@@ -206,12 +209,13 @@ function Documentos({ grupo }) {
       </div>
       {form && <FormDocumento grupo={grupo} editando={form.editando} aoFechar={() => setForm(null)} />}
       {renovando && <Renovar doc={renovando} aoFechar={() => setRenovando(null)} />}
+      {mensagem && <Mensagem doc={mensagem} aoFechar={() => setMensagem(null)} />}
     </div>
   );
 }
 
 // ---------------------------------------------------------------- painel de certificados digitais
-function GrupoCert({ titulo, cor, lista, aoRenovar, aoEditar, vazio }) {
+function GrupoCert({ titulo, cor, lista, aoRenovar, aoEditar, aoMensagem, vazio }) {
   return (
     <section className="cartao overflow-hidden" aria-label={titulo}>
       <header className="flex items-center gap-2 px-4 py-2.5 border-b border-line bg-surface-2">
@@ -230,6 +234,7 @@ function GrupoCert({ titulo, cor, lista, aoRenovar, aoEditar, vazio }) {
                   <td className="px-3 py-2">{d.responsavel}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-right">
                     <button type="button" className="btn-contorno btn-sm" onClick={() => aoRenovar(d)}>Renovar</button>
+                    <button type="button" className="btn-fantasma btn-sm" onClick={() => aoMensagem(d)} title="Mensagem pronta para o cliente">Mensagem</button>
                     <button type="button" className="btn-fantasma btn-sm" onClick={() => aoEditar(d)}>Editar</button>
                   </td>
                 </tr>
@@ -247,6 +252,7 @@ function Certificados() {
   const { aviso } = useAvisos();
   const g = useMemo(() => svc.certificados(), [svc, versao]);   // eslint-disable-line
   const [modelo, setModelo] = useState("todos");
+  const [mensagem, setMensagem] = useState(null);
   const [form, setForm] = useState(null);
   const [renovando, setRenovando] = useState(null);
   const filtra = (l) => (modelo === "todos" ? l : l.filter((d) => (d.modelo || "") === (modelo === "sem" ? "" : modelo)));
@@ -280,13 +286,14 @@ function Certificados() {
         <div className="cartao"><Vazio titulo="Nenhum certificado digital cadastrado" texto="Cadastre em Novo certificado, importe os PDFs ou uma planilha (com a coluna Modelo A1/A3), ou carregue a demonstração." /></div>
       ) : (
         <>
-          <GrupoCert titulo="Vencidos" cor="text-debit" lista={filtra(g.vencidos)} aoRenovar={setRenovando} aoEditar={(d) => setForm({ editando: d })} vazio="Nenhum certificado vencido." />
-          <GrupoCert titulo="Vencem em até 30 dias" cor="text-warn" lista={filtra(g.ate30)} aoRenovar={setRenovando} aoEditar={(d) => setForm({ editando: d })} vazio="Nenhum vence nos próximos 30 dias." />
-          <GrupoCert titulo="Em dia" cor="text-credit" lista={filtra(g.emDia.concat(g.semData))} aoRenovar={setRenovando} aoEditar={(d) => setForm({ editando: d })} vazio="Nenhum certificado em dia." />
+          <GrupoCert titulo="Vencidos" cor="text-debit" lista={filtra(g.vencidos)} aoRenovar={setRenovando} aoEditar={(d) => setForm({ editando: d })} aoMensagem={setMensagem} vazio="Nenhum certificado vencido." />
+          <GrupoCert titulo="Vencem em até 30 dias" cor="text-warn" lista={filtra(g.ate30)} aoRenovar={setRenovando} aoEditar={(d) => setForm({ editando: d })} aoMensagem={setMensagem} vazio="Nenhum vence nos próximos 30 dias." />
+          <GrupoCert titulo="Em dia" cor="text-credit" lista={filtra(g.emDia.concat(g.semData))} aoRenovar={setRenovando} aoEditar={(d) => setForm({ editando: d })} aoMensagem={setMensagem} vazio="Nenhum certificado em dia." />
         </>
       )}
       <p className="text-[12.5px] text-muted">Os certificados também aparecem em Certidões. O Excel sai com uma aba para cada grupo, para o Societário cobrar a renovação.</p>
       {form && <FormDocumento grupo="certidoes" editando={form.editando} tipoInicial={CERTIFICADO} aoFechar={() => setForm(null)} />}
+      {mensagem && <Mensagem doc={mensagem} aoFechar={() => setMensagem(null)} />}
       {renovando && <Renovar doc={renovando} aoFechar={() => setRenovando(null)} />}
     </div>
   );
