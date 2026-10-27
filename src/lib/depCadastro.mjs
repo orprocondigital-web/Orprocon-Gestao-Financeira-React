@@ -10,7 +10,9 @@
 export const CHAVE_DOCS = "painelVencimentos:v1";
 export const CHAVE = "depCadastro:v1";
 
-export const TIPOS_CERTIDOES = ["CND Federal", "CND Estadual", "CND Municipal", "CRF FGTS", "CND Trabalhista", "Certificado A1", "Procuração", "Licença"];
+export const TIPOS_CERTIDOES = ["CND Federal", "CND Estadual", "CND Municipal", "CRF FGTS", "CND Trabalhista", "Certificado Digital", "Procuração", "Licença"];
+export const CERTIFICADO = "Certificado Digital";
+export const MODELOS_CERTIFICADO = ["A1", "A3"];
 export const TIPOS_ALVARAS = ["Alvará de funcionamento", "Alvará sanitário", "Alvará dos Bombeiros", "Alvará ambiental"];
 export const DEMONSTRATIVOS = ["Balanço Patrimonial", "DRE", "Balancete"];
 export const STATUS_DEMO = [
@@ -23,6 +25,7 @@ export const TIPOS_LUCRO_REAL = ["Trimestral", "Anual"];
 
 const txt = (v) => (v === null || v === undefined ? "" : String(v).trim());
 const iso = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
+const semAcentoMin = (v) => txt(v).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 export function chaveNome(s) { return txt(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " "); }
 
 /** Regime pelo texto de outra planilha ("SN", "Presumido", "L. Real"…); vazio quando não reconhece. */
@@ -73,11 +76,43 @@ export function limparSocios(lista) {
 /** Certidões ou alvarás, pelo tipo do documento. */
 export function grupoDoTipo(tipo) { return /^alvar/i.test(txt(tipo)) ? "alvaras" : "certidoes"; }
 
+/** Certificado digital (e-CNPJ/e-CPF)? O CRF do FGTS também se chama "certificado", mas não é. */
+export function ehCertificado(tipo) {
+  const t = semAcentoMin(tipo);
+  if (/regularidade|fgts/.test(t)) return false;
+  return /^certificado\b|e-?cnpj|e-?cpf|icp-?brasil/.test(t);
+}
+/** A1 ou A3 pelo texto ("token", "cartão" e "A3" são A3; "arquivo" e "A1" são A1). */
+export function modeloPeloTexto(texto) {
+  const t = semAcentoMin(texto);
+  if (/\ba3\b|token|cartao|leitora/.test(t)) return "A3";
+  if (/\ba1\b|arquivo|\.pfx\b/.test(t)) return "A1";
+  return "";
+}
+/**
+ * Tipo como o sistema guarda: "Certificado A1", "Certificado A3", "e-CNPJ A3"… viram "Certificado Digital"
+ * com o modelo (A1/A3) à parte. O modelo informado vale mais que o que está escrito no tipo.
+ */
+export function normalizarTipo(tipo, modelo) {
+  const t = txt(tipo);
+  if (!ehCertificado(t)) return { tipo: t, modelo: "" };
+  const m = txt(modelo).toUpperCase();
+  return { tipo: CERTIFICADO, modelo: MODELOS_CERTIFICADO.includes(m) ? m : modeloPeloTexto(t) };
+}
+/** "Certificado Digital · A3" (ou só o tipo, nos outros documentos). */
+export function nomeDoTipo(d) { return d.modelo ? d.tipo + " · " + d.modelo : d.tipo; }
+
 /** Dias até vencer e a situação: vencido, 7 (até 7 dias), 30 (até 30 dias) ou ok. */
 export function situacao(vencimento, hoje) {
   if (!iso(vencimento)) return { dias: null, status: "sem" };
   const dias = Math.round((Date.parse(vencimento + "T00:00:00Z") - Date.parse(hoje + "T00:00:00Z")) / 86400000);
   return { dias, status: dias < 0 ? "vencido" : dias <= 7 ? "7" : dias <= 30 ? "30" : "ok" };
+}
+/** Linhas do Excel do painel de certificados (a 1ª é o cabeçalho). Datas em dd/mm/aaaa. */
+export function linhasCertificados(lista) {
+  const br = (d) => (iso(d) ? d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4) : "");
+  return [["Empresa", "CNPJ/CPF", "Modelo", "Número", "Emissão", "Vencimento", "Situação", "Responsável", "Observações"]]
+    .concat(lista.map((d) => [d.empresa, d.cnpj || "", d.modelo || "", d.numero || "", br(d.emissao), br(d.vencimento), textoSituacao(d.situacao), d.responsavel || "", d.observacoes || ""]));
 }
 export function textoSituacao(s) {
   if (s.dias === null) return "Sem data";
@@ -107,7 +142,7 @@ export function tipoPeloTexto(texto) {
     return "Alvará de funcionamento";
   }
   if (/procuracao/.test(t)) return "Procuração";
-  if (/certificado digital|e-cnpj|icp-brasil/.test(t)) return "Certificado A1";
+  if (/certificado digital|e-cnpj|e-cpf|icp-brasil/.test(t)) return CERTIFICADO;
   if (/secretaria de estado da fazenda|fazenda estadual|estado de|estadual/.test(t)) return "CND Estadual";
   if (/prefeitura|municipio|municipal/.test(t)) return "CND Municipal";
   if (/licenca/.test(t)) return "Licença";
@@ -139,7 +174,8 @@ export function lerCertidao(texto) {
   const nm = /(?:nome empresarial|razao social|nome)\s*:\s*/.exec(s);
   let nome = "";
   if (nm) nome = t.substr(nm.index + nm[0].length, 120).split(/\s+(?:CNPJ|CPF|Inscri|Endere|Ressalvad|\(|-\s)/i)[0].replace(/[.,;]+$/, "").trim();
-  return { tipo: tipoPeloTexto(t), documento: doc ? doc[0] : "", nome, emissao, vencimento, numero };
+  const tipo = tipoPeloTexto(t);
+  return { tipo, modelo: tipo === CERTIFICADO ? modeloPeloTexto(t) : "", documento: doc ? doc[0] : "", nome, emissao, vencimento, numero };
 }
 
 // ---------------------------------------------------------------- leitura de planilha (Excel)
@@ -152,6 +188,7 @@ const CAB = {
   emissao: ["emissao", "data de emissao", "emitido em"],
   vencimento: ["vencimento", "validade", "data de vencimento", "vence em", "valido ate"],
   responsavel: ["responsavel"],
+  modelo: ["modelo", "modelo do certificado", "a1/a3", "tipo do certificado"],
   regime: ["regime", "regime tributario", "tributacao", "enquadramento"],
   codigo: ["cod", "codigo", "cod empresa", "codigo da empresa"],
   // colunas do cadastro do sistema antigo do Depto. Contábil (as de senha são ignoradas de propósito)
@@ -215,7 +252,7 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
         const t = txt(get(r, "tipo"));
         if (!venc || !t) { plano.avisos.push("Aba \"" + a.nome + "\", linha " + (h + i + 2) + ": sem " + (!t ? "tipo" : "vencimento") + ", ficou de fora."); return; }
         empresa(get(r, "empresa"), get(r, "documento"));
-        plano.documentos.push({ empresa: txt(get(r, "empresa")), tipo: t, numero: txt(get(r, "numero")), emissao: toIsoDate(get(r, "emissao")) || "",
+        plano.documentos.push({ empresa: txt(get(r, "empresa")), tipo: t, modelo: txt(get(r, "modelo")), numero: txt(get(r, "numero")), emissao: toIsoDate(get(r, "emissao")) || "",
           vencimento: venc, responsavel: txt(get(r, "responsavel")) });
         n++;
       });
@@ -275,7 +312,13 @@ export function criarDepCadastro(deps) {
   // o objeto inteiro do antigo painel é preservado (outros campos continuam como estavam)
   function docs() {
     const e = ler(CHAVE_DOCS, {});
-    return Object.assign({}, e, { clientes: Array.isArray(e.clientes) ? e.clientes : [], documentos: Array.isArray(e.documentos) ? e.documentos : [] });
+    // "Certificado A1" (como era antes) é lido como Certificado Digital, modelo A1; grava assim na próxima mudança
+    const documentos = (Array.isArray(e.documentos) ? e.documentos : []).map((d) => {
+      if (!d || !ehCertificado(d.tipo)) return d;
+      const n = normalizarTipo(d.tipo, d.modelo);
+      return n.tipo === d.tipo && n.modelo === (d.modelo || "") ? d : Object.assign({}, d, n);
+    });
+    return Object.assign({}, e, { clientes: Array.isArray(e.clientes) ? e.clientes : [], documentos });
   }
   function dados() {
     const e = ler(CHAVE, {});
@@ -347,10 +390,10 @@ export function criarDepCadastro(deps) {
   /** Documentos de um grupo, com empresa e situação, vencidos primeiro. */
   function documentos(grupo) {
     const e = docs(), h = hoje();
-    const nomes = {};
-    e.clientes.forEach((c) => { nomes[c.id] = c.nome; });
+    const porId = {};
+    e.clientes.forEach((c) => { porId[c.id] = c; });
     return e.documentos.filter((d) => grupoDoTipo(d.tipo) === grupo)
-      .map((d) => Object.assign({}, d, { empresa: nomes[d.clienteId] || "(empresa excluída)", situacao: situacao(d.vencimento, h) }))
+      .map((d) => { const c = porId[d.clienteId]; return Object.assign({}, d, { empresa: c ? c.nome : "(empresa excluída)", cnpj: c ? txt(c.documento) : "", situacao: situacao(d.vencimento, h) }); })
       .sort((a, b) => String(a.vencimento).localeCompare(String(b.vencimento)) || a.empresa.localeCompare(b.empresa, "pt-BR"));
   }
   function resumo(grupo) {
@@ -358,18 +401,30 @@ export function criarDepCadastro(deps) {
     documentos(grupo).forEach((d) => { r.total++; r[d.situacao.status] = (r[d.situacao.status] || 0) + 1; });
     return r;
   }
+  /** Só os certificados digitais, com os grupos do painel: vencidos, vencem em até 30 dias, em dia e sem data. */
+  function certificados() {
+    const lista = documentos("certidoes").filter((d) => d.tipo === CERTIFICADO);
+    const g = { lista, vencidos: [], ate30: [], emDia: [], semData: [], A1: 0, A3: 0, semModelo: 0 };
+    lista.forEach((d) => {
+      const s = d.situacao.status;
+      (s === "vencido" ? g.vencidos : s === "7" || s === "30" ? g.ate30 : s === "ok" ? g.emDia : g.semData).push(d);
+      if (d.modelo === "A1") g.A1++; else if (d.modelo === "A3") g.A3++; else g.semModelo++;
+    });
+    return g;
+  }
+
   /** Vencidos ou vencendo em até 7 dias (número no menu). */
   function urgentes(grupo) { const r = resumo(grupo); return r.vencido + r["7"]; }
 
   function salvarDocumento(d, id) {
-    const tipo = txt(d.tipo), clienteId = txt(d.clienteId);
+    const { tipo, modelo } = normalizarTipo(d.tipo, d.modelo), clienteId = txt(d.clienteId);
     if (!clienteId) throw new Error("Escolha a empresa.");
     if (!tipo) throw new Error("Escolha o tipo do documento.");
     if (!iso(d.vencimento)) throw new Error("Preencha a data de vencimento.");
     if (d.emissao && !iso(d.emissao)) throw new Error("Data de emissão inválida.");
     const e = docs();
     if (!e.clientes.some((c) => c.id === clienteId)) throw new Error("Empresa não encontrada.");
-    const campos = { clienteId, tipo, numero: txt(d.numero), emissao: d.emissao || "", vencimento: d.vencimento, responsavel: txt(d.responsavel), observacoes: txt(d.observacoes), link: txt(d.link) };
+    const campos = { clienteId, tipo, modelo, numero: txt(d.numero), emissao: d.emissao || "", vencimento: d.vencimento, responsavel: txt(d.responsavel), observacoes: txt(d.observacoes), link: txt(d.link) };
     if (campos.link && !/^https?:\/\//i.test(campos.link)) throw new Error("O link precisa começar com http:// ou https://");
     let salvo;
     if (id) e.documentos = e.documentos.map((x) => (x.id === id ? (salvo = Object.assign({}, x, campos)) : x));
@@ -479,10 +534,11 @@ export function criarDepCadastro(deps) {
       if (p.socios && p.socios.length) c.socios = p.socios;
       e.clientes.push(c); porNome[k] = c; novasEmp++;
     });
-    plano.documentos.forEach((d) => {
+    plano.documentos.forEach((d0) => {
+      const d = Object.assign({}, d0, normalizarTipo(d0.tipo, d0.modelo));
       const c = porNome[chaveNome(d.empresa)];
       if (e.documentos.some((x) => x.clienteId === c.id && chaveNome(x.tipo) === chaveNome(d.tipo) && x.vencimento === d.vencimento)) { repetidos++; return; }
-      e.documentos.push({ id: novoId("doc-"), clienteId: c.id, tipo: d.tipo, numero: d.numero, emissao: d.emissao, vencimento: d.vencimento,
+      e.documentos.push({ id: novoId("doc-"), clienteId: c.id, tipo: d.tipo, modelo: d.modelo, numero: d.numero, emissao: d.emissao, vencimento: d.vencimento,
         responsavel: d.responsavel, observacoes: "", link: "", andamento: "pendente", criadoEm: hoje(), historico: [] });
       novosDocs++;
     });
@@ -588,7 +644,7 @@ export function criarDepCadastro(deps) {
 
   return {
     aplicarPlanilha, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
-    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
+    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
     faturamentos, definirFaturamento, totalAno, ultimos12, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };
 }

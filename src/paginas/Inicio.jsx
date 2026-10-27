@@ -82,7 +82,7 @@ export default function Inicio() {
     if (alvo.tab === "fechamento") { navegar("/fechamento"); return; }
     if (alvo.tab === "encerramento") { navegar("/encerramento"); return; }
     if (alvo.tab === "reinf") { navegar("/reinf"); return; }
-    const dep = { "dep-empresas": "empresas", "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-alvaras": "alvaras", "dep-faturamentos": "faturamentos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
+    const dep = { "dep-empresas": "empresas", "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-certificados": "certificados", "dep-alvaras": "alvaras", "dep-faturamentos": "faturamentos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
     if (dep) { navegar("/departamento-cadastro/" + dep); return; }
     navegar(alvo.tab === "master" ? "/integracao" : alvo.tab === "conciliacao" ? "/conciliacao" : "/modulo/" + alvo.tab, { state: { prefs: alvo.prefs || null } });
   };
