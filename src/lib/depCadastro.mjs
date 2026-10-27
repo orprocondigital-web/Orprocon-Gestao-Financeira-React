@@ -108,6 +108,40 @@ export function situacao(vencimento, hoje) {
   const dias = Math.round((Date.parse(vencimento + "T00:00:00Z") - Date.parse(hoje + "T00:00:00Z")) / 86400000);
   return { dias, status: dias < 0 ? "vencido" : dias <= 7 ? "7" : dias <= 30 ? "30" : "ok" };
 }
+/**
+ * Mensagem para o cliente sobre a renovação (e-mail ou WhatsApp), conforme o documento e a situação.
+ * Devolve { assunto, texto, email, whatsapp }: email/whatsapp são links prontos (mailto: / https://wa.me/).
+ */
+export function mensagemRenovacao(d, assinatura) {
+  const br = (x) => (iso(x) ? x.slice(8, 10) + "/" + x.slice(5, 7) + "/" + x.slice(0, 4) : "");
+  const contato = (d.contato && d.contato.nome) || "";
+  const s = d.situacao || { dias: null };
+  const cert = d.tipo === CERTIFICADO;
+  const doc = cert ? "o certificado digital" + (d.modelo ? " " + d.modelo : "") : (/^alvar/i.test(d.tipo) ? "o " : "a ") + d.tipo;
+  const quando = s.dias === null ? "está sem data de vencimento cadastrada" : s.dias < 0 ? "venceu em " + br(d.vencimento) : s.dias === 0 ? "vence hoje (" + br(d.vencimento) + ")" : "vence em " + br(d.vencimento);
+  const linhas = ["Olá" + (contato ? ", " + contato : "") + "!", "",
+    "Informamos que " + doc + " da " + d.empresa + (d.cnpj ? " (CNPJ " + d.cnpj + ")" : "") + " " + quando + "."];
+  if (cert) {
+    linhas.push("", "Para renovar, precisamos agendar a validação com a certificadora (por videoconferência ou presencial) com o responsável legal da empresa.",
+      d.modelo === "A3" ? "Após a validação, o novo certificado é gravado no token ou cartão." : "Após a validação, instalamos o novo certificado nos sistemas.",
+      "", "Pode nos informar o melhor dia e horário para a validação?");
+  } else {
+    linhas.push("", s.dias !== null && s.dias < 0 ? "Já estamos providenciando a emissão de uma nova via. Se houver alguma pendência para a emissão, entraremos em contato." : "Já estamos acompanhando a renovação. Se houver alguma pendência para a emissão, entraremos em contato.");
+  }
+  linhas.push("", "Qualquer dúvida, estamos à disposição.", "", txt(assinatura) || "Equipe Orprocon");
+  const assunto = d.empresa + " - " + (cert ? "renovação do certificado digital" : "renovação: " + d.tipo);
+  const texto = linhas.join("\n");
+  const email = (d.contato && d.contato.email) || "";
+  let fone = String((d.contato && d.contato.telefone) || "").replace(/\D/g, "");
+  if (fone.length === 10 || fone.length === 11) fone = "55" + fone;
+  return {
+    assunto, texto,
+    email: "mailto:" + encodeURIComponent(email) + "?subject=" + encodeURIComponent(assunto) + "&body=" + encodeURIComponent(texto),
+    whatsapp: "https://wa.me/" + (fone.length >= 12 ? fone : "") + "?text=" + encodeURIComponent(texto),
+    temEmail: !!email, temTelefone: fone.length >= 12
+  };
+}
+
 /** Linhas do Excel do painel de certificados (a 1ª é o cabeçalho). Datas em dd/mm/aaaa. */
 export function linhasCertificados(lista) {
   const br = (d) => (iso(d) ? d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4) : "");
@@ -393,7 +427,8 @@ export function criarDepCadastro(deps) {
     const porId = {};
     e.clientes.forEach((c) => { porId[c.id] = c; });
     return e.documentos.filter((d) => grupoDoTipo(d.tipo) === grupo)
-      .map((d) => { const c = porId[d.clienteId]; return Object.assign({}, d, { empresa: c ? c.nome : "(empresa excluída)", cnpj: c ? txt(c.documento) : "", situacao: situacao(d.vencimento, h) }); })
+      .map((d) => { const c = porId[d.clienteId]; return Object.assign({}, d, { empresa: c ? c.nome : "(empresa excluída)", cnpj: c ? txt(c.documento) : "",
+        contato: c ? { nome: txt(c.contato), email: txt(c.email), telefone: txt(c.telefone) } : { nome: "", email: "", telefone: "" }, situacao: situacao(d.vencimento, h) }); })
       .sort((a, b) => String(a.vencimento).localeCompare(String(b.vencimento)) || a.empresa.localeCompare(b.empresa, "pt-BR"));
   }
   function resumo(grupo) {
@@ -411,6 +446,20 @@ export function criarDepCadastro(deps) {
       if (d.modelo === "A1") g.A1++; else if (d.modelo === "A3") g.A3++; else g.semModelo++;
     });
     return g;
+  }
+
+  /**
+   * Avisos da tela Início: certidões e alvarás vencidos ou vencendo em até 7 dias, e certificados digitais
+   * em até 30 dias (a renovação do certificado precisa de agendamento). Vencidos primeiro, depois o mais próximo.
+   */
+  function avisos() {
+    const lista = [];
+    ["certidoes", "alvaras"].forEach((grupo) => documentos(grupo).forEach((d) => {
+      const cert = d.tipo === CERTIFICADO, s = d.situacao.status;
+      if (s === "vencido" || s === "7" || (cert && s === "30")) lista.push(Object.assign({}, d, { grupo: cert ? "certificados" : grupo }));
+    }));
+    lista.sort((a, b) => a.situacao.dias - b.situacao.dias || a.empresa.localeCompare(b.empresa, "pt-BR"));
+    return { lista, vencidos: lista.filter((d) => d.situacao.dias < 0).length };
   }
 
   /** Vencidos ou vencendo em até 7 dias (número no menu). */
@@ -644,7 +693,7 @@ export function criarDepCadastro(deps) {
 
   return {
     aplicarPlanilha, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
-    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
+    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
     faturamentos, definirFaturamento, totalAno, ultimos12, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };
 }

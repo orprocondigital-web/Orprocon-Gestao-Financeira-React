@@ -319,3 +319,31 @@ describe("certificado digital (A1/A3)", () => {
     assert.deepEqual(l[1], ["Empresa Exemplo Ltda", "11.111.111/0001-11", "A3", "", "", "10/10/2026", "Venceu há 10 dias", "Ana", ""]);
   });
 });
+
+describe("avisos do Início e mensagem de renovação", () => {
+  test("avisos: certidões/alvarás até 7 dias, certificados até 30, vencidos primeiro", () => {
+    const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });   // hoje = 20/10/2026
+    svc.salvarDocumento({ clienteId: "c1", tipo: "Certificado Digital", modelo: "A3", vencimento: "2026-11-15" });   // 26 dias: entra
+    svc.salvarDocumento({ clienteId: "c1", tipo: "CND Estadual", vencimento: "2026-11-15" });                        // 26 dias: não entra
+    svc.salvarDocumento({ clienteId: "c1", tipo: "Alvará sanitário", vencimento: "2026-10-22" });                    // 2 dias: entra
+    const a = svc.avisos();
+    assert.deepEqual(a.lista.map((d) => d.tipo + "|" + d.grupo), ["CND Federal|certidoes", "Alvará sanitário|alvaras", "Certificado Digital|certificados", "Certificado Digital|certificados"]);
+    assert.equal(a.vencidos, 1);
+  });
+  test("mensagem: certificado A3 a vencer, com contato, e-mail e WhatsApp", () => {
+    const m = D.mensagemRenovacao({ empresa: "Beta Ltda", cnpj: "22.222.222/0001-22", tipo: "Certificado Digital", modelo: "A3", vencimento: "2026-11-15",
+      situacao: { dias: 26 }, contato: { nome: "Carla", email: "carla@exemplo.com", telefone: "(48) 99999-0000" } }, "Equipe X");
+    assert.equal(m.assunto, "Beta Ltda - renovação do certificado digital");
+    assert.match(m.texto, /^Olá, Carla!/);
+    assert.match(m.texto, /certificado digital A3 da Beta Ltda \(CNPJ 22\.222\.222\/0001-22\) vence em 15\/11\/2026\./);
+    assert.match(m.texto, /token ou cartão/); assert.match(m.texto, /Equipe X$/);
+    assert.ok(m.email.startsWith("mailto:carla%40exemplo.com?subject=")); assert.ok(m.whatsapp.startsWith("https://wa.me/5548999990000?text="));
+    assert.equal(m.temEmail, true); assert.equal(m.temTelefone, true);
+  });
+  test("mensagem: certidão vencida, sem contato", () => {
+    const m = D.mensagemRenovacao({ empresa: "Beta Ltda", tipo: "CND Federal", vencimento: "2026-10-18", situacao: { dias: -2 } });
+    assert.match(m.texto, /^Olá!/); assert.match(m.texto, /a CND Federal da Beta Ltda venceu em 18\/10\/2026\./);
+    assert.match(m.texto, /nova via/); assert.match(m.texto, /Equipe Orprocon$/);
+    assert.equal(m.temEmail, false); assert.ok(m.whatsapp.startsWith("https://wa.me/?text="));
+  });
+});
