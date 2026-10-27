@@ -113,7 +113,7 @@ describe("leitura de PDF de certidão", () => {
     const t = "MINISTÉRIO DA FAZENDA Secretaria da Receita Federal do Brasil CERTIDÃO NEGATIVA DE DÉBITOS RELATIVOS AOS TRIBUTOS FEDERAIS E À DÍVIDA ATIVA DA UNIÃO " +
       "Nome: EMPRESA EXEMPLO LTDA CNPJ: 11.111.111/0001-11 ... Emitida às 10:22:33 do dia 15/09/2026 <hora e data de Brasília>. Válida até 14/03/2027. " +
       "Código de controle da certidão: AB12.CD34.EF56.GH78";
-    assert.deepEqual(D.lerCertidao(t), { tipo: "CND Federal", documento: "11.111.111/0001-11", nome: "EMPRESA EXEMPLO LTDA", emissao: "2026-09-15", vencimento: "2027-03-14", numero: "AB12.CD34.EF56.GH78" });
+    assert.deepEqual(D.lerCertidao(t), { tipo: "CND Federal", modelo: "", documento: "11.111.111/0001-11", nome: "EMPRESA EXEMPLO LTDA", emissao: "2026-09-15", vencimento: "2027-03-14", numero: "AB12.CD34.EF56.GH78" });
   });
   test("CRF FGTS: validade de/até pega a data final", () => {
     const r = D.lerCertidao("Certificado de Regularidade do FGTS - CRF Inscrição: 22.222.222/0001-22 Validade: 01/10/2026 a 30/10/2026 Certificação Número: 2026100112345");
@@ -126,7 +126,7 @@ describe("leitura de PDF de certidão", () => {
     assert.equal(D.lerCertidao("PREFEITURA MUNICIPAL ALVARÁ SANITÁRIO emitido em 02/01/2026 ... 31/12/2026").vencimento, "2026-12-31");
     assert.equal(D.tipoPeloTexto("Prefeitura Municipal de Tubarão certidão negativa"), "CND Municipal");
     assert.equal(D.tipoPeloTexto("Secretaria de Estado da Fazenda de Santa Catarina"), "CND Estadual");
-    assert.deepEqual(D.lerCertidao("texto qualquer"), { tipo: "", documento: "", nome: "", emissao: "", vencimento: "", numero: "" });
+    assert.deepEqual(D.lerCertidao("texto qualquer"), { tipo: "", modelo: "", documento: "", nome: "", emissao: "", vencimento: "", numero: "" });
   });
 });
 
@@ -264,5 +264,58 @@ describe("demonstração e limpar", () => {
     assert.deepEqual(svc.documentos("certidoes")[0].anexo, { nome: "cnd.pdf", tamanho: 1234 });
     svc.marcarAnexo("d1", null);
     assert.equal(svc.documentos("certidoes")[0].anexo, undefined);
+  });
+});
+
+describe("certificado digital (A1/A3)", () => {
+  test("tipo e modelo: Certificado A1/A3, e-CNPJ e token viram Certificado Digital; CRF FGTS não", () => {
+    assert.deepEqual(D.normalizarTipo("Certificado A1"), { tipo: "Certificado Digital", modelo: "A1" });
+    assert.deepEqual(D.normalizarTipo("Certificado A3"), { tipo: "Certificado Digital", modelo: "A3" });
+    assert.deepEqual(D.normalizarTipo("e-CNPJ token"), { tipo: "Certificado Digital", modelo: "A3" });
+    assert.deepEqual(D.normalizarTipo("Certificado Digital", "a3"), { tipo: "Certificado Digital", modelo: "A3" });
+    assert.deepEqual(D.normalizarTipo("Certificado Digital"), { tipo: "Certificado Digital", modelo: "" });
+    assert.deepEqual(D.normalizarTipo("CRF FGTS"), { tipo: "CRF FGTS", modelo: "" });
+    assert.equal(D.ehCertificado("Certificado de Regularidade do FGTS"), false);
+    assert.ok(D.TIPOS_CERTIDOES.includes("Certificado Digital") && !D.TIPOS_CERTIDOES.includes("Certificado A1"));
+    assert.equal(D.nomeDoTipo({ tipo: "Certificado Digital", modelo: "A3" }), "Certificado Digital · A3");
+  });
+  test("o que estava como Certificado A1 é lido como Certificado Digital A1 e grava assim na próxima mudança", () => {
+    const { svc, ls } = amb({ "painelVencimentos:v1": painelAntigo() });
+    const d3 = svc.documentos("certidoes").find((d) => d.id === "d3");
+    assert.equal(d3.tipo, "Certificado Digital"); assert.equal(d3.modelo, "A1"); assert.equal(d3.cnpj, "11.111.111/0001-11");
+    svc.salvarDocumento({ clienteId: "c1", tipo: "CRF FGTS", vencimento: "2026-12-01" });
+    const salvo = JSON.parse(ls["painelVencimentos:v1"]).documentos.find((d) => d.id === "d3");
+    assert.equal(salvo.tipo, "Certificado Digital"); assert.equal(salvo.modelo, "A1");
+  });
+  test("salvar guarda o modelo só no certificado", () => {
+    const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
+    assert.equal(svc.salvarDocumento({ clienteId: "c1", tipo: "Certificado Digital", modelo: "A3", vencimento: "2027-05-01" }).modelo, "A3");
+    assert.equal(svc.salvarDocumento({ clienteId: "c1", tipo: "CND Estadual", modelo: "A3", vencimento: "2027-05-01" }).modelo, "");
+  });
+  test("PDF de certificado: tipo e modelo pelo texto", () => {
+    const r = D.lerCertidao("Certificado Digital e-CNPJ A3 ICP-Brasil CNPJ 11.111.111/0001-11 Validade: 01/12/2027");
+    assert.equal(r.tipo, "Certificado Digital"); assert.equal(r.modelo, "A3"); assert.equal(r.vencimento, "2027-12-01");
+  });
+  test("planilha com a coluna Modelo e o tipo antigo", () => {
+    const toIso = (v) => { const m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(String(v)); return m ? m[3] + "-" + m[2] + "-" + m[1] : ""; };
+    const plano = D.lerPlanilhaCadastro([{ nome: "Certificados", rows: [["Empresa", "Tipo", "Modelo", "Vencimento"],
+      ["Empresa Exemplo Ltda", "Certificado Digital", "A3", "10/11/2026"], ["Empresa Exemplo Ltda", "Certificado A1", "", "01/03/2027"]] }], toIso, 2026);
+    const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
+    const r = svc.aplicarPlanilha(plano);
+    assert.equal(r.novosDocs, 2);
+    const c = svc.certificados().lista.map((d) => d.vencimento + " " + d.modelo);
+    assert.deepEqual(c, ["2026-10-25 A1", "2026-11-10 A3", "2027-03-01 A1"]);
+  });
+  test("painel: vencidos, até 30 dias e em dia, contagem A1/A3 e linhas do Excel", () => {
+    const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
+    svc.salvarDocumento({ clienteId: "c1", tipo: "Certificado Digital", modelo: "A3", vencimento: "2026-10-10", responsavel: "Ana" });
+    svc.salvarDocumento({ clienteId: "c1", tipo: "Certificado Digital", vencimento: "2027-06-01" });
+    const g = svc.certificados();
+    assert.equal(g.lista.length, 3);
+    assert.deepEqual([g.vencidos.length, g.ate30.length, g.emDia.length], [1, 1, 1]);
+    assert.deepEqual([g.A1, g.A3, g.semModelo], [1, 1, 1]);
+    const l = D.linhasCertificados(g.vencidos);
+    assert.equal(l[0][0], "Empresa"); assert.equal(l[0][2], "Modelo");
+    assert.deepEqual(l[1], ["Empresa Exemplo Ltda", "11.111.111/0001-11", "A3", "", "", "10/10/2026", "Venceu há 10 dias", "Ana", ""]);
   });
 });

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { Core } from "../lib/legado.js";
-import { DEMONSTRATIVOS, MESES, STATUS_DEMO, TIPOS_ALVARAS, TIPOS_CERTIDOES, lerCertidao, textoSituacao } from "../lib/depCadastro.mjs";
+import { CERTIFICADO, DEMONSTRATIVOS, MESES, MODELOS_CERTIFICADO, STATUS_DEMO, TIPOS_ALVARAS, TIPOS_CERTIDOES, ehCertificado, lerCertidao, linhasCertificados, nomeDoTipo, textoSituacao } from "../lib/depCadastro.mjs";
+import { carregarXlsx } from "../lib/leitores.js";
 import { abrirArquivo, apagarArquivo, guardarArquivo } from "../lib/arquivos.js";
 import { textoDoPdf } from "../lib/leitores.js";
 import Importar, { carregarDemo } from "../componentes/depCadastro/Importar.jsx";
@@ -35,11 +36,11 @@ function Vazio({ titulo, texto }) {
 }
 
 // ---------------------------------------------------------------- certidões e alvarás
-function FormDocumento({ grupo, editando, aoFechar }) {
+function FormDocumento({ grupo, editando, aoFechar, tipoInicial }) {
   const [svc] = useDepCadastro();
   const { aviso } = useAvisos();
   const tipos = grupo === "alvaras" ? TIPOS_ALVARAS : TIPOS_CERTIDOES;
-  const [f, setF] = useState(() => Object.assign({ clienteId: "", tipo: tipos[0], numero: "", emissao: "", vencimento: "", responsavel: "", link: "", observacoes: "" }, editando || {}));
+  const [f, setF] = useState(() => Object.assign({ clienteId: "", tipo: tipoInicial || tipos[0], modelo: tipoInicial === CERTIFICADO ? "A1" : "", numero: "", emissao: "", vencimento: "", responsavel: "", link: "", observacoes: "" }, editando || {}));
   const [erro, setErro] = useState("");
   const [pdf, setPdf] = useState(null);
   const muda = (c) => (e) => setF((x) => Object.assign({}, x, { [c]: e.target.value }));
@@ -49,7 +50,7 @@ function FormDocumento({ grupo, editando, aoFechar }) {
       const r = lerCertidao(await textoDoPdf(file));
       const emp = svc.empresaPorDocumento(r.documento);
       setF((x) => Object.assign({}, x, {
-        clienteId: x.clienteId || (emp ? emp.id : ""), tipo: editando ? x.tipo : (r.tipo || x.tipo),
+        clienteId: x.clienteId || (emp ? emp.id : ""), tipo: editando ? x.tipo : (r.tipo || x.tipo), modelo: r.modelo || x.modelo,
         vencimento: x.vencimento || r.vencimento, emissao: x.emissao || r.emissao, numero: x.numero || r.numero
       }));
     } catch (e) { /* PDF de imagem: só anexa */ }
@@ -64,7 +65,7 @@ function FormDocumento({ grupo, editando, aoFechar }) {
   };
   const empresas = svc.empresas();
   return (
-    <Janela aberta titulo={(editando ? "Editar " : "Nova ") + (grupo === "alvaras" ? "alvará" : "certidão")} aoFechar={aoFechar} largura="max-w-[620px]"
+    <Janela aberta titulo={tipoInicial === CERTIFICADO ? (editando ? "Editar certificado digital" : "Novo certificado digital") : (editando ? "Editar " : "Nova ") + (grupo === "alvaras" ? "alvará" : "certidão")} aoFechar={aoFechar} largura="max-w-[620px]"
       rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button><button type="submit" form="form-doc" className="btn-primario">Salvar</button></>}>
       <form id="form-doc" onSubmit={salvar} className="grid sm:grid-cols-2 gap-3">
         <Campo rotulo="Empresa" id="doc-emp" className="sm:col-span-2">
@@ -76,6 +77,14 @@ function FormDocumento({ grupo, editando, aoFechar }) {
           <input id="doc-tipo" list="doc-tipos" value={f.tipo} onChange={muda("tipo")} autoComplete="off" />
           <datalist id="doc-tipos">{tipos.map((t) => <option key={t} value={t} />)}</datalist>
         </Campo>
+        {ehCertificado(f.tipo) && (
+          <Campo rotulo="Modelo do certificado" id="doc-modelo">
+            <select id="doc-modelo" value={f.modelo || ""} onChange={muda("modelo")}>
+              <option value="">Não sei</option>
+              {MODELOS_CERTIFICADO.map((m) => <option key={m} value={m}>{m === "A1" ? "A1 (arquivo, 1 ano)" : "A3 (token ou cartão)"}</option>)}
+            </select>
+          </Campo>
+        )}
         <Campo rotulo="Número" id="doc-num"><input id="doc-num" value={f.numero} onChange={muda("numero")} autoComplete="off" /></Campo>
         <Campo rotulo="Emissão" id="doc-em"><input id="doc-em" type="date" value={f.emissao} onChange={muda("emissao")} /></Campo>
         <Campo rotulo="Vencimento" id="doc-venc"><input id="doc-venc" type="date" value={f.vencimento} onChange={muda("vencimento")} /></Campo>
@@ -102,7 +111,7 @@ function Renovar({ doc, aoFechar }) {
   const salvar = () => { try { svc.renovar(doc.id, f); aviso("Renovação registrada."); aoFechar(); } catch (e) { setErro(e.message); } };
   const muda = (c) => (e) => setF((x) => Object.assign({}, x, { [c]: e.target.value }));
   return (
-    <Janela aberta titulo={"Renovar: " + doc.tipo} aoFechar={aoFechar}
+    <Janela aberta titulo={"Renovar: " + nomeDoTipo(doc)} aoFechar={aoFechar}
       rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button><button type="button" className="btn-primario" onClick={salvar}>Registrar renovação</button></>}>
       <p className="text-[13.5px] text-ink-2">{doc.empresa} · vencimento atual {dataBR(doc.vencimento)}. O anterior fica no histórico.</p>
       <div className="grid grid-cols-2 gap-3">
@@ -178,7 +187,7 @@ function Documentos({ grupo }) {
                 {visiveis.map((d) => (
                   <tr key={d.id} className="hover:bg-surface-2 align-top">
                     <td className="px-3 py-2 font-medium min-w-[180px]">{d.empresa}</td>
-                    <td className="px-3 py-2 min-w-[150px]">{d.tipo}{(d.numero || d.link) && <span className="block text-[12px] text-muted">{d.numero}{d.link && <> {d.numero ? "· " : ""}<a href={d.link} target="_blank" rel="noopener noreferrer" className="text-brand underline">link</a></>}</span>}
+                    <td className="px-3 py-2 min-w-[150px]">{nomeDoTipo(d)}{(d.numero || d.link) && <span className="block text-[12px] text-muted">{d.numero}{d.link && <> {d.numero ? "· " : ""}<a href={d.link} target="_blank" rel="noopener noreferrer" className="text-brand underline">link</a></>}</span>}
                       {d.anexo && <button type="button" onClick={() => verPdf(d)} className="mt-0.5 inline-flex items-center gap-1 text-[12px] font-semibold text-brand hover:underline" title={d.anexo.nome}>PDF</button>}</td>
                     <td className="px-3 py-2 whitespace-nowrap tabular-nums">{dataBR(d.vencimento)}</td>
                     <td className="px-3 py-2 whitespace-nowrap"><Selo tipo={SELO_SIT[d.situacao.status]}>{textoSituacao(d.situacao)}</Selo></td>
@@ -196,6 +205,88 @@ function Documentos({ grupo }) {
         )}
       </div>
       {form && <FormDocumento grupo={grupo} editando={form.editando} aoFechar={() => setForm(null)} />}
+      {renovando && <Renovar doc={renovando} aoFechar={() => setRenovando(null)} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- painel de certificados digitais
+function GrupoCert({ titulo, cor, lista, aoRenovar, aoEditar, vazio }) {
+  return (
+    <section className="cartao overflow-hidden" aria-label={titulo}>
+      <header className="flex items-center gap-2 px-4 py-2.5 border-b border-line bg-surface-2">
+        <strong className={"text-[14px] " + cor}>{titulo}</strong><span className="text-[13px] text-muted">({numero(lista.length)})</span>
+      </header>
+      {!lista.length ? <p className="px-4 py-3 text-[13px] text-muted">{vazio}</p> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13.5px]">
+            <tbody className="divide-y divide-line">
+              {lista.map((d) => (
+                <tr key={d.id} className="hover:bg-surface-2">
+                  <td className="px-4 py-2 font-medium min-w-[200px]">{d.empresa}<span className="block text-[12px] text-muted tabular-nums">{d.cnpj}</span></td>
+                  <td className="px-3 py-2 w-[70px]">{d.modelo ? <Selo tipo={d.modelo === "A3" ? "novo" : "neutro"}>{d.modelo}</Selo> : <span className="text-muted text-[12px]">sem modelo</span>}</td>
+                  <td className="px-3 py-2 whitespace-nowrap tabular-nums">{dataBR(d.vencimento)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap"><Selo tipo={SELO_SIT[d.situacao.status]}>{textoSituacao(d.situacao)}</Selo></td>
+                  <td className="px-3 py-2">{d.responsavel}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-right">
+                    <button type="button" className="btn-contorno btn-sm" onClick={() => aoRenovar(d)}>Renovar</button>
+                    <button type="button" className="btn-fantasma btn-sm" onClick={() => aoEditar(d)}>Editar</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Certificados() {
+  const [svc, versao] = useDepCadastro();
+  const { aviso } = useAvisos();
+  const g = useMemo(() => svc.certificados(), [svc, versao]);   // eslint-disable-line
+  const [modelo, setModelo] = useState("todos");
+  const [form, setForm] = useState(null);
+  const [renovando, setRenovando] = useState(null);
+  const filtra = (l) => (modelo === "todos" ? l : l.filter((d) => (d.modelo || "") === (modelo === "sem" ? "" : modelo)));
+  const baixar = async () => {
+    try {
+      const XLSX = await carregarXlsx();
+      const wb = XLSX.utils.book_new();
+      [["Vencidos", g.vencidos], ["Vencem em 30 dias", g.ate30], ["Em dia", g.emDia.concat(g.semData)]].forEach(([nome, l]) => {
+        const ws = XLSX.utils.aoa_to_sheet(linhasCertificados(filtra(l)));
+        ws["!cols"] = [{ wch: 40 }, { wch: 20 }, { wch: 8 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 30 }];
+        XLSX.utils.book_append_sheet(wb, ws, nome);
+      });
+      XLSX.writeFile(wb, "certificados-digitais-" + svc.hoje() + ".xlsx");
+    } catch (e) { aviso("Não consegui gerar o Excel: " + (e.message || e)); }
+  };
+  const cartoes = [["Vencidos", g.vencidos.length, "text-debit"], ["Vencem em até 30 dias", g.ate30.length, "text-warn"], ["Em dia", g.emDia.length, "text-credit"], ["A1 / A3", g.A1 + " / " + g.A3, "text-ink"]];
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {cartoes.map(([t, n, cor]) => (
+          <div key={t} className="cartao px-4 py-3"><div className="text-[12.5px] text-muted">{t}</div><div className={"text-[24px] font-semibold tabular-nums " + (n ? cor : "text-muted")}>{typeof n === "number" ? numero(n) : n}</div></div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Segmentado pequeno rotulo="Modelo" valor={modelo} aoMudar={setModelo} opcoes={[["todos", "Todos"], ["A1", "A1"], ["A3", "A3"]].concat(g.semModelo ? [["sem", "Sem modelo (" + g.semModelo + ")"]] : [])} />
+        <div className="flex-1" />
+        <button type="button" className="btn-contorno btn-sm" onClick={baixar} disabled={!g.lista.length}>Baixar Excel</button>
+        <button type="button" className="btn-primario btn-sm" onClick={() => setForm({ editando: null })}><Icone nome="mais" />Novo certificado</button>
+      </div>
+      {!g.lista.length ? (
+        <div className="cartao"><Vazio titulo="Nenhum certificado digital cadastrado" texto="Cadastre em Novo certificado, importe os PDFs ou uma planilha (com a coluna Modelo A1/A3), ou carregue a demonstração." /></div>
+      ) : (
+        <>
+          <GrupoCert titulo="Vencidos" cor="text-debit" lista={filtra(g.vencidos)} aoRenovar={setRenovando} aoEditar={(d) => setForm({ editando: d })} vazio="Nenhum certificado vencido." />
+          <GrupoCert titulo="Vencem em até 30 dias" cor="text-warn" lista={filtra(g.ate30)} aoRenovar={setRenovando} aoEditar={(d) => setForm({ editando: d })} vazio="Nenhum vence nos próximos 30 dias." />
+          <GrupoCert titulo="Em dia" cor="text-credit" lista={filtra(g.emDia.concat(g.semData))} aoRenovar={setRenovando} aoEditar={(d) => setForm({ editando: d })} vazio="Nenhum certificado em dia." />
+        </>
+      )}
+      <p className="text-[12.5px] text-muted">Os certificados também aparecem em Certidões. O Excel sai com uma aba para cada grupo, para o Societário cobrar a renovação.</p>
+      {form && <FormDocumento grupo="certidoes" editando={form.editando} tipoInicial={CERTIFICADO} aoFechar={() => setForm(null)} />}
       {renovando && <Renovar doc={renovando} aoFechar={() => setRenovando(null)} />}
     </div>
   );
@@ -323,6 +414,7 @@ export default function DepCadastro() {
   const { secao } = useParams();
   if (secao === "empresas") return <Empresas />;
   if (secao === "certidoes") return <Documentos grupo="certidoes" />;
+  if (secao === "certificados") return <Certificados />;
   if (secao === "alvaras") return <Documentos grupo="alvaras" />;
   if (secao === "faturamentos") return <Faturamentos />;
   if (secao === "demonstrativos") return <Demonstrativos />;
