@@ -75,7 +75,7 @@ function AvisosVencimento({ aoIr }) {
   const [svc, versao] = useDepCadastro();
   const a = useMemo(() => svc.avisos(), [svc, versao]);   // eslint-disable-line
   if (!a.lista.length) return null;
-  const dataBR = (d) => d.slice(8, 10) + "/" + d.slice(5, 7);
+  const dataBR = (d) => (d ? d.slice(8, 10) + "/" + d.slice(5, 7) : "—");   // alvará vencido pode não ter data
   const mostrar = a.lista.slice(0, MAX_AVISOS);
   const resto = a.lista.length - mostrar.length;
   const grupos = ["certificados", "certidoes", "alvaras"].filter((g) => a.lista.some((d) => d.grupo === g));
