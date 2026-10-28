@@ -22,7 +22,7 @@ function FormEmpresa({ editando, aoFechar }) {
   const { aviso } = useAvisos();
   const setores = emDia.setores();
   const resp = emDia.todosResponsaveis();
-  const vazio = { nome: "", documento: "", codigo: "", regime: "", tipoLucroReal: "", inicio: "", saida: "", baixa: "", segmento: "", contato: "", telefone: "", email: "", obs: "" };
+  const vazio = { nome: "", documento: "", codigo: "", regime: "", tipoLucroReal: "", inicio: "", saida: "", baixa: "", segmento: "", contato: "", telefone: "", email: "", obs: "", cidade: "", uf: "", envioTaxas: "" };
   const [f, setF] = useState(() => Object.assign({}, vazio, editando || {}));
   const [socios, setSocios] = useState(() => (editando && !editando.sociosDaMatriz && editando.socios ? editando.socios.map((x) => Object.assign({}, x)) : []));
   const [r, setR] = useState(() => {
@@ -71,6 +71,9 @@ function FormEmpresa({ editando, aoFechar }) {
         <Campo rotulo="Nome" id="emp-cont" className="sm:col-span-2"><input id="emp-cont" value={f.contato} onChange={muda("contato")} autoComplete="off" /></Campo>
         <Campo rotulo="Telefone" id="emp-tel" className="sm:col-span-2"><input id="emp-tel" value={f.telefone} onChange={muda("telefone")} inputMode="tel" autoComplete="off" /></Campo>
         <Campo rotulo="E-mail" id="emp-mail" className="sm:col-span-2"><input id="emp-mail" type="email" value={f.email} onChange={muda("email")} autoComplete="off" /></Campo>
+        <Campo rotulo="Cidade" id="emp-cid" className="sm:col-span-2"><input id="emp-cid" value={f.cidade} onChange={muda("cidade")} autoComplete="off" /></Campo>
+        <Campo rotulo="UF" id="emp-uf" className="sm:col-span-1"><input id="emp-uf" value={f.uf} onChange={muda("uf")} maxLength={2} autoComplete="off" /></Campo>
+        <Campo rotulo="Envio das taxas (alvarás)" id="emp-tx" className="sm:col-span-3" dica="Ex.: OK Acessórias, OK WhatsApp 06/01/2026."><input id="emp-tx" value={f.envioTaxas} onChange={muda("envioTaxas")} autoComplete="off" /></Campo>
         <Campo rotulo="Observações" id="emp-obs" className="sm:col-span-6"><input id="emp-obs" value={f.obs} onChange={muda("obs")} autoComplete="off" /></Campo>
 
         <p className={sub}>Sócios</p>

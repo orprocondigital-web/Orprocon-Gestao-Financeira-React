@@ -465,7 +465,7 @@
     { id: "cadastro", nome: "Departamento Cadastro", texto: "O cadastro das empresas, com documentos, faturamento e demonstrativos.", ferramentas: [
       { tab: "dep-empresas", area: "mod-vencimentos", icone: "empresa", nome: "Empresas", resumo: "O cadastro geral, usado por todo o sistema.",
         itens: ["CNPJ, código e regime de cada empresa", "Matriz e filial reconhecidas pelo CNPJ", "Responsável de cada setor num lugar só"] },
-      { tab: "dep-certidoes", area: "mod-vencimentos", icone: "certidao", nome: "Certidões", resumo: "CNDs, CRF FGTS, certificado A1, procurações e licenças, com vencimento.",
+      { tab: "dep-certidoes", area: "mod-vencimentos", icone: "certidao", nome: "Certidões", resumo: "CNDs, CRF FGTS, certificado digital, procurações e licenças, com vencimento.",
         itens: ["O que venceu e o que vence em 7 e 30 dias", "Renovação com histórico do vencimento anterior", "Busca por empresa, tipo e responsável"] },
       { tab: "dep-alvaras", area: "mod-vencimentos", icone: "alvara", nome: "Alvarás", resumo: "Alvarás de funcionamento, sanitário, Bombeiros e ambiental.",
         itens: ["Vencimento de cada alvará por empresa", "Renovação com histórico", "Link para o arquivo do documento"] },
@@ -532,7 +532,7 @@
     var dia = function (n) { var d = new Date(Date.parse(hoje + "T12:00:00Z") + n * 86400000); return d.toISOString().slice(0, 10); };
     var clientes = [["ex-c1", "Alfa Comércio Ltda"], ["ex-c2", "Beta Serviços ME"], ["ex-c3", "Gama Indústria S.A."], ["ex-c4", "Delta Transportes Ltda"]]
       .map(function (c) { return { id: c[0], nome: c[1], documento: "", regime: "", contato: "", email: "", telefone: "" }; });
-    var docs = [["ex-c2", "Certificado A1", -1, "pendente"], ["ex-c1", "Alvará", 2, "renovacao"], ["ex-c3", "CND Federal", 4, "pendente"],
+    var docs = [["ex-c2", "Certificado Digital", -1, "pendente"], ["ex-c1", "Alvará", 2, "renovacao"], ["ex-c3", "CND Federal", 4, "pendente"],
       ["ex-c4", "Procuração", 7, "aguardando"], ["ex-c1", "CRF FGTS", 12, "pendente"], ["ex-c3", "Licença", 25, "pendente"], ["ex-c2", "CND Municipal", 80, "pendente"]];
     return { clientes: clientes, documentos: docs.map(function (d, i) {
       return { id: "ex-d" + (i + 1), clienteId: d[0], tipo: d[1], numero: "", emissao: "", vencimento: dia(d[2]), responsavel: "", observacoes: "Documento fictício.", link: "", andamento: d[3], historico: [] };

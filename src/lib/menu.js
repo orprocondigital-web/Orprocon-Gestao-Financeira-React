@@ -36,6 +36,7 @@ export function montarMenu(pode, ehAdmin) {
   }
   if (pode("conciliacao")) contabil.push({ id: "conciliacao", label: "Conciliação", para: "/conciliacao", icone: "conciliacao" });
   if (pode("contabil-lucros")) contabil.push({ id: "fechamento", label: "Fechamento contábil", para: "/fechamento", icone: "fechamento" }, { id: "encerramento", label: "Encerramento do exercício", para: "/encerramento", icone: "encerramento" }, { id: "lucros", label: "Distribuição de lucros", para: "/lucros", icone: "lucros" }, { id: "reinf", label: "REINF", para: "/reinf", icone: "reinf" });
+  const certUrgentes = (svc) => svc.certificados().lista.filter((d) => d.situacao.status === "vencido" || d.situacao.status === "7").length;
   const secoes = [
     { titulo: "Contábil", itens: contabil },
     { titulo: "Fiscal", itens: modulos("Fiscal") },
@@ -44,6 +45,7 @@ export function montarMenu(pode, ehAdmin) {
     { titulo: "Departamento Cadastro", itens: pode("mod-vencimentos") ? [
       { id: "dep-empresas", label: "Empresas", para: "/departamento-cadastro/empresas", icone: "empresa" },
       { id: "dep-certidoes", label: "Certidões", para: "/departamento-cadastro/certidoes", icone: "certidao", contador: depCadastro.urgentes("certidoes") },
+      { id: "dep-certificados", label: "Certificados digitais", para: "/departamento-cadastro/certificados", icone: "cadeado", contador: certUrgentes(depCadastro) },
       { id: "dep-alvaras", label: "Alvarás", para: "/departamento-cadastro/alvaras", icone: "alvara", contador: depCadastro.urgentes("alvaras") },
       { id: "dep-faturamentos", label: "Faturamentos", para: "/departamento-cadastro/faturamentos", icone: "faturamento" },
       { id: "dep-demonstrativos", label: "Demonstrativos contábeis", para: "/departamento-cadastro/demonstrativos", icone: "demonstrativo" },

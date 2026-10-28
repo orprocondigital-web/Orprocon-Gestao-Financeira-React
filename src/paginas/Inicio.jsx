@@ -6,6 +6,9 @@ import { lerJson, lerLocal } from "../lib/tema.js";
 import { nomeDaConta, ROTA_REACT } from "../lib/menu.js";
 import { emDia, useEmDia } from "../lib/useEmDia.js";
 import { lucros, useLucros } from "../lib/useLucros.js";
+import { useDepCadastro } from "../lib/useDepCadastro.js";
+import { nomeDoTipo, textoSituacao } from "../lib/depCadastro.mjs";
+import { Selo } from "../componentes/contabil/ui.jsx";
 import Icone from "../componentes/Icone.jsx";
 
 const COR_SETOR = { contabil: "border-brand-fill", fiscal: "border-ink-2", pessoal: "border-credit", cadastro: "border-warn", escritorio: "border-info" };
@@ -64,6 +67,48 @@ function useResumo(usuario, pode) {
   }, [usuario, pode, versao, versaoEmDia, versaoLucros]);   // eslint-disable-line
 }
 
+const SELO_SIT = { vencido: "erro", "7": "pendente", "30": "novo", ok: "ok", sem: "neutro" };
+const MAX_AVISOS = 6;
+
+/** Certidões, alvarás e certificados que pedem atenção agora; cada linha leva à lista certa. */
+function AvisosVencimento({ aoIr }) {
+  const [svc, versao] = useDepCadastro();
+  const a = useMemo(() => svc.avisos(), [svc, versao]);   // eslint-disable-line
+  if (!a.lista.length) return null;
+  const dataBR = (d) => d.slice(8, 10) + "/" + d.slice(5, 7);
+  const mostrar = a.lista.slice(0, MAX_AVISOS);
+  const resto = a.lista.length - mostrar.length;
+  const grupos = ["certificados", "certidoes", "alvaras"].filter((g) => a.lista.some((d) => d.grupo === g));
+  const nomeGrupo = { certificados: "Certificados digitais", certidoes: "Certidões", alvaras: "Alvarás" };
+  return (
+    <section id="vencimentos-para-cuidar" tabIndex={-1} className="cartao overflow-hidden scroll-mt-4 outline-none focus-visible:ring-2 focus-visible:ring-brand-fill" aria-label="Vencimentos para cuidar">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 border-b border-line">
+        <span className={"h-8 w-8 rounded-lg inline-flex items-center justify-center " + (a.vencidos ? "bg-debit-soft text-debit" : "bg-warn-soft text-warn")}><Icone nome="venc" className="w-[18px] h-[18px]" /></span>
+        <div className="flex-1 min-w-[200px]">
+          <h3 className="text-[15px] font-semibold">Vencimentos para cuidar</h3>
+          <p className="text-[12.5px] text-muted">{a.vencidos ? a.vencidos + (a.vencidos === 1 ? " vencido" : " vencidos") + " · " : ""}certidões e alvarás em até 7 dias, certificados digitais em até 30 dias</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {grupos.map((g) => <button key={g} type="button" className="btn-contorno btn-sm" onClick={() => aoIr(g)}>{nomeGrupo[g]}</button>)}
+        </div>
+      </header>
+      <ul className="divide-y divide-line">
+        {mostrar.map((d) => (
+          <li key={d.id}>
+            <button type="button" onClick={() => aoIr(d.grupo)} className="w-full text-left px-4 py-2 flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 hover:bg-surface-2">
+              <span className="w-[130px] shrink-0"><Selo tipo={SELO_SIT[d.situacao.status]}>{textoSituacao(d.situacao)}</Selo></span>
+              <span className="flex-1 min-w-0 truncate text-[13.5px] font-medium">{d.empresa}</span>
+              <span className="text-[13px] text-ink-2 sm:w-[210px] truncate">{nomeDoTipo(d)}</span>
+              <span className="text-[13px] tabular-nums text-muted w-[44px] text-right">{dataBR(d.vencimento)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {resto > 0 && <p className="px-4 py-2 text-[12.5px] text-muted border-t border-line">E mais {resto} {resto === 1 ? "documento" : "documentos"}. Abra a lista para ver todos.</p>}
+    </section>
+  );
+}
+
 export default function Inicio() {
   const { usuario, pode } = useAuth();
   const navegar = useNavigate();
@@ -77,12 +122,17 @@ export default function Inicio() {
     if (!alvo) return;
     if (alvo.acaoApp === "extratos") { navegar("/integracao"); return; }
     if (alvo.tab === "mod-em-dia") { navegar("/em-dia"); return; }
+    // "Vence em 7 dias": desce até a lista do que venceu (cada linha leva à aba certa)
+    if (alvo.tab === "mod-vencimentos") {
+      const lista = document.getElementById("vencimentos-para-cuidar");
+      if (lista) { lista.scrollIntoView({ behavior: "smooth", block: "start" }); lista.focus({ preventScroll: true }); return; }
+    }
     if (ROTA_REACT[alvo.tab]) { navegar(ROTA_REACT[alvo.tab], { state: { prefs: alvo.prefs || null } }); return; }
     if (alvo.tab === "lucros") { navegar("/lucros"); return; }
     if (alvo.tab === "fechamento") { navegar("/fechamento"); return; }
     if (alvo.tab === "encerramento") { navegar("/encerramento"); return; }
     if (alvo.tab === "reinf") { navegar("/reinf"); return; }
-    const dep = { "dep-empresas": "empresas", "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-alvaras": "alvaras", "dep-faturamentos": "faturamentos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
+    const dep = { "dep-empresas": "empresas", "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-certificados": "certificados", "dep-alvaras": "alvaras", "dep-faturamentos": "faturamentos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
     if (dep) { navegar("/departamento-cadastro/" + dep); return; }
     navegar(alvo.tab === "master" ? "/integracao" : alvo.tab === "conciliacao" ? "/conciliacao" : "/modulo/" + alvo.tab, { state: { prefs: alvo.prefs || null } });
   };
@@ -126,6 +176,8 @@ export default function Inicio() {
           ))}
         </div>
       )}
+
+      {pode("mod-vencimentos") && <AvisosVencimento aoIr={(g) => navegar("/departamento-cadastro/" + g)} />}
 
       {ehTeste && algumVazio && (
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-dashed border-line-strong bg-brand-soft px-4 py-3.5">
