@@ -137,13 +137,13 @@ function Planilha() {
     // responsáveis de cada setor (e o histórico do contábil) vão para o Em Dia; só onde ainda não há
     let resp = 0;
     plano.empresas.forEach((p) => {
-      const id = r.ids[chaveNome(p.nome)];
+      const id = r.ids[p.chave];
       if (!id) return;
       if (p.histContabil && !emDia.historicoResponsavel("contabil", id).length) { emDia.importarHistorico("contabil", id, p.histContabil); resp++; }
       Object.keys(p.responsaveis || {}).forEach((s) => { if (emDia.setores().some((x) => x.id === s) && !emDia.responsavel(s, id)) { emDia.definirResponsavel(s, id, p.responsaveis[s], ""); resp++; } });
     });
     setPlano(null); setArquivo("");
-    aviso("Importado: " + [r.novasEmp && r.novasEmp + " empresa(s)", r.novosDocs && r.novosDocs + " documento(s)", r.faturamentos && r.faturamentos + " valor(es) de faturamento", resp && resp + " responsável(is) no Em Dia"].filter(Boolean).join(", ") + (r.repetidos ? ". " + r.repetidos + " documento(s) já existiam." : "."));
+    aviso("Importado: " + [r.novasEmp && r.novasEmp + " empresa(s) nova(s)", r.atualizadas && r.atualizadas + " completada(s)", (r.alvNovos || r.alvAtualizados) && (r.alvNovos + r.alvAtualizados) + " alvará(s)", r.novosDocs && r.novosDocs + " documento(s)", r.faturamentos && r.faturamentos + " valor(es) de faturamento", resp && resp + " responsável(is) no Em Dia"].filter(Boolean).join(", ") + (r.repetidos ? ". " + r.repetidos + " documento(s) já existiam." : "."));
   };
   const modelo = async () => {
     const XLSX = await carregarXlsx();
@@ -154,13 +154,13 @@ function Planilha() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Empresa"].concat(MESES), ["Empresa Exemplo Ltda", 10000, 12000]]), "Faturamento " + ano);
     XLSX.writeFile(wb, "modelo-departamento-cadastro.xlsx");
   };
-  const nomes = { documentos: "certidões e alvarás", faturamentos: "faturamento", empresas: "empresas", ignorada: "ignorada (sem coluna Empresa)" };
+  const nomes = { alvaras: "renovação de alvarás (municipal, sanitário, bombeiros)", documentos: "certidões e alvarás", faturamentos: "faturamento", empresas: "empresas", ignorada: "ignorada (sem coluna Empresa)" };
   return (
     <section className="cartao p-4 sm:p-5 space-y-3">
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex-1 min-w-[240px]">
           <h2 className="text-[16px] font-semibold">Planilha (Excel)</h2>
-          <p className="text-[13px] text-muted">Empresas, certidões e alvarás (colunas Empresa, Tipo e Vencimento) e faturamento (Empresa e os meses Jan a Dez; o ano vem do nome da aba). Pode ter várias abas no mesmo arquivo. Também lê a aba Empresas exportada do sistema do Depto. Contábil (regime, sócios, responsáveis, entrada e saída); as colunas de senha são ignoradas.</p>
+          <p className="text-[13px] text-muted">A planilha de renovação de alvarás (colunas CNPJ, Municipal, Sanitário e Bombeiro, com a data ou a situação) entra do jeito que está. Também: empresas, certidões e alvarás (colunas Empresa, Tipo e Vencimento) e faturamento (Empresa e os meses Jan a Dez; o ano vem do nome da aba). Pode ter várias abas no mesmo arquivo. Também lê a aba Empresas exportada do sistema do Depto. Contábil (regime, sócios, responsáveis, entrada e saída); as colunas de senha são ignoradas.</p>
         </div>
         <button type="button" className="btn-fantasma" onClick={modelo}>Baixar modelo</button>
         <BotaoArquivo className="btn-primario" aceita=".xlsx,.xls,.xlsm,.csv" aoEscolher={ler}>Escolher planilha</BotaoArquivo>
@@ -171,7 +171,21 @@ function Planilha() {
         <ul className="rounded-lg border border-line divide-y divide-line text-[13.5px]">
           {plano.abas.map((a) => <li key={a.nome} className="flex justify-between gap-3 px-3 py-2"><span>{a.nome} <span className="text-muted">· {nomes[a.tipo]}</span></span><span className="text-muted tabular-nums">{numero(a.linhas)} linha(s)</span></li>)}
         </ul>
-        <p className="text-[13px]">{numero(plano.empresas.length)} empresa(s), {numero(plano.documentos.length)} documento(s), {numero(plano.faturamentos.length)} valor(es) de faturamento. Empresas que já existem não são duplicadas.</p>
+        {(() => {
+          const pv = svc.previaPlanilha(plano);
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {[["Empresas novas", pv.novas, "text-brand"], ["Já cadastradas (serão completadas)", pv.existentes, "text-ink"], ["Alvarás", pv.alvaras, "text-ink"],
+                ["Certidões e documentos", plano.documentos.length, "text-ink"]].map(([t, n, cor]) => (
+                <div key={t} className="rounded-lg border border-line px-3 py-2"><div className="text-[12px] text-muted">{t}</div><div className={"text-[20px] font-semibold tabular-nums " + cor}>{numero(n)}</div></div>
+              ))}
+              <p className="col-span-2 md:col-span-4 text-[12.5px] text-muted">
+                A empresa é reconhecida pelo <strong>CNPJ</strong> (filiais com o mesmo nome ficam separadas); sem CNPJ, pelo nome{pv.semCnpj ? " (" + numero(pv.semCnpj) + " sem CNPJ)" : ""}. Nada é apagado: o que já existe só é completado.
+                {plano.faturamentos.length ? " " + numero(plano.faturamentos.length) + " valor(es) de faturamento." : ""}
+              </p>
+            </div>
+          );
+        })()}
         {plano.avisos.length > 0 && <ul className="text-[12.5px] text-warn space-y-0.5">{plano.avisos.slice(0, 8).map((a, i) => <li key={i}>{a}</li>)}{plano.avisos.length > 8 && <li>…e mais {plano.avisos.length - 8}.</li>}</ul>}
         <div className="flex justify-end gap-2"><button type="button" className="btn-fantasma btn-sm" onClick={() => setPlano(null)}>Cancelar</button><button type="button" className="btn-primario btn-sm" onClick={importar}>Importar</button></div>
       </>)}

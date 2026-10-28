@@ -147,7 +147,7 @@ describe("importar planilha", () => {
     const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
     const r = svc.aplicarPlanilha(p);
     assert.deepEqual([r.novasEmp, r.novosDocs, r.repetidos, r.faturamentos], [2, 2, 0, 5]);
-    assert.equal(r.ids["empresa exemplo ltda"], "c1");
+    assert.equal(r.ids["n:empresa exemplo ltda"], "c1");
     assert.equal(svc.aplicarPlanilha(p).repetidos, 2, "importar de novo não duplica");
     assert.equal(svc.empresas().length, 3);
     assert.equal(svc.documentos("alvaras").length, 2);
@@ -191,7 +191,7 @@ describe("cadastro geral de empresas", () => {
   test("planilha de empresas traz código e regime", () => {
     const { svc } = amb();
     const p = D.lerPlanilhaCadastro([{ nome: "Empresas", rows: [["Cód.", "Empresa", "CNPJ", "Regime"], [12, "Ômega Ltda", "55.555.555/0001-55", "Simples"]] }], (v) => v, 2026);
-    assert.deepEqual(p.empresas, [{ nome: "Ômega Ltda", documento: "55.555.555/0001-55", regime: "Simples Nacional", codigo: "12" }]);
+    assert.deepEqual(p.empresas, [{ chave: "d:55555555000155", nome: "Ômega Ltda", documento: "55.555.555/0001-55", regime: "Simples Nacional", codigo: "12" }]);
     svc.aplicarPlanilha(p);
     assert.equal(svc.empresas()[0].codigo, "12");
   });
@@ -345,5 +345,73 @@ describe("avisos do Início e mensagem de renovação", () => {
     assert.match(m.texto, /^Olá!/); assert.match(m.texto, /a CND Federal da Beta Ltda venceu em 18\/10\/2026\./);
     assert.match(m.texto, /nova via/); assert.match(m.texto, /Equipe Orprocon$/);
     assert.equal(m.temEmail, false); assert.ok(m.whatsapp.startsWith("https://wa.me/?text="));
+  });
+});
+
+describe("alvarás: grade e planilha de renovação", () => {
+  const Core = require("../src/legado/core.js");
+  test("célula da planilha: data, situação e anotação", () => {
+    const c = (v) => D.lerCelulaAlvara(v, Core.toIsoDate);
+    assert.equal(c(""), null);
+    assert.deepEqual(c(new Date(2026, 11, 31)), { vencimento: "2026-12-31", situacao: "", observacao: "" });
+    assert.deepEqual(c("22.04.2027"), { vencimento: "2027-04-22", situacao: "", observacao: "" });
+    assert.deepEqual(c("10/01/2027 (10/01/2027)"), { vencimento: "2027-01-10", situacao: "", observacao: "" });
+    assert.deepEqual(c("VENCIDO"), { vencimento: "", situacao: "vencido", observacao: "" });
+    assert.deepEqual(c("DISPENSADO - RET"), { vencimento: "", situacao: "dispensado", observacao: "DISPENSADO - RET" });
+    assert.deepEqual(c("NÃO POSSUI "), { vencimento: "", situacao: "nao_possui", observacao: "" });
+    assert.deepEqual(c("taxa atrasada"), { vencimento: "", situacao: "debitos", observacao: "taxa atrasada" });
+    assert.deepEqual(c("RENOVADO"), { vencimento: "", situacao: "renovado", observacao: "" });
+    assert.deepEqual(c("Precisa do Habita-se"), { vencimento: "", situacao: "", observacao: "Precisa do Habita-se" });
+    assert.equal(c("PERMANENTE").situacao, "permanente");
+  });
+  test("situação na grade: cor por data e por situação", () => {
+    const h = "2026-10-20";
+    assert.equal(D.situacaoAlvara(null, h).cor, "branco");
+    assert.equal(D.situacaoAlvara({ vencimento: "2027-05-01" }, h).cor, "verde");
+    assert.equal(D.situacaoAlvara({ vencimento: "2026-11-01" }, h).cor, "amarelo");
+    assert.equal(D.situacaoAlvara({ vencimento: "2026-10-01" }, h).cor, "vermelho");
+    assert.deepEqual([D.situacaoAlvara({ sitAlvara: "dispensado" }, h).cor, D.situacaoAlvara({ sitAlvara: "dispensado" }, h).status], ["cinza", "na"]);
+    assert.equal(D.situacaoAlvara({ sitAlvara: "vencido" }, h).status, "vencido");
+    assert.equal(D.situacaoAlvara({ sitAlvara: "renovado" }, h).texto, "Renovado, falta a data");
+    assert.equal(D.situacaoAlvara({ sitAlvara: "solicitado", vencimento: "2026-10-01" }, h).cor, "amarelo");
+    assert.equal(D.tipoDeAlvara("Alvará de funcionamento"), "Alvará municipal");
+    assert.equal(D.normalizarTipo("ALVARA BOMBEIRO").tipo, "Alvará dos Bombeiros");
+  });
+  test("planilha de renovação: CNPJ é a chave (filiais com o mesmo nome), grade e reimportação", () => {
+    const abas = [{ nome: "ALVARÁS 2026", rows: [["Razão social", "CNPJ", "Cidade", "UF", "ENVIADA TAXAS", "NOME", "RESPONSÁVEL", "MUNICIPAL", "SANITARIO", "BOMBEIRO"],
+      ["Alfa Ltda", "11.111.111/0001-11", "TUBARAO", "SC", "OK ACESSORIAS", "", "ANA", new Date(2026, 11, 31), "DISPENSADO", "22.04.2027"],
+      ["Alfa Ltda", "11.111.111/0002-00", "LAGUNA", "SC", "", "", "ANA", "VENCIDO", "", "NÃO POSSUI"],
+      ["Beta Ltda", "22.222.222/0001-22", "TUBARAO", "SC", "", "", "BRUNO", "RENOVADO", "SOLICITADO", ""]] }];
+    const p = D.lerPlanilhaCadastro(abas, Core.toIsoDate, 2026);
+    assert.deepEqual(p.abas.map((a) => [a.tipo, a.linhas]), [["alvaras", 3]]);
+    assert.equal(p.empresas.length, 3, "matriz e filial com o mesmo nome ficam separadas");
+    assert.equal(p.alvaras.length, 7);
+    const { svc } = amb();
+    assert.deepEqual(svc.previaPlanilha(p), { novas: 3, existentes: 0, semCnpj: 0, alvaras: 7 });
+    const r = svc.aplicarPlanilha(p);
+    assert.deepEqual([r.novasEmp, r.alvNovos], [3, 7]);
+    const g = svc.gradeAlvaras();
+    const filial = g.linhas.find((l) => l.empresa.documento === "11.111.111/0002-00");
+    assert.equal(filial.empresa.cidade, "LAGUNA");
+    assert.deepEqual(D.ALVARAS_GRADE.map((t) => filial.situacoes[t].cor), ["vermelho", "branco", "amarelo"]);
+    const matriz = g.linhas.find((l) => l.empresa.documento === "11.111.111/0001-11");
+    assert.deepEqual(D.ALVARAS_GRADE.map((t) => matriz.situacoes[t].cor), ["verde", "cinza", "verde"]);
+    assert.equal(matriz.responsavel, "ANA"); assert.equal(matriz.empresa.envioTaxas, "OK ACESSORIAS");
+    // nova planilha: municipal da matriz renovado para 2027 (o anterior vai para o histórico); não duplica empresas
+    abas[0].rows[1][7] = new Date(2027, 11, 31);
+    const r2 = svc.aplicarPlanilha(D.lerPlanilhaCadastro(abas, Core.toIsoDate, 2026));
+    assert.deepEqual([r2.novasEmp, r2.alvNovos, r2.alvAtualizados], [0, 0, 7]);
+    const mun = svc.gradeAlvaras().linhas.find((l) => l.empresa.documento === "11.111.111/0001-11").alvaras["Alvará municipal"];
+    assert.equal(mun.vencimento, "2027-12-31"); assert.equal(mun.historico[0].vencimentoAnterior, "2026-12-31");
+    // o alvará "vencido" sem data entra nos avisos e no número do menu
+    assert.ok(svc.avisos().lista.some((d) => d.tipo === "Alvará municipal" && d.situacao.status === "vencido"));
+  });
+  test("alvará sem data precisa de situação; filial com o mesmo nome pode ser cadastrada", () => {
+    const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
+    assert.throws(() => svc.salvarDocumento({ clienteId: "c1", tipo: "Alvará sanitário" }), /situação/);
+    assert.equal(svc.salvarDocumento({ clienteId: "c1", tipo: "Alvará sanitário", sitAlvara: "dispensado" }).sitAlvara, "dispensado");
+    assert.equal(svc.salvarDocumento({ clienteId: "c1", tipo: "CND Federal", sitAlvara: "dispensado", vencimento: "2027-01-01" }).sitAlvara, "");
+    assert.equal(svc.salvarEmpresa({ nome: "Empresa Exemplo Ltda", documento: "11.111.111/0002-92" }).nome, "Empresa Exemplo Ltda");
+    assert.throws(() => svc.salvarEmpresa({ nome: "Empresa Exemplo Ltda" }), /Já existe/);
   });
 });

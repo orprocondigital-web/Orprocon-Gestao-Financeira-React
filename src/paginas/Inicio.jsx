@@ -81,7 +81,7 @@ function AvisosVencimento({ aoIr }) {
   const grupos = ["certificados", "certidoes", "alvaras"].filter((g) => a.lista.some((d) => d.grupo === g));
   const nomeGrupo = { certificados: "Certificados digitais", certidoes: "Certidões", alvaras: "Alvarás" };
   return (
-    <section className="cartao overflow-hidden" aria-label="Vencimentos para cuidar">
+    <section id="vencimentos-para-cuidar" tabIndex={-1} className="cartao overflow-hidden scroll-mt-4 outline-none focus-visible:ring-2 focus-visible:ring-brand-fill" aria-label="Vencimentos para cuidar">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 border-b border-line">
         <span className={"h-8 w-8 rounded-lg inline-flex items-center justify-center " + (a.vencidos ? "bg-debit-soft text-debit" : "bg-warn-soft text-warn")}><Icone nome="venc" className="w-[18px] h-[18px]" /></span>
         <div className="flex-1 min-w-[200px]">
@@ -122,6 +122,11 @@ export default function Inicio() {
     if (!alvo) return;
     if (alvo.acaoApp === "extratos") { navegar("/integracao"); return; }
     if (alvo.tab === "mod-em-dia") { navegar("/em-dia"); return; }
+    // "Vence em 7 dias": desce até a lista do que venceu (cada linha leva à aba certa)
+    if (alvo.tab === "mod-vencimentos") {
+      const lista = document.getElementById("vencimentos-para-cuidar");
+      if (lista) { lista.scrollIntoView({ behavior: "smooth", block: "start" }); lista.focus({ preventScroll: true }); return; }
+    }
     if (ROTA_REACT[alvo.tab]) { navegar(ROTA_REACT[alvo.tab], { state: { prefs: alvo.prefs || null } }); return; }
     if (alvo.tab === "lucros") { navegar("/lucros"); return; }
     if (alvo.tab === "fechamento") { navegar("/fechamento"); return; }
