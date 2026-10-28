@@ -1,6 +1,6 @@
 {
   "name": "gestao-financeira-react",
-  "version": "1.0.0-alpha.22",
+  "version": "1.0.0-alpha.23",
   "private": true,
   "description": "Central Orprocon em React + Tailwind (substitui a versão HTML/JS)",
   "scripts": {
