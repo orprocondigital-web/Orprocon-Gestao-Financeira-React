@@ -16,7 +16,7 @@ import { carregarDemo } from "./Importar.jsx";
  */
 const mesBR = (m) => (m ? m.slice(5) + "/" + m.slice(0, 4) : "");
 
-function FormEmpresa({ editando, aoFechar }) {
+export function FormEmpresa({ editando, aoFechar }) {
   const [svc] = useDepCadastro();
   const [emDia] = useEmDia();
   const { aviso } = useAvisos();
@@ -213,7 +213,7 @@ export default function Empresas() {
                     <tr key={c.id} className={"hover:bg-surface-2 " + (saiuJa ? "opacity-60" : "")}>
                       <td className="px-3 py-1.5 tabular-nums text-muted">{c.codigo}</td>
                       <td className="px-3 py-1.5">
-                        <strong className="block font-medium">{c.nome}</strong>
+                        <Link to={"/departamento-cadastro/buscar?empresa=" + c.id} className="block font-medium hover:text-brand hover:underline">{c.nome}</Link>
                         <span className="text-[12px] text-muted tabular-nums">{c.documento || "sem CNPJ/CPF"}</span>
                         {c.baixa && <span className="ml-1.5 align-middle"><Selo tipo="erro">Baixada em {c.baixa.split("-").reverse().join("/")}</Selo></span>}
                         {c.filial && <span className="ml-1.5 align-middle"><Selo tipo="neutro" title="Pelo CNPJ (não é 0001)">{c.matrizId ? "Filial de " + nomes[c.matrizId] : "Filial"}</Selo></span>}
