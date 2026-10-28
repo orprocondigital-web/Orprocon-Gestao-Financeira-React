@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from "react";
-import { CSTS, brl, calcular, conferir, csv, itemManual, lerReferencia, lerXml, pct, xmlsDeExemplo } from "../lib/ibsCbs.mjs";
+import { CSTS, brl, calcular, conferir, csv, itemManual, lerReferencia, lerXml, mesclarReferencias, pct, xmlsDeExemplo } from "../lib/ibsCbs.mjs";
 import { carregarXlsx } from "../lib/leitores.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import { Campo, Selo } from "../componentes/contabil/ui.jsx";
@@ -42,6 +42,39 @@ function Conferencia() {
       guardarReferencia({ itens: r.itens, total: r.total, arquivo: f.name, em: new Date().toISOString() });
       aviso("Tabela de referência carregada: " + r.total + " NCM(s)." + (r.avisos.length ? " Avisos: " + r.avisos.join(" ") : ""));
     } catch (err) { aviso("Não consegui ler a tabela: " + (err.message || err)); }
+  }
+  // tabela pronta da LC 214 (anexos de mercadorias), carregada só quando pedida
+  const tabelaLc214 = async () => { const m = await import("../lib/ibsLc214.json"); return m.default || m; };
+  async function usarLc214(completar) {
+    try {
+      const t = await tabelaLc214();
+      const r = lerReferencia([t.cabecalho].concat(t.linhas));
+      if (completar && referencia) {
+        const j = mesclarReferencias(r.itens, referencia.itens);
+        guardarReferencia({ itens: j.itens, total: j.total, arquivo: referencia.arquivo.replace(/ \+ LC 214.*$/, "") + " + LC 214/2025", em: new Date().toISOString(), lc214: true });
+        aviso("Tabela completada com a LC 214: " + j.daBase + " NCM(s) novos. Os da sua tabela continuam valendo.");
+      } else {
+        guardarReferencia({ itens: r.itens, total: r.total, arquivo: "LC 214/2025 (anexos, incluída no sistema)", em: new Date().toISOString(), lc214: true });
+        aviso("Tabela da LC 214 em uso: " + r.total + " NCM(s).");
+      }
+    } catch (err) { aviso("Não consegui carregar a tabela da LC 214: " + (err.message || err)); }
+  }
+  async function baixarLc214() {
+    try {
+      const [XLSX, t] = await Promise.all([carregarXlsx(), tabelaLc214()]);
+      const ws = XLSX.utils.aoa_to_sheet([t.cabecalho].concat(t.linhas));
+      ws["!cols"] = [{ wch: 11 }, { wch: 60 }, { wch: 6 }, { wch: 11 }, { wch: 11 }, { wch: 90 }];
+      const notas = XLSX.utils.aoa_to_sheet([["Fonte"], [t.fonte], [""], ["Como usar"],
+        ["O auditor procura o NCM do item do mais específico para o mais geral (8, 6, 5, 4 e 2 dígitos)."],
+        ["Linhas com ATENÇÃO: o mesmo NCM aparece em mais de um anexo; a redução depende da descrição do produto (ficou a menor)."],
+        ["Medicamentos (30.03 e 30.04): redução de 60%; alíquota zero só para os da lista do art. 146 (ato conjunto a cada 120 dias)."],
+        ["Serviços (Anexos II, III, X e XI) usam NBS, não NCM, e não estão nesta tabela."], ["Gerada em " + t.geradaEm + ". Confira com a equipe fiscal antes de usar como regra."]]);
+      notas["!cols"] = [{ wch: 120 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Referência IBS-CBS");
+      XLSX.utils.book_append_sheet(wb, notas, "Fonte e notas");
+      XLSX.writeFile(wb, "Tabela_referencia_IBS_CBS_LC214.xlsx");
+    } catch (err) { aviso("Não consegui gerar o Excel: " + (err.message || err)); }
   }
   async function baixarModelo() {
     try {
@@ -89,9 +122,12 @@ function Conferencia() {
         <div className="flex-1 min-w-[240px]">
           <strong className="block text-[14px]">Tabela de referência por NCM</strong>
           <span className="text-[12.5px] text-muted">{referencia ? referencia.total + " NCM(s) de " + referencia.arquivo + ", carregada em " + new Date(referencia.em).toLocaleDateString("pt-BR") + ". Cada item é comparado com o CST, o cClassTrib e a redução esperados."
-            : "Sem tabela: o auditor confere só a conta da nota. Carregue a planilha da equipe fiscal (NCM, CST, cClassTrib, redução) para conferir se a tributação de cada produto está certa."}</span>
+            : "Sem tabela: o auditor confere só a conta da nota. Use a tabela da LC 214 (pronta, com os anexos de mercadorias) ou carregue a planilha da equipe fiscal (NCM, CST, cClassTrib, redução)."}</span>
         </div>
+        {!referencia && <button type="button" className="btn-primario btn-sm" onClick={() => usarLc214(false)}>Usar a tabela da LC 214</button>}
+        {referencia && !referencia.lc214 && <button type="button" className="btn-contorno btn-sm" onClick={() => usarLc214(true)} title="A sua tabela continua valendo; a da LC 214 só completa os NCMs que faltam">Completar com a LC 214</button>}
         <label className="btn-contorno btn-sm cursor-pointer"><input type="file" hidden accept=".xlsx,.xls,.csv" onChange={(e) => { if (e.target.files[0]) importarReferencia(e.target.files[0]); e.target.value = ""; }} />{referencia ? "Trocar tabela" : "Carregar tabela"}</label>
+        <button type="button" className="btn-fantasma btn-sm" onClick={baixarLc214}>Baixar a da LC 214</button>
         <button type="button" className="btn-fantasma btn-sm" onClick={baixarModelo}>Baixar modelo</button>
         {referencia && <button type="button" className="btn-fantasma btn-sm text-debit" onClick={() => guardarReferencia(null)}>Tirar tabela</button>}
       </section>

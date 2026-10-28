@@ -117,6 +117,15 @@ export function lerReferencia(linhas) {
   });
   return { itens, total: Object.keys(itens).length, avisos };
 }
+/**
+ * Junta duas tabelas de referência (itens por NCM): a própria (da equipe) vale mais que a base (ex.: a da LC 214);
+ * a base só completa os NCMs que a própria não tem. Devolve { itens, total, daBase }.
+ */
+export function mesclarReferencias(base, propria) {
+  const itens = Object.assign({}, base || {}, propria || {});
+  const daBase = Object.keys(base || {}).filter((n) => !(propria || {})[n]).length;
+  return { itens, total: Object.keys(itens).length, daBase };
+}
 /** A referência do NCM: a mais específica (8 dígitos, depois 6, 4, 2). */
 export function referenciaDoNcm(ref, ncm) {
   const n = soDig(ncm);
