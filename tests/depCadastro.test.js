@@ -415,3 +415,35 @@ describe("alvarás: grade e planilha de renovação", () => {
     assert.throws(() => svc.salvarEmpresa({ nome: "Empresa Exemplo Ltda" }), /Já existe/);
   });
 });
+
+describe("busca por CNPJ e ficha da empresa", () => {
+  test("busca por CNPJ (inteiro ou parte), código e nome sem acento", () => {
+    const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
+    svc.salvarEmpresa({ nome: "Ômega Serviços Ltda", documento: "22.222.222/0001-22", codigo: "45", cidade: "Laguna" });
+    svc.salvarEmpresa({ nome: "Empresa Exemplo Ltda", documento: "11.111.111/0002-92" });
+    assert.deepEqual(svc.buscarEmpresas("22.222.222/0001-22").map((c) => c.nome), ["Ômega Serviços Ltda"]);
+    assert.deepEqual(svc.buscarEmpresas("11111111").map((c) => c.documento), ["11.111.111/0001-11", "11.111.111/0002-92"]);
+    assert.deepEqual(svc.buscarEmpresas("45").map((c) => c.nome), ["Ômega Serviços Ltda"]);
+    assert.deepEqual(svc.buscarEmpresas("omega").map((c) => c.nome), ["Ômega Serviços Ltda"]);
+    assert.deepEqual(svc.buscarEmpresas("lagu").map((c) => c.nome), ["Ômega Serviços Ltda"]);
+    assert.deepEqual(svc.buscarEmpresas(""), []);
+  });
+  test("ficha: matriz e filial, alvarás da grade, certidões, certificado, faturamento e demonstrativos", () => {
+    const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });   // hoje = 20/10/2026
+    const fil = svc.salvarEmpresa({ nome: "Empresa Exemplo Ltda", documento: "11.111.111/0002-92" });
+    svc.salvarDocumento({ clienteId: "c1", tipo: "Alvará sanitário", sitAlvara: "dispensado" });
+    svc.definirFaturamento("2026", "c1", "09", 1500);
+    svc.definirFaturamento("2025", "c1", "11", 1000);
+    svc.definirDemonstrativo("2025", "c1", "DRE", "entregue");
+    const f = svc.fichaEmpresa("c1");
+    assert.equal(f.empresa.nome, "Empresa Exemplo Ltda"); assert.deepEqual(f.filiais.map((x) => x.id), [fil.id]);
+    assert.equal(svc.fichaEmpresa(fil.id).matriz.id, "c1");
+    assert.equal(f.alvaras["Alvará sanitário"].situacao.cor, "cinza");
+    assert.equal(f.alvaras["Alvará municipal"].situacao.texto, "Vence em 41 dias");   // o "Alvará" antigo (30/11) passou a ser o municipal
+    assert.deepEqual(f.certidoes.map((d) => d.tipo), ["CND Federal"]); assert.deepEqual(f.certificados.map((d) => d.modelo), ["A1"]);
+    assert.equal(f.faturamento.meses.length, 12); assert.equal(f.faturamento.meses[11].mes, "2026-10");
+    assert.equal(f.faturamento.total, 2500); assert.equal(f.faturamento.comValor, 2);
+    assert.equal(f.demonstrativos.exercicio, "2025"); assert.equal(f.demonstrativos.itens.find((x) => x.tipo === "DRE").status, "entregue");
+    assert.equal(svc.fichaEmpresa("nao-existe"), null);
+  });
+});

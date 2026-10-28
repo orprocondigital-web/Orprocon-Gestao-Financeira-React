@@ -589,6 +589,68 @@ export function criarDepCadastro(deps) {
     return r;
   }
 
+  /**
+   * Busca de empresas por CNPJ/CPF (só os números, inteiro ou parte), código ou nome (sem acento).
+   * O CNPJ exato vem primeiro, depois o começo do nome, depois o resto. Máximo de 30.
+   */
+  function buscarEmpresas(texto) {
+    const t = txt(texto);
+    if (!t) return [];
+    const dig = t.replace(/\D/g, ""), n = chaveNome(t);
+    const soNumeros = /^[\d.\/\-\s]+$/.test(t);
+    const achados = [];
+    empresas().forEach((c) => {
+      const cd = txt(c.documento).replace(/\D/g, ""), cn = chaveNome(c.nome);
+      let nota = 0;
+      if (dig.length >= 3 && cd && cd === dig) nota = 100;
+      else if (dig.length >= 3 && cd.indexOf(dig) > -1) nota = 80;
+      else if (txt(c.codigo) && txt(c.codigo) === t) nota = 90;
+      else if (!soNumeros && cn.indexOf(n) === 0) nota = 60;
+      else if (!soNumeros && n.length >= 2 && cn.indexOf(n) > -1) nota = 40;
+      else if (!soNumeros && n.length >= 2 && chaveNome(c.cidade).indexOf(n) === 0) nota = 20;
+      if (nota) achados.push({ nota, c });
+    });
+    return achados.sort((a, b) => b.nota - a.nota || txt(a.c.nome).localeCompare(txt(b.c.nome), "pt-BR")).slice(0, 30).map((x) => x.c);
+  }
+
+  /**
+   * Tudo de uma empresa numa tela: dados (com matriz/filiais), os 3 alvarás da grade e os outros, certidões e
+   * certificados com a situação, faturamento dos últimos 12 meses (até mesAte, AAAA-MM) e demonstrativos do exercício anterior.
+   */
+  function fichaEmpresa(id, mesAte) {
+    const lista = empresas();
+    const c = lista.find((x) => x.id === id);
+    if (!c) return null;
+    const h = hoje();
+    const ate = mesAte || h.slice(0, 7);
+    const linha = gradeAlvaras().linhas.find((l) => l.empresa.id === id);
+    const alvGrade = {};
+    ALVARAS_GRADE.forEach((t) => { alvGrade[t] = { doc: linha ? linha.alvaras[t] : null, situacao: linha ? linha.situacoes[t] : situacaoAlvara(null, h) }; });
+    const daEmpresa = (g) => documentos(g).filter((d) => d.clienteId === id);
+    const idsGrade = ALVARAS_GRADE.map((t) => alvGrade[t].doc && alvGrade[t].doc.id).filter(Boolean);
+    const outrosAlvaras = daEmpresa("alvaras").filter((d) => !idsGrade.includes(d.id));
+    const certidoes = daEmpresa("certidoes");
+    const meses = [];
+    let [a, m] = ate.split("-").map(Number);
+    for (let i = 0; i < 12; i++) {
+      const mm = String(m).padStart(2, "0");
+      const v = ((faturamentos(String(a))[id] || {})[mm]);
+      meses.unshift({ mes: a + "-" + mm, valor: typeof v === "number" ? v : null });
+      m--; if (!m) { m = 12; a--; }
+    }
+    const exercicio = String(Number(h.slice(0, 4)) - 1);
+    const dem = demonstrativos(exercicio)[id] || {};
+    return {
+      empresa: c,
+      matriz: c.matrizId ? lista.find((x) => x.id === c.matrizId) || null : null,
+      filiais: lista.filter((x) => x.matrizId === id),
+      alvaras: alvGrade, outrosAlvaras, responsavelAlvaras: linha ? linha.responsavel : "",
+      certidoes: certidoes.filter((d) => d.tipo !== CERTIFICADO), certificados: certidoes.filter((d) => d.tipo === CERTIFICADO),
+      faturamento: { meses, total: meses.reduce((t, x) => t + (x.valor || 0), 0), comValor: meses.filter((x) => x.valor !== null).length },
+      demonstrativos: { exercicio, itens: DEMONSTRATIVOS.map((t) => ({ tipo: t, status: (dem[t] || {}).status || "" })) }
+    };
+  }
+
   /** Só os certificados digitais, com os grupos do painel: vencidos, vencem em até 30 dias, em dia e sem data. */
   function certificados() {
     const lista = documentos("certidoes").filter((d) => d.tipo === CERTIFICADO);
@@ -919,7 +981,7 @@ export function criarDepCadastro(deps) {
 
   return {
     aplicarPlanilha, previaPlanilha, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
-    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, gradeAlvaras, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
+    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, gradeAlvaras, buscarEmpresas, fichaEmpresa, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
     faturamentos, definirFaturamento, totalAno, ultimos12, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };
 }
