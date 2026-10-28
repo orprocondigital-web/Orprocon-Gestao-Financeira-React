@@ -76,3 +76,23 @@ describe("grupos, consolidado e status", () => {
     assert.equal(svc.grupos("2026").encerrados, 1);
   });
 });
+
+describe("rateio por faturamento", () => {
+  test("proporção do faturamento de cada sócio, como no sistema antigo", () => {
+    const r = E.ratear(10000, [60000, 30000, 10000]);
+    assert.equal(r.soma, 100000);
+    assert.deepEqual(r.linhas.map((l) => [l.pct, l.valor]), [[60, 6000], [30, 3000], [10, 1000]]);
+  });
+  test("os centavos do arredondamento fecham com o total", () => {
+    const r = E.ratear(100, [1, 1, 1]);
+    assert.deepEqual(r.linhas.map((l) => l.valor), [33.34, 33.33, 33.33]);
+    assert.equal(r.linhas.reduce((t, l) => t + Math.round(l.valor * 100), 0), 10000);
+    const r2 = E.ratear(1234.57, [333.33, 777.77, 12.5]);
+    assert.equal(Math.round(r2.linhas.reduce((t, l) => t + l.valor, 0) * 100), 123457);
+  });
+  test("sem faturamento ou sem valor: nada a ratear; sócio sem faturamento fica com zero", () => {
+    assert.deepEqual(E.ratear(5000, [0, 0]).linhas.map((l) => l.valor), [0, 0]);
+    assert.deepEqual(E.ratear(0, [10, 20]).linhas.map((l) => l.valor), [0, 0]);
+    assert.deepEqual(E.ratear(900, [300, null, 600]).linhas.map((l) => l.valor), [300, 0, 600]);
+  });
+});

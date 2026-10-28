@@ -46,6 +46,25 @@ export function calcular(d) {
   const informado = v("resultadoPeriodo");
   return { cmv, lucroBruto, pct, resultadoSugerido: sugerido, resultado: informado !== null ? informado : sugerido, resultadoInformado: informado !== null };
 }
+/**
+ * Rateio por faturamento (como no sistema do Depto. Contábil): cada sócio recebe a parte do valor total na proporção
+ * do faturamento que gerou. pct = faturamento ÷ soma × 100; valor = faturamento ÷ soma × total.
+ * Os centavos que sobram do arredondamento vão para quem tem a maior fração, para a soma bater com o total.
+ * faturamentos: números (null ou negativo contam como 0). Devolve { soma, total, linhas: [{ faturamento, pct, valor }] }.
+ */
+export function ratear(total, faturamentos) {
+  const t = r2(Math.abs(Number(total) || 0));
+  const fats = (faturamentos || []).map((f) => Math.max(0, Number(f) || 0));
+  const soma = r2(fats.reduce((a, b) => a + b, 0));
+  if (!soma || !t) return { soma, total: t, linhas: fats.map((f) => ({ faturamento: f, pct: soma ? r2((f / soma) * 100) : 0, valor: 0 })) };
+  const centavos = Math.round(t * 100);
+  const exatos = fats.map((f) => (f / soma) * centavos);
+  const base = exatos.map(Math.floor);
+  let sobra = centavos - base.reduce((a, b) => a + b, 0);
+  exatos.map((x, i) => [x - Math.floor(x), i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (sobra > 0 && fats[i] > 0) { base[i]++; sobra--; } });
+  return { soma, total: t, linhas: fats.map((f, i) => ({ faturamento: f, pct: r2((f / soma) * 100), valor: base[i] / 100 })) };
+}
+
 export const completa = (d) => OBRIGATORIOS.every((k) => num((d || {})[k]) !== null);
 
 /** deps: { ls, agora?, aoMudar? } */

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AuthCore, Core } from "../lib/legado.js";
 import { REGIMES } from "../lib/depCadastro.mjs";
-import { CAMPOS } from "../lib/encerramento.mjs";
+import { CAMPOS, ratear } from "../lib/encerramento.mjs";
+import { calcular as calcularDist } from "../lib/lucros.mjs";
 import { useEncerramento } from "../lib/useEncerramento.js";
 import { useLucros } from "../lib/useLucros.js";
 import { useAuth } from "../lib/auth.jsx";
@@ -11,6 +12,7 @@ import { useAvisos } from "../componentes/Avisos.jsx";
 import Icone from "../componentes/Icone.jsx";
 import { Selo, dataBR } from "../componentes/contabil/ui.jsx";
 import { FormDistribuicao } from "./Lucros.jsx";
+import Janela from "../componentes/Janela.jsx";
 
 /*
  * Encerramento contábil do exercício: estoque, compras, receita, CMV e lucro bruto por unidade,
@@ -33,6 +35,86 @@ function CampoNum({ valor, aoGravar, rotulo, placeholder, travado }) {
     className="h-8 w-full min-w-[104px] px-2 text-right tabular-nums text-[13px] border-transparent bg-transparent hover:border-line focus:bg-surface placeholder:text-muted/70" />;
 }
 
+/**
+ * Rateio por faturamento (do sistema do Depto. Contábil): o valor a distribuir é dividido entre os sócios na proporção
+ * do faturamento que cada um gerou. Grava uma distribuição por sócio em 31/12, com o IRRF de 10% quando passa do limite do mês.
+ */
+function RateioFaturamento({ g, ano, sugestao, aoFechar }) {
+  const [luc] = useLucros();
+  const { aviso, confirmar } = useAvisos();
+  const socios = g.matriz.socios || [];
+  const data = ano + "-12-31";
+  const fmt = (v) => (v ? Core.formatBR(v) : "");
+  const [total, setTotal] = useState("");
+  const [fats, setFats] = useState(() => socios.map(() => ""));
+  const [ret, setRet] = useState(() => socios.map(() => null));   // null = segue a sugestão
+  const [gravando, setGravando] = useState(false);
+  const num = (t) => { const n = lerNum(t); return n === null || Number.isNaN(n) ? 0 : Math.abs(n); };
+  const r = ratear(num(total), fats.map(num));
+  const linhas = socios.map((s, i) => {
+    const valor = r.linhas[i].valor;
+    const sug = valor ? luc.sugerirRetencao(g.matriz.id, s.nome, data, valor) : { reter: false };
+    const reter = ret[i] === null ? sug.reter : ret[i];
+    return Object.assign({ socio: s.nome, participacao: s.percentual, sugere: sug.reter, reter }, r.linhas[i], calcularDist(valor, "bruto", reter));
+  });
+  const soma = (k) => linhas.reduce((t, l) => t + (l[k] || 0), 0);
+  const mudaFat = (i, v) => setFats((x) => x.map((y, k) => (k === i ? v : y)));
+  const pelaParticipacao = () => setFats(socios.map((s) => (s.percentual ? Core.formatBR(s.percentual) : "")));
+  const gravar = async () => {
+    const lanc = linhas.filter((l) => l.valor > 0);
+    if (!num(total)) { aviso("Informe o valor a distribuir."); return; }
+    if (!r.soma) { aviso("Informe o faturamento dos sócios."); return; }
+    if (!(await confirmar({ titulo: "Gravar o rateio?", botao: "Gravar " + lanc.length + " distribuição(ões)",
+      texto: lanc.map((l) => l.socio + ": R$ " + Core.formatBR(l.base) + (l.irrf ? " (IRRF R$ " + Core.formatBR(l.irrf) + ")" : "")).join("\n") + "\n\nData: 31/12/" + ano + ". Ficam em Distribuição de lucros, onde dá para editar ou excluir." }))) return;
+    setGravando(true);
+    try {
+      lanc.forEach((l) => luc.salvar({ empresaId: g.matriz.id, socio: l.socio, data, valor: l.valor, modo: "bruto", retencao: l.reter, ata: false, compReinf: "",
+        obs: "Rateio por faturamento: " + Core.formatBR(l.pct) + "% de R$ " + Core.formatBR(r.total) }));
+      aviso("Rateio gravado: " + lanc.length + " distribuição(ões) em 31/12/" + ano + ".");
+      aoFechar();
+    } catch (e) { aviso(e.message); setGravando(false); }
+  };
+  const th = "px-2 py-2 font-semibold text-right";
+  return (
+    <Janela aberta titulo={"Rateio por faturamento · " + g.matriz.nome} aoFechar={aoFechar} largura="max-w-[860px]"
+      rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button><button type="button" className="btn-primario" disabled={gravando || !linhas.some((l) => l.valor > 0)} onClick={gravar}>Gravar distribuições</button></>}>
+      <p className="text-[13px] text-ink-2">Cada sócio recebe a parte do valor na proporção do faturamento que gerou. As distribuições ficam com a data de 31/12/{ano}.</p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-[13px] font-semibold">Valor a distribuir (R$)
+          <input value={total} onChange={(e) => setTotal(e.target.value)} onBlur={() => setTotal(fmt(num(total)))} inputMode="decimal" placeholder="0,00" data-foco className="block mt-1 h-10 w-[180px] text-right tabular-nums" /></label>
+        {sugestao > 0 && <button type="button" className="btn-fantasma btn-sm" onClick={() => setTotal(Core.formatBR(sugestao))} title="Resultado do período menos o que já foi distribuído no ano">Usar o saldo do resultado (R$ {Core.formatBR(sugestao)})</button>}
+        {socios.some((s) => s.percentual) && <button type="button" className="btn-fantasma btn-sm" onClick={pelaParticipacao} title="Usa a participação de cada sócio no lugar do faturamento">Dividir pela participação</button>}
+      </div>
+      <div className="overflow-x-auto border border-line rounded-lg">
+        <table className="w-full text-[13px]">
+          <thead className="bg-surface-2 text-[11.5px] uppercase tracking-wide text-muted">
+            <tr><th className="px-3 py-2 font-semibold text-left">Sócio</th><th className={th}>Faturamento (R$)</th><th className={th}>% rateio</th><th className={th}>Valor rateado</th>
+              <th className="px-2 py-2 font-semibold text-center" title="IRRF de 10% sobre a base. Marcado sozinho quando o total do sócio no mês passa de R$ 50 mil.">Reter IRRF</th><th className={th}>IRRF</th><th className={th}>Líquido</th></tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {linhas.map((l, i) => (
+              <tr key={l.socio}>
+                <td className="px-3 py-1.5">{l.socio}{l.participacao ? <span className="block text-[11.5px] text-muted">participação {l.participacao}%</span> : null}</td>
+                <td className="px-2 py-1"><input value={fats[i]} onChange={(e) => mudaFat(i, e.target.value)} onBlur={() => mudaFat(i, fmt(num(fats[i])))} inputMode="decimal" placeholder="0,00" aria-label={"Faturamento de " + l.socio} className="h-8 w-[130px] ml-auto block text-right tabular-nums" /></td>
+                <td className="px-2 py-1.5 text-right tabular-nums text-brand font-semibold">{Core.formatBR(l.pct)}%</td>
+                <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-credit">{R$(l.valor)}</td>
+                <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={l.reter} disabled={!l.valor} onChange={(e) => setRet((x) => x.map((y, k) => (k === i ? e.target.checked : y)))} aria-label={"Reter IRRF de " + l.socio} title={l.sugere ? "Passa de R$ 50 mil no mês: retenção sugerida" : "Até R$ 50 mil no mês: sem retenção"} /></td>
+                <td className={"px-2 py-1.5 text-right tabular-nums " + (l.irrf ? "text-debit" : "text-muted")}>{l.irrf ? R$(l.irrf) : "—"}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{l.valor ? R$(l.liquido) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-surface-2 font-semibold">
+            <tr><td className="px-3 py-2">Total</td><td className="px-2 py-2 text-right tabular-nums">{R$(r.soma)}</td><td className="px-2 py-2 text-right tabular-nums">{r.soma ? "100,00%" : "—"}</td>
+              <td className="px-2 py-2 text-right tabular-nums text-credit">{R$(soma("valor"))}</td><td /><td className="px-2 py-2 text-right tabular-nums text-debit">{soma("irrf") ? R$(soma("irrf")) : "—"}</td><td className="px-2 py-2 text-right tabular-nums">{R$(soma("liquido"))}</td></tr>
+          </tfoot>
+        </table>
+      </div>
+      <p className="text-[12.5px] text-muted">Valor rateado = faturamento do sócio ÷ faturamento total × valor a distribuir (os centavos fecham com o total). O IRRF é marcado sozinho quando o total do sócio no mês passa de R$ 50 mil; dá para mudar.</p>
+    </Janela>
+  );
+}
+
 function Grupo({ g, ano, aberto, alternar, aoDistribuir }) {
   const [svc] = useEncerramento();
   const [luc, vl] = useLucros();
@@ -48,6 +130,7 @@ function Grupo({ g, ano, aberto, alternar, aoDistribuir }) {
   }, [luc, vl, ano, g.matriz]);   // eslint-disable-line
   const distribuido = socios.reduce((t, s) => t + (s.base || 0), 0);
   const resultado = g.consolidado.calc.resultado;
+  const [rateio, setRateio] = useState(false);
   const gravar = (id, k, v) => {
     if (Number.isNaN(v)) { aviso("Valor inválido."); return; }
     try { svc.salvar(id, ano, { [k]: v }); } catch (e) { aviso(e.message); }
@@ -143,9 +226,12 @@ function Grupo({ g, ano, aberto, alternar, aoDistribuir }) {
             <div className="flex lg:flex-col gap-2 items-start lg:items-end">
               <button type="button" className="btn-contorno btn-sm" disabled={!(g.matriz.socios || []).length} onClick={() => aoDistribuir(g.matriz.id)}
                 title={(g.matriz.socios || []).length ? "Registra em Distribuição de lucros com a data de 31/12/" + ano : "Cadastre os sócios primeiro"}>Adicionar distribuição</button>
+              <button type="button" className="btn-contorno btn-sm" disabled={(g.matriz.socios || []).length < 2} onClick={() => setRateio(true)}
+                title={(g.matriz.socios || []).length < 2 ? "Precisa de pelo menos 2 sócios no cadastro" : "Divide o valor entre os sócios pelo faturamento de cada um"}>Rateio por faturamento</button>
               <button type="button" className={enc ? "btn-fantasma btn-sm" : "btn-primario btn-sm"} onClick={fechar}>{enc ? "Reabrir" : "Encerrar exercício"}</button>
               {enc && g.por && <span className="text-[12px] text-muted">por {g.por}{g.em ? " em " + dataBR(g.em) : ""}</span>}
             </div>
+            {rateio && <RateioFaturamento g={g} ano={ano} sugestao={resultado !== null ? Math.max(0, Math.round((resultado - distribuido) * 100) / 100) : 0} aoFechar={() => setRateio(false)} />}
           </div>
         </div>
       )}
