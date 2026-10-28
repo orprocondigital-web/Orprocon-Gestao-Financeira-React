@@ -70,3 +70,28 @@ describe("tabela de referência", () => {
     assert.match(A.csv([x]), /Motivo/);
   });
 });
+
+describe("tabela da LC 214 incluída no sistema", () => {
+  const t = require("../src/lib/ibsLc214.json");
+  test("formato que o auditor lê, sem aviso, com os anexos de mercadorias", () => {
+    const r = A.lerReferencia([t.cabecalho].concat(t.linhas));
+    assert.ok(r.total > 400, "mais de 400 NCMs");
+    assert.deepEqual(r.avisos, [], "cClassTrib sempre do CST da linha");
+    const ref = (n) => A.referenciaDoNcm(r.itens, n);
+    assert.deepEqual([ref("10062010").cClassTrib, ref("10062010").reducao], ["200003", 100], "arroz: Anexo I");
+    assert.deepEqual([ref("04011010").cClassTrib, ref("04011010").reducao], ["200003", 100], "leite: Anexo I");
+    assert.equal(ref("04072100").cClassTrib, "200014", "ovos: Anexo XV");
+    assert.equal(ref("34011190").cClassTrib, "200035", "sabonete: Anexo VIII");
+    assert.equal(ref("30049099").cClassTrib, "200030", "substituto de enxerto ósseo: Anexo IV (mais específico que medicamentos)");
+    assert.equal(ref("30049069").cClassTrib, "200032", "medicamento: art. 133, 60% (o Anexo XIV foi revogado)");
+    assert.equal(ref("03021100").cClassTrib, "000001", "salmonídeo: exceção do Anexo I, tributação integral");
+    assert.equal(ref("84713012"), null, "notebook: fora da tabela");
+  });
+  test("completar a tabela própria com a da LC 214: a própria vale mais", () => {
+    const base = { "1006": { cClassTrib: "200003" }, "0401": { cClassTrib: "200003" } };
+    const propria = { "1006": { cClassTrib: "200034" } };
+    const j = A.mesclarReferencias(base, propria);
+    assert.equal(j.itens["1006"].cClassTrib, "200034"); assert.equal(j.itens["0401"].cClassTrib, "200003");
+    assert.deepEqual([j.total, j.daBase], [2, 1]);
+  });
+});
