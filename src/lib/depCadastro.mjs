@@ -13,7 +13,25 @@ export const CHAVE = "depCadastro:v1";
 export const TIPOS_CERTIDOES = ["CND Federal", "CND Estadual", "CND Municipal", "CRF FGTS", "CND Trabalhista", "Certificado Digital", "Procuração", "Licença"];
 export const CERTIFICADO = "Certificado Digital";
 export const MODELOS_CERTIFICADO = ["A1", "A3"];
-export const TIPOS_ALVARAS = ["Alvará de funcionamento", "Alvará sanitário", "Alvará dos Bombeiros", "Alvará ambiental"];
+export const TIPOS_ALVARAS = ["Alvará municipal", "Alvará sanitário", "Alvará dos Bombeiros", "Alvará ambiental"];
+/** Os três alvarás que toda empresa tem na grade (cada um pode ser "não se aplica"). */
+export const ALVARAS_GRADE = ["Alvará municipal", "Alvará sanitário", "Alvará dos Bombeiros"];
+export const NOME_CURTO_ALVARA = { "Alvará municipal": "Municipal", "Alvará sanitário": "Sanitário", "Alvará dos Bombeiros": "Bombeiros", "Alvará ambiental": "Ambiental" };
+/** Situação do alvará além da data (campo sitAlvara do documento). "" = vale a data de vencimento. */
+export const SITUACOES_ALVARA = [
+  { id: "", nome: "Pela data de vencimento" },
+  { id: "solicitado", nome: "Solicitado / em andamento" },
+  { id: "guia_enviada", nome: "Guia ou taxa enviada" },
+  { id: "renovado", nome: "Renovado (falta a nova data)" },
+  { id: "permanente", nome: "Permanente (sem vencimento)" },
+  { id: "vencido", nome: "Vencido" },
+  { id: "debitos", nome: "Débitos / taxa atrasada" },
+  { id: "nao_possui", nome: "Não possui" },
+  { id: "dispensado", nome: "Dispensado" },
+  { id: "isento", nome: "Isento" },
+  { id: "baixada", nome: "Baixada" }
+];
+const NAO_SE_APLICA = ["dispensado", "isento", "baixada"];
 export const DEMONSTRATIVOS = ["Balanço Patrimonial", "DRE", "Balancete"];
 export const STATUS_DEMO = [
   { id: "", nome: "Pendente" }, { id: "emitido", nome: "Emitido" }, { id: "entregue", nome: "Entregue" }, { id: "nao_se_aplica", nome: "Não se aplica" }
@@ -95,10 +113,72 @@ export function modeloPeloTexto(texto) {
  */
 export function normalizarTipo(tipo, modelo) {
   const t = txt(tipo);
+  if (/^alvar|^licenca de funcionamento/.test(semAcentoMin(t))) return { tipo: tipoDeAlvara(t), modelo: "" };
   if (!ehCertificado(t)) return { tipo: t, modelo: "" };
   const m = txt(modelo).toUpperCase();
   return { tipo: CERTIFICADO, modelo: MODELOS_CERTIFICADO.includes(m) ? m : modeloPeloTexto(t) };
 }
+/** "Alvará", "Alvará de funcionamento", "alvara bombeiro"… → um dos TIPOS_ALVARAS (o de funcionamento é o municipal). */
+export function tipoDeAlvara(t) {
+  const n = semAcentoMin(t);
+  if (/sanitari|vigilancia/.test(n)) return "Alvará sanitário";
+  if (/bombeir/.test(n)) return "Alvará dos Bombeiros";
+  if (/ambienta/.test(n)) return "Alvará ambiental";
+  return "Alvará municipal";
+}
+
+/**
+ * Situação de um alvará: { status, dias, texto, cor }.
+ * status (para contagens e avisos): vencido, 7, 30, ok, sem, na (não se aplica), andamento.
+ * cor (para a grade): verde, amarelo, vermelho, cinza, branco.
+ */
+export function situacaoAlvara(d, hoje) {
+  if (!d) return { status: "sem", dias: null, texto: "Falta informar", cor: "branco" };
+  const sit = txt(d.sitAlvara);
+  const nome = (SITUACOES_ALVARA.find((x) => x.id === sit) || {}).nome || "";
+  const pelaData = iso(d.vencimento) ? situacao(d.vencimento, hoje) : null;
+  if (NAO_SE_APLICA.includes(sit)) return { status: "na", dias: null, texto: nome, cor: "cinza" };
+  if (sit === "permanente") return { status: "ok", dias: null, texto: "Permanente", cor: "verde" };
+  if (sit === "vencido" || sit === "debitos") return { status: "vencido", dias: pelaData && pelaData.dias < 0 ? pelaData.dias : null, texto: sit === "debitos" ? "Débitos / taxa atrasada" : "Vencido", cor: "vermelho" };
+  if (sit === "nao_possui") return { status: "andamento", dias: null, texto: "Não possui", cor: "amarelo" };
+  if ((sit === "solicitado" || sit === "guia_enviada") && !(pelaData && pelaData.status === "ok")) return { status: "andamento", dias: pelaData ? pelaData.dias : null, texto: sit === "solicitado" ? "Solicitado" : "Guia enviada", cor: "amarelo" };
+  if (pelaData) {
+    const cor = pelaData.status === "vencido" ? "vermelho" : pelaData.status === "ok" ? "verde" : "amarelo";
+    return Object.assign({}, pelaData, { texto: textoSituacao(pelaData), cor });
+  }
+  if (sit === "renovado") return { status: "andamento", dias: null, texto: "Renovado, falta a data", cor: "amarelo" };
+  return { status: "sem", dias: null, texto: "Falta informar", cor: "branco" };
+}
+
+/**
+ * Célula de alvará de uma planilha ("31/12/2026", data do Excel, "VENCIDO", "DISPENSADO - RET", "Precisa do Habita-se"…)
+ * → { vencimento, situacao, observacao }, ou null se vazia. toIsoDate: Core.toIsoDate.
+ */
+export function lerCelulaAlvara(v, toIsoDate) {
+  if (v === null || v === undefined || txt(v) === "") return null;
+  if (v instanceof Date || typeof v === "number") { const d = toIsoDate(v); return d ? { vencimento: d, situacao: "", observacao: "" } : { vencimento: "", situacao: "", observacao: txt(v) }; }
+  const original = txt(v);
+  let vencimento = "";
+  const m = /(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})(?!\d)/.exec(original);
+  if (m) vencimento = toIsoDate(m[1] + "/" + m[2] + "/" + (m[3].length === 2 ? "20" + m[3] : m[3])) || "";
+  const resto = semAcentoMin(m ? original.replace(new RegExp(m[0].replace(/[.]/g, "\\."), "g"), " ") : original).replace(/[()]/g, " ").replace(/\s+/g, " ").trim();
+  let situacao = "";
+  if (/dispensad/.test(resto)) situacao = "dispensado";
+  else if (/isent/.test(resto)) situacao = "isento";
+  else if (/baixad/.test(resto)) situacao = "baixada";
+  else if (/nao possui|n possui/.test(resto)) situacao = "nao_possui";
+  else if (/debito|atrasad/.test(resto)) situacao = "debitos";
+  else if (/vencid/.test(resto)) situacao = "vencido";
+  else if (/permanente/.test(resto)) situacao = "permanente";
+  else if (/guia enviada|taxa enviada|guias enviadas/.test(resto)) situacao = "guia_enviada";
+  else if (/solicit|encaminhad|enchaminhad|aguardando/.test(resto)) situacao = "solicitado";
+  else if (/renovad|^feito/.test(resto)) situacao = "renovado";
+  // a anotação fica quando é mais que só a data ou a palavra da situação
+  const soPalavra = /^(vencido|renovado|dispensado|solicitado|isento|isenta|baixada|nao possui|guia enviada|permanente|feito)$/.test(resto);
+  const observacao = !resto || soPalavra ? "" : original;
+  return { vencimento, situacao: situacao === "renovado" && vencimento ? "" : situacao, observacao };
+}
+
 /** "Certificado Digital · A3" (ou só o tipo, nos outros documentos). */
 export function nomeDoTipo(d) { return d.modelo ? d.tipo + " · " + d.modelo : d.tipo; }
 
@@ -149,6 +229,7 @@ export function linhasCertificados(lista) {
     .concat(lista.map((d) => [d.empresa, d.cnpj || "", d.modelo || "", d.numero || "", br(d.emissao), br(d.vencimento), textoSituacao(d.situacao), d.responsavel || "", d.observacoes || ""]));
 }
 export function textoSituacao(s) {
+  if (s.texto) return s.texto;
   if (s.dias === null) return "Sem data";
   if (s.dias < 0) return "Venceu há " + -s.dias + (s.dias === -1 ? " dia" : " dias");
   if (s.dias === 0) return "Vence hoje";
@@ -169,12 +250,7 @@ export function tipoPeloTexto(texto) {
   if (/certificado de regularidade do fgts|\bfgts\b/.test(t)) return "CRF FGTS";
   if (/debitos trabalhistas|justica do trabalho/.test(t)) return "CND Trabalhista";
   if (/tributos federais|divida ativa da uniao|receita federal/.test(t)) return "CND Federal";
-  if (/alvara/.test(t)) {
-    if (/sanitari/.test(t)) return "Alvará sanitário";
-    if (/bombeiro/.test(t)) return "Alvará dos Bombeiros";
-    if (/ambienta/.test(t)) return "Alvará ambiental";
-    return "Alvará de funcionamento";
-  }
+  if (/alvara/.test(t)) return tipoDeAlvara(t);
   if (/procuracao/.test(t)) return "Procuração";
   if (/certificado digital|e-cnpj|e-cpf|icp-brasil/.test(t)) return CERTIFICADO;
   if (/secretaria de estado da fazenda|fazenda estadual|estado de|estadual/.test(t)) return "CND Estadual";
@@ -237,8 +313,21 @@ const CAB = {
   respContabil: ["deptocontabil", "responsavel contabil", "contabil"],
   respFiscal: ["deptofiscal", "responsavel fiscal", "fiscal"],
   respDp: ["deptopessoal", "responsavel pessoal", "responsavel dp", "dp", "departamento pessoal"],
-  respHist: ["responsavelhist"]
+  respHist: ["responsavelhist"],
+  cidade: ["cidade", "municipio"],
+  uf: ["uf", "estado"],
+  envioTaxas: ["enviada taxas", "envio taxas", "envio das taxas", "taxas enviadas", "taxas"],
+  // planilha de renovação de alvarás: uma coluna por alvará, com a data ou a situação
+  alvMunicipal: ["municipal", "alvara municipal", "alvara de funcionamento", "funcionamento"],
+  alvSanitario: ["sanitario", "alvara sanitario", "vigilancia sanitaria"],
+  alvBombeiro: ["bombeiro", "bombeiros", "alvara bombeiro", "alvara dos bombeiros", "corpo de bombeiros"]
 };
+const COL_ALVARA = { alvMunicipal: "Alvará municipal", alvSanitario: "Alvará sanitário", alvBombeiro: "Alvará dos Bombeiros" };
+/** Chave da empresa na importação: o CNPJ/CPF quando tem (filiais com o mesmo nome ficam separadas), senão o nome. */
+export function chaveEmpresa(nome, documento) {
+  const d = txt(documento).replace(/\D/g, "");
+  return d.length >= 11 ? "d:" + d : "n:" + chaveNome(nome);
+}
 const MES_CAB = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const normCab = (v) => semAcento(v).toLowerCase().replace(/[.:]/g, "").replace(/\s+/g, " ").trim();
 
@@ -258,14 +347,15 @@ function mapaColunas(cab) {
  * toIsoDate: Core.toIsoDate (datas do Excel ou dd/mm/aaaa). ano: para faturamento quando a aba não diz o ano.
  */
 export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
-  const plano = { empresas: [], documentos: [], faturamentos: [], avisos: [], abas: [] };
+  const plano = { empresas: [], documentos: [], faturamentos: [], alvaras: [], avisos: [], abas: [] };
   const vistas = {};
+  /** Junta a empresa no plano e devolve a chave (CNPJ ou nome). */
   const empresa = (nome, documento, extra) => {
-    const k = chaveNome(nome);
-    if (!k) return;
-    if (!vistas[k]) { vistas[k] = { nome: txt(nome), documento: txt(documento), regime: "", codigo: "" }; plano.empresas.push(vistas[k]); }
-    else if (!vistas[k].documento && txt(documento)) vistas[k].documento = txt(documento);
+    if (!chaveNome(nome)) return "";
+    const k = chaveEmpresa(nome, documento);
+    if (!vistas[k]) { vistas[k] = { chave: k, nome: txt(nome), documento: txt(documento), regime: "", codigo: "" }; plano.empresas.push(vistas[k]); }
     if (extra) Object.keys(extra).forEach((c) => { const v = extra[c]; if ((v && !Array.isArray(v) || Array.isArray(v) && v.length) && !(vistas[k][c] && (!Array.isArray(vistas[k][c]) || vistas[k][c].length))) vistas[k][c] = v; });
+    return k;
   };
   const mesDe = (v) => { const t = txt(v); const m = /^(\d{1,2})\/(\d{4})$/.exec(t); if (m) return m[2] + "-" + m[1].padStart(2, "0"); const d = toIsoDate(v); return d ? d.slice(0, 7) : ""; };
   const json = (v) => { try { const a = JSON.parse(txt(v) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
@@ -278,15 +368,30 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
     const get = (r, k) => (col[k] === undefined ? "" : r[col[k]]);
     let tipo = "", n = 0;
     if (col.empresa === undefined) { plano.abas.push({ nome: a.nome, tipo: "ignorada", linhas: 0 }); return; }
-    if (col.vencimento !== undefined) {
+    const colsAlv = Object.keys(COL_ALVARA).filter((c) => col[c] !== undefined);
+    if (colsAlv.length >= 2) {
+      tipo = "alvaras";
+      rows.slice(h + 1).forEach((r, i) => {
+        if (!r || !txt(get(r, "empresa"))) return;
+        const doc = txt(get(r, "documento"));
+        if (doc.replace(/\D/g, "").length < 11) plano.avisos.push("Aba \"" + a.nome + "\", linha " + (h + i + 2) + ": sem CNPJ, a empresa é reconhecida pelo nome.");
+        const k = empresa(get(r, "empresa"), doc, { cidade: txt(get(r, "cidade")), uf: txt(get(r, "uf")).toUpperCase(), envioTaxas: txt(get(r, "envioTaxas")) });
+        const resp = txt(get(r, "responsavel"));
+        colsAlv.forEach((c) => {
+          const cel = lerCelulaAlvara(get(r, c), toIsoDate);
+          if (cel) plano.alvaras.push(Object.assign({ chave: k, empresa: txt(get(r, "empresa")), tipo: COL_ALVARA[c], responsavel: resp }, cel));
+        });
+        n++;
+      });
+    } else if (col.vencimento !== undefined) {
       tipo = "documentos";
       rows.slice(h + 1).forEach((r, i) => {
         if (!r || !txt(get(r, "empresa"))) return;
         const venc = toIsoDate(get(r, "vencimento"));
         const t = txt(get(r, "tipo"));
         if (!venc || !t) { plano.avisos.push("Aba \"" + a.nome + "\", linha " + (h + i + 2) + ": sem " + (!t ? "tipo" : "vencimento") + ", ficou de fora."); return; }
-        empresa(get(r, "empresa"), get(r, "documento"));
-        plano.documentos.push({ empresa: txt(get(r, "empresa")), tipo: t, modelo: txt(get(r, "modelo")), numero: txt(get(r, "numero")), emissao: toIsoDate(get(r, "emissao")) || "",
+        const k = empresa(get(r, "empresa"), get(r, "documento"));
+        plano.documentos.push({ chave: k, empresa: txt(get(r, "empresa")), tipo: t, modelo: txt(get(r, "modelo")), numero: txt(get(r, "numero")), emissao: toIsoDate(get(r, "emissao")) || "",
           vencimento: venc, responsavel: txt(get(r, "responsavel")) });
         n++;
       });
@@ -295,11 +400,11 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
       const anoAba = (/(20\d{2})/.exec(a.nome) || /(20\d{2})/.exec(rows[h].join(" ")) || [])[1] || String(ano);
       rows.slice(h + 1).forEach((r) => {
         if (!r || !txt(get(r, "empresa")) || /^total/i.test(txt(get(r, "empresa")))) return;
-        empresa(get(r, "empresa"), get(r, "documento"));
+        const k = empresa(get(r, "empresa"), get(r, "documento"));
         MES_CAB.forEach((_, i) => {
           const v = get(r, "m" + i);
           const num = typeof v === "number" ? v : parseFloat(String(v).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", "."));
-          if (txt(v) !== "" && isFinite(num)) { plano.faturamentos.push({ empresa: txt(get(r, "empresa")), ano: anoAba, mes: String(i + 1).padStart(2, "0"), valor: Math.abs(num) }); }
+          if (txt(v) !== "" && isFinite(num)) { plano.faturamentos.push({ chave: k, empresa: txt(get(r, "empresa")), ano: anoAba, mes: String(i + 1).padStart(2, "0"), valor: Math.abs(num) }); }
         });
         n++;
       });
@@ -322,13 +427,28 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
           regime: regimePeloTexto(get(r, "regime")), codigo: txt(get(r, "codigo")), segmento: txt(get(r, "segmento")), contato: txt(get(r, "contato")),
           obs: txt(get(r, "obs")), socios, tipoLucroReal: TIPOS_LUCRO_REAL.find((x) => chaveNome(x) === chaveNome(tlr)) || "",
           inicio: mesDe(get(r, "entrada")), saida: mesDe(get(r, "saida")), baixa: toIsoDate(get(r, "baixa")) || "",
-          responsaveis: Object.keys(resp).length ? resp : null, histContabil: hist.length ? hist : null
+          responsaveis: Object.keys(resp).length ? resp : null, histContabil: hist.length ? hist : null,
+          cidade: txt(get(r, "cidade")), uf: txt(get(r, "uf")).toUpperCase()
         });
         n++;
       });
     }
     plano.abas.push({ nome: a.nome, tipo, linhas: n });
   });
+  // a empresa achada só pelo nome (ex.: aba de faturamento) é a mesma que veio com CNPJ, se houver só uma com esse nome
+  const comDoc = {};
+  plano.empresas.forEach((e) => { if (e.chave[0] === "d") { const n = chaveNome(e.nome); comDoc[n] = comDoc[n] === undefined ? e : null; } });
+  const troca = {};
+  plano.empresas = plano.empresas.filter((e) => {
+    const alvo = e.chave[0] === "n" && comDoc[chaveNome(e.nome)];
+    if (!alvo) return true;
+    Object.keys(e).forEach((c) => { if (c !== "chave" && e[c] && !(alvo[c] && (!Array.isArray(alvo[c]) || alvo[c].length))) alvo[c] = e[c]; });
+    troca[e.chave] = alvo.chave;
+    return false;
+  });
+  [plano.documentos, plano.faturamentos, plano.alvaras].forEach((l) => l.forEach((x) => { if (troca[x.chave]) x.chave = troca[x.chave]; }));
+  // com CNPJ primeiro
+  plano.empresas.sort((a, b) => (a.chave[0] === "d" ? 0 : 1) - (b.chave[0] === "d" ? 0 : 1));
   return plano;
 }
 
@@ -348,7 +468,7 @@ export function criarDepCadastro(deps) {
     const e = ler(CHAVE_DOCS, {});
     // "Certificado A1" (como era antes) é lido como Certificado Digital, modelo A1; grava assim na próxima mudança
     const documentos = (Array.isArray(e.documentos) ? e.documentos : []).map((d) => {
-      if (!d || !ehCertificado(d.tipo)) return d;
+      if (!d || !(ehCertificado(d.tipo) || /^alvar|^licen/i.test(semAcentoMin(d.tipo)))) return d;
       const n = normalizarTipo(d.tipo, d.modelo);
       return n.tipo === d.tipo && n.modelo === (d.modelo || "") ? d : Object.assign({}, d, n);
     });
@@ -385,7 +505,8 @@ export function criarDepCadastro(deps) {
     if (!nome) throw new Error("Preencha o nome da empresa.");
     const campos = { nome, documento: txt(dadosEmp.documento), codigo: txt(dadosEmp.codigo), regime: txt(dadosEmp.regime), inicio: txt(dadosEmp.inicio), saida: txt(dadosEmp.saida),
       tipoLucroReal: txt(dadosEmp.regime) === "Lucro Real" ? txt(dadosEmp.tipoLucroReal) : "", baixa: txt(dadosEmp.baixa),
-      segmento: txt(dadosEmp.segmento), contato: txt(dadosEmp.contato), telefone: txt(dadosEmp.telefone), email: txt(dadosEmp.email), obs: txt(dadosEmp.obs) };
+      segmento: txt(dadosEmp.segmento), contato: txt(dadosEmp.contato), telefone: txt(dadosEmp.telefone), email: txt(dadosEmp.email), obs: txt(dadosEmp.obs),
+      cidade: txt(dadosEmp.cidade), uf: txt(dadosEmp.uf).toUpperCase().slice(0, 2), envioTaxas: txt(dadosEmp.envioTaxas) };
     if (campos.regime && !REGIMES.includes(campos.regime)) throw new Error("Regime inválido.");
     if (campos.tipoLucroReal && !TIPOS_LUCRO_REAL.includes(campos.tipoLucroReal)) throw new Error("Tipo do Lucro Real inválido.");
     if (campos.baixa && !iso(campos.baixa)) throw new Error("Data de baixa inválida.");
@@ -393,7 +514,9 @@ export function criarDepCadastro(deps) {
     if ((campos.inicio && !MES.test(campos.inicio)) || (campos.saida && !MES.test(campos.saida))) throw new Error("Use mês e ano (AAAA-MM).");
     if (campos.inicio && campos.saida && campos.saida < campos.inicio) throw new Error("A saída precisa ser depois do início.");
     const e = docs();
-    const rep = e.clientes.find((c) => c.id !== id && chaveNome(c.nome) === chaveNome(nome));
+    // o mesmo nome só é permitido com CNPJs diferentes (matriz e filiais)
+    const digN = campos.documento.replace(/\D/g, "");
+    const rep = e.clientes.find((c) => c.id !== id && chaveNome(c.nome) === chaveNome(nome) && !(digN.length >= 11 && txt(c.documento).replace(/\D/g, "").length >= 11));
     if (rep) throw new Error("Já existe a empresa \"" + rep.nome + "\".");
     const dig = campos.documento.replace(/\D/g, "");
     const mesmoDoc = dig.length >= 11 && e.clientes.find((c) => c.id !== id && txt(c.documento).replace(/\D/g, "") === dig);
@@ -428,14 +551,44 @@ export function criarDepCadastro(deps) {
     e.clientes.forEach((c) => { porId[c.id] = c; });
     return e.documentos.filter((d) => grupoDoTipo(d.tipo) === grupo)
       .map((d) => { const c = porId[d.clienteId]; return Object.assign({}, d, { empresa: c ? c.nome : "(empresa excluída)", cnpj: c ? txt(c.documento) : "",
-        contato: c ? { nome: txt(c.contato), email: txt(c.email), telefone: txt(c.telefone) } : { nome: "", email: "", telefone: "" }, situacao: situacao(d.vencimento, h) }); })
-      .sort((a, b) => String(a.vencimento).localeCompare(String(b.vencimento)) || a.empresa.localeCompare(b.empresa, "pt-BR"));
+        contato: c ? { nome: txt(c.contato), email: txt(c.email), telefone: txt(c.telefone) } : { nome: "", email: "", telefone: "" },
+        situacao: grupo === "alvaras" ? situacaoAlvara(d, h) : situacao(d.vencimento, h) }); })
+      .sort((a, b) => String(a.vencimento || "9999").localeCompare(String(b.vencimento || "9999")) || a.empresa.localeCompare(b.empresa, "pt-BR"));
   }
   function resumo(grupo) {
     const r = { total: 0, vencido: 0, "7": 0, "30": 0, ok: 0 };
     documentos(grupo).forEach((d) => { r.total++; r[d.situacao.status] = (r[d.situacao.status] || 0) + 1; });
     return r;
   }
+  /**
+   * Grade de alvarás: uma linha por empresa (as baixadas e as que saíram ficam de fora), com o alvará mais recente
+   * de cada tipo de ALVARAS_GRADE (ou null = falta informar) e a situação de cada um.
+   */
+  function gradeAlvaras() {
+    const e = docs(), h = hoje();
+    const porEmp = {};
+    e.documentos.forEach((d) => {
+      if (grupoDoTipo(d.tipo) !== "alvaras" || !ALVARAS_GRADE.includes(d.tipo)) return;
+      const m = porEmp[d.clienteId] = porEmp[d.clienteId] || {};
+      const atual = m[d.tipo];
+      if (!atual || String(d.vencimento || "") > String(atual.vencimento || "") || (!atual.vencimento && !d.vencimento && String(d.criadoEm || "") >= String(atual.criadoEm || ""))) m[d.tipo] = d;
+    });
+    const linhas = e.clientes.filter((c) => !c.baixa && !c.saida).slice().sort((a, b) => txt(a.nome).localeCompare(txt(b.nome), "pt-BR")).map((c) => {
+      const alv = {}, sit = {};
+      ALVARAS_GRADE.forEach((t) => {
+        const d = (porEmp[c.id] || {})[t] || null;
+        alv[t] = d ? Object.assign({}, d, { empresa: c.nome, cnpj: txt(c.documento), contato: { nome: txt(c.contato), email: txt(c.email), telefone: txt(c.telefone) } }) : null;
+        sit[t] = situacaoAlvara(d, h);
+        if (alv[t]) alv[t].situacao = sit[t];
+      });
+      const resp = ALVARAS_GRADE.map((t) => alv[t] && alv[t].responsavel).find(Boolean) || "";
+      return { empresa: c, alvaras: alv, situacoes: sit, responsavel: resp };
+    });
+    const r = { linhas, vermelho: 0, amarelo: 0, branco: 0, verde: 0, cinza: 0 };
+    linhas.forEach((l) => ALVARAS_GRADE.forEach((t) => { r[l.situacoes[t].cor]++; }));
+    return r;
+  }
+
   /** Só os certificados digitais, com os grupos do painel: vencidos, vencem em até 30 dias, em dia e sem data. */
   function certificados() {
     const lista = documentos("certidoes").filter((d) => d.tipo === CERTIFICADO);
@@ -458,8 +611,9 @@ export function criarDepCadastro(deps) {
       const cert = d.tipo === CERTIFICADO, s = d.situacao.status;
       if (s === "vencido" || s === "7" || (cert && s === "30")) lista.push(Object.assign({}, d, { grupo: cert ? "certificados" : grupo }));
     }));
-    lista.sort((a, b) => a.situacao.dias - b.situacao.dias || a.empresa.localeCompare(b.empresa, "pt-BR"));
-    return { lista, vencidos: lista.filter((d) => d.situacao.dias < 0).length };
+    const dias = (d) => (d.situacao.dias === null ? -100000 : d.situacao.dias);   // vencido sem data vem primeiro
+    lista.sort((a, b) => dias(a) - dias(b) || a.empresa.localeCompare(b.empresa, "pt-BR"));
+    return { lista, vencidos: lista.filter((d) => d.situacao.status === "vencido").length };
   }
 
   /** Vencidos ou vencendo em até 7 dias (número no menu). */
@@ -469,11 +623,15 @@ export function criarDepCadastro(deps) {
     const { tipo, modelo } = normalizarTipo(d.tipo, d.modelo), clienteId = txt(d.clienteId);
     if (!clienteId) throw new Error("Escolha a empresa.");
     if (!tipo) throw new Error("Escolha o tipo do documento.");
-    if (!iso(d.vencimento)) throw new Error("Preencha a data de vencimento.");
+    const alvara = grupoDoTipo(tipo) === "alvaras";
+    const sit = alvara ? txt(d.sitAlvara) : "";
+    if (sit && !SITUACOES_ALVARA.some((x) => x.id === sit)) throw new Error("Situação inválida.");
+    // alvará pode ficar sem data quando a situação diz o que é (dispensado, solicitado, vencido…)
+    if (d.vencimento ? !iso(d.vencimento) : !sit) throw new Error(alvara ? "Preencha a data de vencimento ou escolha a situação." : "Preencha a data de vencimento.");
     if (d.emissao && !iso(d.emissao)) throw new Error("Data de emissão inválida.");
     const e = docs();
     if (!e.clientes.some((c) => c.id === clienteId)) throw new Error("Empresa não encontrada.");
-    const campos = { clienteId, tipo, modelo, numero: txt(d.numero), emissao: d.emissao || "", vencimento: d.vencimento, responsavel: txt(d.responsavel), observacoes: txt(d.observacoes), link: txt(d.link) };
+    const campos = { clienteId, tipo, modelo, sitAlvara: sit, numero: txt(d.numero), emissao: d.emissao || "", vencimento: d.vencimento || "", responsavel: txt(d.responsavel), observacoes: txt(d.observacoes), link: txt(d.link) };
     if (campos.link && !/^https?:\/\//i.test(campos.link)) throw new Error("O link precisa começar com http:// ou https://");
     let salvo;
     if (id) e.documentos = e.documentos.map((x) => (x.id === id ? (salvo = Object.assign({}, x, campos)) : x));
@@ -488,12 +646,13 @@ export function criarDepCadastro(deps) {
     const e = docs();
     const d = e.documentos.find((x) => x.id === id);
     if (!d) throw new Error("Documento não encontrado.");
-    if (novo.vencimento <= d.vencimento) throw new Error("O novo vencimento precisa ser depois do atual.");
+    if (novo.vencimento <= (d.vencimento || "")) throw new Error("O novo vencimento precisa ser depois do atual.");
     d.historico = (Array.isArray(d.historico) ? d.historico : []).concat({
       data: hoje(), vencimentoAnterior: d.vencimento, novoVencimento: novo.vencimento,
       emissaoAnterior: d.emissao || "", numeroAnterior: d.numero || "", obs: txt(novo.obs)
     });
     d.vencimento = novo.vencimento;
+    if (d.sitAlvara) d.sitAlvara = "";   // renovado: volta a valer a data
     if (iso(novo.emissao)) d.emissao = novo.emissao;
     if (txt(novo.numero)) d.numero = txt(novo.numero);
     d.andamento = "pendente";
@@ -563,48 +722,115 @@ export function criarDepCadastro(deps) {
 
 
   // ------------------------------------------------------------ importar, demonstração e limpar
-  /** Grava o que lerPlanilhaCadastro achou. Empresas novas são criadas; documentos iguais (empresa+tipo+vencimento) não repetem. */
+  /**
+   * Acha a empresa de cada linha do plano: pelo CNPJ/CPF; sem ele, pelo nome (só se houver uma empresa com esse nome).
+   * Devolve { mapa: chave → cliente existente | null }.
+   */
+  function casarEmpresas(plano, clientes) {
+    const porDoc = {}, porNome = {};
+    clientes.forEach((c) => {
+      const d = txt(c.documento).replace(/\D/g, "");
+      if (d.length >= 11) porDoc[d] = c;
+      const k = chaveNome(c.nome);
+      porNome[k] = porNome[k] === undefined ? c : null;   // null = nome repetido (filiais): não dá para escolher
+    });
+    const mapa = {};
+    plano.empresas.forEach((p) => {
+      const k = p.chave || chaveEmpresa(p.nome, p.documento);
+      const d = txt(p.documento).replace(/\D/g, "");
+      mapa[k] = d.length >= 11 ? porDoc[d] || null : porNome[chaveNome(p.nome)] || null;
+    });
+    return mapa;
+  }
+  /** O que a importação vai fazer, sem gravar: empresas novas e as que já existem (serão completadas). */
+  function previaPlanilha(plano) {
+    const mapa = casarEmpresas(plano, docs().clientes);
+    let novas = 0, existentes = 0, semCnpj = 0;
+    plano.empresas.forEach((p) => {
+      if (mapa[p.chave || chaveEmpresa(p.nome, p.documento)]) existentes++; else novas++;
+      if (txt(p.documento).replace(/\D/g, "").length < 11) semCnpj++;
+    });
+    return { novas, existentes, semCnpj, alvaras: (plano.alvaras || []).length };
+  }
+
+  /**
+   * Grava o que lerPlanilhaCadastro achou. A empresa é achada pelo CNPJ (sem ele, pelo nome); as novas são criadas e as
+   * que já existem só ganham o que estava vazio. Documentos iguais (empresa+tipo+vencimento) não repetem. Os alvarás da
+   * planilha de renovação atualizam o alvará do mesmo tipo da empresa (o vencimento anterior vai para o histórico).
+   */
   function aplicarPlanilha(plano) {
     const e = docs();
-    let novasEmp = 0, novosDocs = 0, repetidos = 0;
-    const porNome = {};
-    e.clientes.forEach((c) => { porNome[chaveNome(c.nome)] = c; });
+    let novasEmp = 0, atualizadas = 0, novosDocs = 0, repetidos = 0, alvNovos = 0, alvAtualizados = 0;
+    const mapa = casarEmpresas(plano, e.clientes);
+    const porChave = {};
+    const extras = ["documento", "regime", "codigo", "segmento", "contato", "obs", "tipoLucroReal", "inicio", "saida", "baixa", "cidade", "uf", "envioTaxas"];
     plano.empresas.forEach((p) => {
-      const k = chaveNome(p.nome);
-      const extras = ["documento", "regime", "codigo", "segmento", "contato", "obs", "tipoLucroReal", "inicio", "saida", "baixa"];
-      if (porNome[k]) {
-        extras.forEach((x) => { if (!porNome[k][x] && p[x]) porNome[k][x] = p[x]; });
-        if ((!porNome[k].socios || !porNome[k].socios.length) && p.socios && p.socios.length) porNome[k].socios = p.socios;
+      const k = p.chave || chaveEmpresa(p.nome, p.documento);
+      const existe = mapa[k] || porChave[k];
+      if (existe) {
+        let mudou = false;
+        extras.forEach((x) => { if (!existe[x] && p[x]) { existe[x] = p[x]; mudou = true; } });
+        // o envio das taxas muda a cada ano: a planilha mais nova vale
+        if (p.envioTaxas && existe.envioTaxas !== p.envioTaxas) { existe.envioTaxas = p.envioTaxas; mudou = true; }
+        if ((!existe.socios || !existe.socios.length) && p.socios && p.socios.length) { existe.socios = p.socios; mudou = true; }
+        if (mudou) atualizadas++;
+        porChave[k] = existe;
         return;
       }
+      // sem CNPJ e com o nome de uma empresa já criada nesta importação: é a mesma
+      const mesmoNome = k[0] === "n" && Object.keys(porChave).map((x) => porChave[x]).find((c) => chaveNome(c.nome) === chaveNome(p.nome));
+      if (mesmoNome) { porChave[k] = mesmoNome; return; }
       const c = { id: novoId("cli-"), nome: p.nome, contato: "", email: "", telefone: "" };
       extras.forEach((x) => { c[x] = p[x] || ""; });
-      c.documento = c.documento || "";
       if (p.socios && p.socios.length) c.socios = p.socios;
-      e.clientes.push(c); porNome[k] = c; novasEmp++;
+      e.clientes.push(c); porChave[k] = c; novasEmp++;
     });
+    const cliente = (x) => porChave[x.chave || chaveEmpresa(x.empresa, "")];
     plano.documentos.forEach((d0) => {
       const d = Object.assign({}, d0, normalizarTipo(d0.tipo, d0.modelo));
-      const c = porNome[chaveNome(d.empresa)];
+      const c = cliente(d);
+      if (!c) return;
       if (e.documentos.some((x) => x.clienteId === c.id && chaveNome(x.tipo) === chaveNome(d.tipo) && x.vencimento === d.vencimento)) { repetidos++; return; }
       e.documentos.push({ id: novoId("doc-"), clienteId: c.id, tipo: d.tipo, modelo: d.modelo, numero: d.numero, emissao: d.emissao, vencimento: d.vencimento,
         responsavel: d.responsavel, observacoes: "", link: "", andamento: "pendente", criadoEm: hoje(), historico: [] });
       novosDocs++;
     });
+    (plano.alvaras || []).forEach((a) => {
+      const c = cliente(a);
+      if (!c) return;
+      // o alvará do mesmo tipo mais recente da empresa
+      const atual = e.documentos.filter((x) => x.clienteId === c.id && x.tipo === a.tipo)
+        .sort((x, y) => String(y.vencimento || "").localeCompare(String(x.vencimento || "")))[0];
+      if (!atual) {
+        e.documentos.push({ id: novoId("doc-"), clienteId: c.id, tipo: a.tipo, modelo: "", sitAlvara: a.situacao, numero: "", emissao: "", vencimento: a.vencimento,
+          responsavel: a.responsavel, observacoes: a.observacao, link: "", andamento: "pendente", criadoEm: hoje(), historico: [] });
+        alvNovos++; return;
+      }
+      if (a.vencimento && atual.vencimento && a.vencimento > atual.vencimento) {
+        atual.historico = (Array.isArray(atual.historico) ? atual.historico : []).concat({ data: hoje(), vencimentoAnterior: atual.vencimento, novoVencimento: a.vencimento,
+          emissaoAnterior: atual.emissao || "", numeroAnterior: atual.numero || "", obs: "Importado da planilha" });
+      }
+      if (a.vencimento) atual.vencimento = a.vencimento;
+      atual.sitAlvara = a.situacao;
+      if (a.observacao) atual.observacoes = a.observacao;
+      if (a.responsavel) atual.responsavel = a.responsavel;
+      alvAtualizados++;
+    });
     gravar(CHAVE_DOCS, e);
     if (plano.faturamentos.length) {
       const d = dados();
       plano.faturamentos.forEach((f) => {
-        const c = porNome[chaveNome(f.empresa)];
+        const c = cliente(f);
+        if (!c) return;
         const a = d.faturamentos[f.ano] = d.faturamentos[f.ano] || {};
         (a[c.id] = a[c.id] || {})[f.mes] = Math.round(f.valor * 100) / 100;
       });
       gravar(CHAVE, d);
     }
-    // ids das empresas do plano, para quem chama gravar os responsáveis no Em Dia
+    // ids das empresas do plano (pela chave), para quem chama gravar os responsáveis no Em Dia
     const ids = {};
-    plano.empresas.forEach((p) => { const c = porNome[chaveNome(p.nome)]; if (c) ids[chaveNome(p.nome)] = c.id; });
-    return { novasEmp, novosDocs, repetidos, faturamentos: plano.faturamentos.length, ids };
+    plano.empresas.forEach((p) => { const k = p.chave || chaveEmpresa(p.nome, p.documento); if (porChave[k]) ids[k] = porChave[k].id; });
+    return { novasEmp, atualizadas, novosDocs, repetidos, alvNovos, alvAtualizados, faturamentos: plano.faturamentos.length, ids };
   }
 
   /** Documento novo a partir de um PDF lido (lerCertidao). Cria a empresa se o CNPJ não estiver cadastrado e vier o nome. */
@@ -692,8 +918,8 @@ export function criarDepCadastro(deps) {
   }
 
   return {
-    aplicarPlanilha, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
-    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
+    aplicarPlanilha, previaPlanilha, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
+    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, gradeAlvaras, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
     faturamentos, definirFaturamento, totalAno, ultimos12, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };
 }
