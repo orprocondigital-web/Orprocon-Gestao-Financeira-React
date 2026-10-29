@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { REGIMES, TIPOS_LUCRO_REAL, ativaNoMes } from "../../lib/depCadastro.mjs";
+import { REGIMES, TIPOS_LUCRO_REAL, ativaNoMes, planilhaEmpresas } from "../../lib/depCadastro.mjs";
+import { carregarXlsx } from "../../lib/leitores.js";
 import { useDepCadastro } from "../../lib/useDepCadastro.js";
 import { useEmDia } from "../../lib/useEmDia.js";
 import { useAvisos } from "../Avisos.jsx";
@@ -164,6 +165,18 @@ export default function Empresas() {
     if (!(await confirmar({ titulo: "Excluir " + c.nome + "?", perigo: true, botao: "Excluir", texto: "Os faturamentos e demonstrativos dela também saem. Se ela só deixou de ser cliente, prefira marcar o mês em que saiu: o histórico fica." }))) return;
     try { svc.excluirEmpresa(c.id); aviso("Empresa excluída."); } catch (e) { aviso(e.message); }
   };
+  /** Exporta o que está na lista (com os filtros) no formato do Acessórias + colunas da Central: dá para editar e importar de volta. */
+  const exportar = async () => {
+    try {
+      const XLSX = await carregarXlsx();
+      const ws = XLSX.utils.aoa_to_sheet(planilhaEmpresas(visiveis));
+      ws["!cols"] = [8, 20, 34, 22, 14, 20, 26, 15, 14, 6].map((w) => ({ wch: w })).concat(Array(11).fill({ wch: 6 }), [18, 16, 16, 5, 10, 10, 30].map((w) => ({ wch: w })));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Empresas");
+      XLSX.writeFile(wb, "empresas-" + svc.hoje() + ".xlsx");
+      aviso(numero(visiveis.length) + " empresa(s) exportada(s). Dá para editar e importar de volta em Importar: nada duplica.");
+    } catch (e) { aviso("Não consegui gerar o Excel: " + (e.message || e)); }
+  };
   const mudarRegime = (c, v) => { try { svc.salvarEmpresa(Object.assign({}, c, { regime: v }), c.id); } catch (e) { aviso(e.message); } };
   return (
     <div className="space-y-4">
@@ -181,6 +194,8 @@ export default function Empresas() {
         <label className="inline-flex items-center gap-2 text-[13.5px]"><input type="checkbox" checked={matrizes} onChange={(e) => setMatrizes(e.target.checked)} /> Só matrizes</label>
         {saiu > 0 && <label className="inline-flex items-center gap-2 text-[13.5px]"><input type="checkbox" checked={saidas} onChange={(e) => setSaidas(e.target.checked)} /> Mostrar quem saiu</label>}
         <div className="flex-1" />
+        <Link to="/departamento-cadastro/importar" className="btn-contorno btn-sm">Importar</Link>
+        <button type="button" className="btn-contorno btn-sm" onClick={exportar} disabled={!visiveis.length}>Exportar Excel</button>
         <button type="button" className="btn-primario btn-sm" onClick={() => setForm({ editando: null })}><Icone nome="mais" />Nova empresa</button>
       </div>
       <div className="cartao overflow-hidden">
