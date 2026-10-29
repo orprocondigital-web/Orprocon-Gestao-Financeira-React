@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Core, Inicio } from "../../lib/legado.js";
-import { TIPOS_ALVARAS, TIPOS_CERTIDOES, chaveNome, grupoDoTipo, lerCertidao, lerPlanilhaCadastro, MESES } from "../../lib/depCadastro.mjs";
+import { TIPOS_ALVARAS, TIPOS_CERTIDOES, chaveNome, grupoDoTipo, lerCertidao, lerPlanilhaCadastro, planilhaEmpresas, MESES } from "../../lib/depCadastro.mjs";
 import { useDepCadastro } from "../../lib/useDepCadastro.js";
 import { emDia } from "../../lib/useEmDia.js";
 import { carregarXlsx, lerPlanilha, textoDoPdf } from "../../lib/leitores.js";
@@ -148,7 +148,10 @@ function Planilha() {
   const modelo = async () => {
     const XLSX = await carregarXlsx();
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Cód.", "Empresa", "CNPJ", "Regime"], ["1", "Empresa Exemplo Ltda", "00.000.000/0001-00", "Simples Nacional"]]), "Empresas");
+    // aba Empresas no formato do Acessórias (o mesmo da exportação em Empresas), com uma linha de exemplo
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(planilhaEmpresas([{ codigo: "1", documento: "00.000.000/0001-00", nome: "Empresa Exemplo Ltda", fantasia: "Exemplo",
+      contato: "Fulano Exemplo", email: "contato@exemplo.invalid", telefone: "48999990000", ie: "123456789", ieUf: "SC", departamentos: ["Contábil", "Fiscal", "Pessoal"],
+      regime: "Simples Nacional", cidade: "Tubarão", uf: "SC", inicio: "2026-01" }])), "Empresas");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Empresa", "CNPJ", "Tipo", "Número", "Emissão", "Vencimento", "Responsável"],
       ["Empresa Exemplo Ltda", "00.000.000/0001-00", "CND Federal", "", "15/09/2026", "14/03/2027", ""], ["Empresa Exemplo Ltda", "", "Alvará de funcionamento", "", "", "31/12/2026", ""]]), "Certidões e alvarás");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Empresa"].concat(MESES), ["Empresa Exemplo Ltda", 10000, 12000]]), "Faturamento " + ano);
@@ -163,7 +166,7 @@ function Planilha() {
           <p className="text-[13px] text-muted"><strong className="text-ink-2">Empresas do Acessórias:</strong> o CSV do cadastro de empresas (separado por ponto e vírgula) entra como está: razão, fantasia, CNPJ, contato, IE e os departamentos marcados com S. O CNPJ é a chave: o que veio preenchido atualiza a empresa, campo vazio não apaga nada e linhas repetidas (mais de um contato ou IE) viram uma empresa só.</p>
           <p className="text-[13px] text-muted">A planilha de renovação de alvarás (colunas CNPJ, Municipal, Sanitário e Bombeiro, com a data ou a situação) entra do jeito que está. Também: empresas, certidões e alvarás (colunas Empresa, Tipo e Vencimento) e faturamento (Empresa e os meses Jan a Dez; o ano vem do nome da aba). Pode ter várias abas no mesmo arquivo. Também lê a aba Empresas exportada do sistema do Depto. Contábil (regime, sócios, responsáveis, entrada e saída); as colunas de senha são ignoradas.</p>
         </div>
-        <button type="button" className="btn-fantasma" onClick={modelo}>Baixar modelo</button>
+        <button type="button" className="btn-fantasma" onClick={modelo} title="Abas: Empresas (formato do Acessórias), Certidões e alvarás, Faturamento">Baixar modelo</button>
         <BotaoArquivo className="btn-primario" aceita=".xlsx,.xls,.xlsm,.csv" aoEscolher={ler}>Escolher planilha</BotaoArquivo>
       </div>
       {status && <Mensagem texto={status} tipo="aviso" />}

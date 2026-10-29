@@ -333,6 +333,32 @@ const CAB = {
 export const DEPTOS_ACESSORIAS = { "alvaras": "Alvarás", "cadastros": "Cadastros", "certificado digital": "Certificado Digital", "departamento contabil": "Contábil",
   "departamento fiscal": "Fiscal", "departamento pessoal": "Pessoal", "financeiro": "Financeiro", "iss servico municipal": "ISS", "recepcao": "Recepção",
   "retencoes": "Retenções", "societario": "Societário" };
+/** Cabeçalho do Acessórias (modelo de importação): usado na exportação, para o arquivo voltar a entrar no Acessórias ou na Central. */
+export const CAB_ACESSORIAS = ["ID Empresa", "CNPJ / CPF / CAEPF", "Razão Empresa", "Nome Fantasia", "Apelido e-Contínuo", "Nome Contato", "E-mail Contato", "Fone Contato", "I.E.", "I.E. UF",
+  "Alvarás", "Cadastros", "Certificado Digital", "Departamento Contábil", "Departamento Fiscal", "Departamento Pessoal", "Financeiro", "ISS Serviço Municipal", "Recepção", "Retenções", "Societário"];
+/** Colunas da Central depois das do Acessórias (o Acessórias ignora as que não conhece). */
+export const CAB_CENTRAL = ["Regime", "Segmento", "Cidade", "UF", "Cliente desde", "Saiu em", "Observações"];
+const mesBR = (m) => (/^\d{4}-\d{2}$/.test(txt(m)) ? m.slice(5) + "/" + m.slice(0, 4) : "");
+/**
+ * Empresas → linhas da planilha (cabeçalho + uma linha por empresa; contatos e IEs a mais em linhas repetindo a empresa,
+ * como o Acessórias pede). Importar o arquivo de volta não duplica nada.
+ */
+export function planilhaEmpresas(clientes) {
+  const linhas = [CAB_ACESSORIAS.concat(CAB_CENTRAL)];
+  const deptos = CAB_ACESSORIAS.slice(10).map((c) => DEPTOS_ACESSORIAS[normCab(c)]);
+  (clientes || []).forEach((c) => {
+    const contatos = c.contatos && c.contatos.length ? c.contatos : [{ nome: txt(c.contato), email: txt(c.email), telefone: txt(c.telefone) }];
+    const ies = c.ies && c.ies.length ? c.ies : [{ ie: txt(c.ie), uf: txt(c.ieUf) }];
+    const marcados = c.departamentos || [];
+    for (let i = 0; i < Math.max(contatos.length, ies.length); i++) {
+      const ct = contatos[i] || {}, ie = ies[i] || {};
+      linhas.push([txt(c.codigo), txt(c.documento), txt(c.nome), txt(c.fantasia), txt(c.apelido), txt(ct.nome), txt(ct.email), txt(ct.telefone), txt(ie.ie), txt(ie.uf)]
+        .concat(deptos.map((d) => (marcados.indexOf(d) > -1 ? "S" : "N")))
+        .concat([txt(c.regime), txt(c.segmento), txt(c.cidade), txt(c.uf), mesBR(c.inicio), mesBR(c.saida), txt(c.obs)]));
+    }
+  });
+  return linhas;
+}
 /** CNPJ/CPF/CAEPF tem 11 ou 14 dígitos. */
 export function documentoValido(doc) { const n = txt(doc).replace(/\D/g, "").length; return n === 11 || n === 14; }
 const simNao = (v) => /^(s|n|sim|nao|não|x)?$/i.test(txt(v));
@@ -436,7 +462,8 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
         if (acessorias) {
           const k = empresa(get(r, "empresa"), docLinha, { codigo: txt(get(r, "codigo")), fantasia: txt(get(r, "fantasia")), apelido: txt(get(r, "apelido")),
             contato: txt(get(r, "contato")), email: txt(get(r, "email")), telefone: txt(get(r, "telefone")), ie: txt(get(r, "ie")), ieUf: txt(get(r, "ieUf")).toUpperCase(),
-            regime: regimePeloTexto(get(r, "regime")), cidade: txt(get(r, "cidade")), uf: txt(get(r, "uf")).toUpperCase() });
+            regime: regimePeloTexto(get(r, "regime")), cidade: txt(get(r, "cidade")), uf: txt(get(r, "uf")).toUpperCase(),
+            segmento: txt(get(r, "segmento")), obs: txt(get(r, "obs")), inicio: mesDe(get(r, "entrada")), saida: mesDe(get(r, "saida")) });
           const v = vistas[k];
           v.atualizar = true;
           // contatos e inscrições estaduais: uma linha por registro, repetindo a empresa

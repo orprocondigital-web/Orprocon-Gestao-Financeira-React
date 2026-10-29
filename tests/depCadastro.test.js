@@ -277,6 +277,23 @@ describe("planilha de empresas do Acessórias", () => {
     assert.equal(svc.buscarEmpresas("alfa")[0].id, a.id);
   });
 
+  test("exportar e importar de volta: mesmo cadastro, sem duplicar nem mudar nada", () => {
+    const { svc } = amb();
+    svc.aplicarPlanilha(plano());
+    const a = svc.empresas().find((c) => c.nome === "Alfa Exemplo Ltda");
+    svc.salvarEmpresa(Object.assign({}, a, { regime: "Lucro Presumido", cidade: "Tubarão", uf: "SC", inicio: "2024-03", obs: "cliente antigo" }), a.id);
+    const linhas = D.planilhaEmpresas(svc.empresas());
+    assert.deepEqual(linhas[0].slice(0, 3), ["ID Empresa", "CNPJ / CPF / CAEPF", "Razão Empresa"]);
+    assert.equal(linhas.length, 1 + 2 + 1 + 1, "Alfa tem 2 contatos/IEs: 2 linhas");
+    const l1 = linhas.find((l) => l[2] === "Alfa Exemplo Ltda");
+    assert.deepEqual(l1.slice(10, 21).join(""), "SNNSSSNNNNN");
+    assert.deepEqual(l1.slice(21), ["Lucro Presumido", "", "Tubarão", "SC", "03/2024", "", "cliente antigo"]);
+    const antes = JSON.stringify(svc.empresas());
+    const r = svc.aplicarPlanilha(D.lerPlanilhaCadastro([{ nome: "Empresas", rows: linhas }], (v) => v, 2026));
+    assert.deepEqual([r.novasEmp, r.atualizadas], [0, 0]);
+    assert.equal(JSON.stringify(svc.empresas()), antes);
+  });
+
   test("documentoValido", () => {
     assert.deepEqual(["111.111.111-11", "11.111.111/0001-11", "123", ""].map(D.documentoValido), [true, true, false, false]);
   });
