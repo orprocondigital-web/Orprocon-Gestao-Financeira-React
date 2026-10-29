@@ -291,8 +291,8 @@ export function lerCertidao(texto) {
 // ---------------------------------------------------------------- leitura de planilha (Excel)
 
 const CAB = {
-  empresa: ["empresa", "cliente", "razao social", "nome", "nome da empresa"],
-  documento: ["cnpj", "cpf", "cnpj/cpf", "cpf/cnpj", "documento da empresa"],
+  empresa: ["empresa", "cliente", "razao social", "nome", "nome da empresa", "razao empresa", "razao"],
+  documento: ["cnpj", "cpf", "cnpj/cpf", "cpf/cnpj", "documento da empresa", "cnpj / cpf / caepf", "cnpj/cpf/caepf", "cnpj / cpf", "cpf / cnpj"],
   tipo: ["tipo", "documento", "tipo de documento", "certidao", "alvara"],
   numero: ["numero", "n", "no", "nº", "numero do documento"],
   emissao: ["emissao", "data de emissao", "emitido em"],
@@ -300,10 +300,17 @@ const CAB = {
   responsavel: ["responsavel"],
   modelo: ["modelo", "modelo do certificado", "a1/a3", "tipo do certificado"],
   regime: ["regime", "regime tributario", "tributacao", "enquadramento"],
-  codigo: ["cod", "codigo", "cod empresa", "codigo da empresa"],
+  codigo: ["cod", "codigo", "cod empresa", "codigo da empresa", "id empresa"],
+  // cadastro de empresas do Acessórias (modelo de importação / exportação)
+  fantasia: ["nome fantasia", "fantasia"],
+  apelido: ["apelido e-continuo", "apelido"],
+  email: ["e-mail contato", "email contato", "e-mail", "email", "e-mail do contato"],
+  telefone: ["fone contato", "telefone contato", "telefone", "fone", "celular", "whatsapp"],
+  ie: ["ie", "inscricao estadual", "insc estadual"],
+  ieUf: ["ie uf", "uf ie", "uf da ie"],
   // colunas do cadastro do sistema antigo do Depto. Contábil (as de senha são ignoradas de propósito)
   segmento: ["segmento", "ramo", "atividade"],
-  contato: ["contato"],
+  contato: ["contato", "nome contato", "nome do contato"],
   obs: ["obs", "observacao", "observacoes"],
   socios: ["socios_json", "socios"],
   tipoLucroReal: ["tipolucroreal", "tipo lucro real", "tipo do lucro real"],
@@ -322,6 +329,13 @@ const CAB = {
   alvSanitario: ["sanitario", "alvara sanitario", "vigilancia sanitaria"],
   alvBombeiro: ["bombeiro", "bombeiros", "alvara bombeiro", "alvara dos bombeiros", "corpo de bombeiros"]
 };
+/** Departamentos do Acessórias: coluna com S marca que a empresa é atendida por ele. */
+export const DEPTOS_ACESSORIAS = { "alvaras": "Alvarás", "cadastros": "Cadastros", "certificado digital": "Certificado Digital", "departamento contabil": "Contábil",
+  "departamento fiscal": "Fiscal", "departamento pessoal": "Pessoal", "financeiro": "Financeiro", "iss servico municipal": "ISS", "recepcao": "Recepção",
+  "retencoes": "Retenções", "societario": "Societário" };
+/** CNPJ/CPF/CAEPF tem 11 ou 14 dígitos. */
+export function documentoValido(doc) { const n = txt(doc).replace(/\D/g, "").length; return n === 11 || n === 14; }
+const simNao = (v) => /^(s|n|sim|nao|não|x)?$/i.test(txt(v));
 const COL_ALVARA = { alvMunicipal: "Alvará municipal", alvSanitario: "Alvará sanitário", alvBombeiro: "Alvará dos Bombeiros" };
 /** Chave da empresa na importação: o CNPJ/CPF quando tem (filiais com o mesmo nome ficam separadas), senão o nome. */
 export function chaveEmpresa(nome, documento) {
@@ -410,8 +424,33 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
       });
     } else {
       tipo = "empresas";
+      // colunas S/N de departamento (Acessórias): o Acessórias é a fonte, então os dados dela atualizam o que já existe
+      const deptos = [];
+      rows[h].forEach((c, i) => { const d = DEPTOS_ACESSORIAS[normCab(c)]; if (d) deptos.push([i, d]); });
+      const acessorias = deptos.length >= 3 || col.fantasia !== undefined && col.ie !== undefined;
+      if (acessorias) tipo = "acessorias";
       rows.slice(h + 1).forEach((r, i) => {
         if (!r || !txt(get(r, "empresa"))) return;
+        const docLinha = txt(get(r, "documento"));
+        if (docLinha && !documentoValido(docLinha)) plano.avisos.push("Aba \"" + a.nome + "\", linha " + (h + i + 2) + ": CNPJ/CPF \"" + docLinha + "\" inválido (" + txt(get(r, "empresa")) + ").");
+        if (acessorias) {
+          const k = empresa(get(r, "empresa"), docLinha, { codigo: txt(get(r, "codigo")), fantasia: txt(get(r, "fantasia")), apelido: txt(get(r, "apelido")),
+            contato: txt(get(r, "contato")), email: txt(get(r, "email")), telefone: txt(get(r, "telefone")), ie: txt(get(r, "ie")), ieUf: txt(get(r, "ieUf")).toUpperCase(),
+            regime: regimePeloTexto(get(r, "regime")), cidade: txt(get(r, "cidade")), uf: txt(get(r, "uf")).toUpperCase() });
+          const v = vistas[k];
+          v.atualizar = true;
+          // contatos e inscrições estaduais: uma linha por registro, repetindo a empresa
+          const ct = { nome: txt(get(r, "contato")), email: txt(get(r, "email")), telefone: txt(get(r, "telefone")) };
+          v.contatos = v.contatos || [];
+          if ((ct.nome || ct.email || ct.telefone) && !v.contatos.some((x) => x.nome === ct.nome && x.email === ct.email && x.telefone === ct.telefone)) v.contatos.push(ct);
+          const ie = { ie: txt(get(r, "ie")), uf: txt(get(r, "ieUf")).toUpperCase() };
+          v.ies = v.ies || [];
+          if (ie.ie && !v.ies.some((x) => x.ie === ie.ie && x.uf === ie.uf)) v.ies.push(ie);
+          v.departamentos = v.departamentos || [];
+          deptos.forEach(([c, d]) => { if (/^(s|sim|x)$/i.test(txt(r[c])) && v.departamentos.indexOf(d) < 0) v.departamentos.push(d); });
+          n++;
+          return;
+        }
         let socios = [];
         try {
           socios = limparSocios(json(get(r, "socios")).map((x) => ({ nome: x.nome, cpf: x.cpf, percentual: x.percentual,
@@ -419,7 +458,7 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
         } catch (e) { plano.avisos.push("Aba \"" + a.nome + "\", linha " + (h + i + 2) + ": sócios não importados (" + e.message + ")"); }
         const tlr = txt(get(r, "tipoLucroReal"));
         const resp = {};
-        [["contabil", "respContabil"], ["fiscal", "respFiscal"], ["dp", "respDp"]].forEach(([s, c]) => { const v = nomeDoEmail(get(r, c)); if (v) resp[s] = v; });
+        [["contabil", "respContabil"], ["fiscal", "respFiscal"], ["dp", "respDp"]].forEach(([s, c]) => { if (simNao(get(r, c))) return; const v = nomeDoEmail(get(r, c)); if (v) resp[s] = v; });
         // no sistema antigo a coluna "Responsavel" é o responsável contábil
         if (!resp.contabil && col.responsavel !== undefined && nomeDoEmail(get(r, "responsavel"))) resp.contabil = nomeDoEmail(get(r, "responsavel"));
         const hist = json(get(r, "respHist")).map((x) => ({ desde: mesDe(x.inicio), nome: nomeDoEmail(x.email || x.nome) })).filter((x) => x.nome);
@@ -428,7 +467,8 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
           obs: txt(get(r, "obs")), socios, tipoLucroReal: TIPOS_LUCRO_REAL.find((x) => chaveNome(x) === chaveNome(tlr)) || "",
           inicio: mesDe(get(r, "entrada")), saida: mesDe(get(r, "saida")), baixa: toIsoDate(get(r, "baixa")) || "",
           responsaveis: Object.keys(resp).length ? resp : null, histContabil: hist.length ? hist : null,
-          cidade: txt(get(r, "cidade")), uf: txt(get(r, "uf")).toUpperCase()
+          cidade: txt(get(r, "cidade")), uf: txt(get(r, "uf")).toUpperCase(), fantasia: txt(get(r, "fantasia")), email: txt(get(r, "email")), telefone: txt(get(r, "telefone")),
+          ie: txt(get(r, "ie")), ieUf: txt(get(r, "ieUf")).toUpperCase()
         });
         n++;
       });
@@ -507,6 +547,9 @@ export function criarDepCadastro(deps) {
       tipoLucroReal: txt(dadosEmp.regime) === "Lucro Real" ? txt(dadosEmp.tipoLucroReal) : "", baixa: txt(dadosEmp.baixa),
       segmento: txt(dadosEmp.segmento), contato: txt(dadosEmp.contato), telefone: txt(dadosEmp.telefone), email: txt(dadosEmp.email), obs: txt(dadosEmp.obs),
       cidade: txt(dadosEmp.cidade), uf: txt(dadosEmp.uf).toUpperCase().slice(0, 2), envioTaxas: txt(dadosEmp.envioTaxas) };
+    if (dadosEmp.fantasia !== undefined) campos.fantasia = txt(dadosEmp.fantasia);
+    if (dadosEmp.ie !== undefined) campos.ie = txt(dadosEmp.ie);
+    if (dadosEmp.ieUf !== undefined) campos.ieUf = txt(dadosEmp.ieUf).toUpperCase().slice(0, 2);
     if (campos.regime && !REGIMES.includes(campos.regime)) throw new Error("Regime inválido.");
     if (campos.tipoLucroReal && !TIPOS_LUCRO_REAL.includes(campos.tipoLucroReal)) throw new Error("Tipo do Lucro Real inválido.");
     if (campos.baixa && !iso(campos.baixa)) throw new Error("Data de baixa inválida.");
@@ -607,6 +650,7 @@ export function criarDepCadastro(deps) {
       else if (txt(c.codigo) && txt(c.codigo) === t) nota = 90;
       else if (!soNumeros && cn.indexOf(n) === 0) nota = 60;
       else if (!soNumeros && n.length >= 2 && cn.indexOf(n) > -1) nota = 40;
+      else if (!soNumeros && n.length >= 2 && chaveNome(c.fantasia).indexOf(n) > -1) nota = 35;
       else if (!soNumeros && n.length >= 2 && chaveNome(c.cidade).indexOf(n) === 0) nota = 20;
       if (nota) achados.push({ nota, c });
     });
@@ -812,7 +856,7 @@ export function criarDepCadastro(deps) {
       if (mapa[p.chave || chaveEmpresa(p.nome, p.documento)]) existentes++; else novas++;
       if (txt(p.documento).replace(/\D/g, "").length < 11) semCnpj++;
     });
-    return { novas, existentes, semCnpj, alvaras: (plano.alvaras || []).length };
+    return { novas, existentes, semCnpj, alvaras: (plano.alvaras || []).length, comProblema: (plano.avisos || []).length };
   }
 
   /**
@@ -825,13 +869,21 @@ export function criarDepCadastro(deps) {
     let novasEmp = 0, atualizadas = 0, novosDocs = 0, repetidos = 0, alvNovos = 0, alvAtualizados = 0;
     const mapa = casarEmpresas(plano, e.clientes);
     const porChave = {};
-    const extras = ["documento", "regime", "codigo", "segmento", "contato", "obs", "tipoLucroReal", "inicio", "saida", "baixa", "cidade", "uf", "envioTaxas"];
+    const extras = ["documento", "regime", "codigo", "segmento", "contato", "obs", "tipoLucroReal", "inicio", "saida", "baixa", "cidade", "uf", "envioTaxas",
+      "fantasia", "apelido", "email", "telefone", "ie", "ieUf"];
+    const listas = ["contatos", "ies", "departamentos"];
+    const cheia = (v) => (Array.isArray(v) ? v.length > 0 : !!v);
     plano.empresas.forEach((p) => {
       const k = p.chave || chaveEmpresa(p.nome, p.documento);
       const existe = mapa[k] || porChave[k];
       if (existe) {
         let mudou = false;
-        extras.forEach((x) => { if (!existe[x] && p[x]) { existe[x] = p[x]; mudou = true; } });
+        // planilha do Acessórias (a fonte do cadastro): o que veio preenchido atualiza; vazio não apaga. As outras só completam.
+        if (p.atualizar && p.nome && existe.nome !== p.nome) { existe.nome = p.nome; mudou = true; }
+        extras.concat(listas).forEach((x) => {
+          if (!cheia(p[x])) return;
+          if (p.atualizar ? JSON.stringify(existe[x]) !== JSON.stringify(p[x]) : !cheia(existe[x])) { existe[x] = p[x]; mudou = true; }
+        });
         // o envio das taxas muda a cada ano: a planilha mais nova vale
         if (p.envioTaxas && existe.envioTaxas !== p.envioTaxas) { existe.envioTaxas = p.envioTaxas; mudou = true; }
         if ((!existe.socios || !existe.socios.length) && p.socios && p.socios.length) { existe.socios = p.socios; mudou = true; }
@@ -844,6 +896,7 @@ export function criarDepCadastro(deps) {
       if (mesmoNome) { porChave[k] = mesmoNome; return; }
       const c = { id: novoId("cli-"), nome: p.nome, contato: "", email: "", telefone: "" };
       extras.forEach((x) => { c[x] = p[x] || ""; });
+      listas.forEach((x) => { if (cheia(p[x])) c[x] = p[x]; });
       if (p.socios && p.socios.length) c.socios = p.socios;
       e.clientes.push(c); porChave[k] = c; novasEmp++;
     });

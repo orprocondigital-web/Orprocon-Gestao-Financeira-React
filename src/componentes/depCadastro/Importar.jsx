@@ -154,12 +154,13 @@ function Planilha() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Empresa"].concat(MESES), ["Empresa Exemplo Ltda", 10000, 12000]]), "Faturamento " + ano);
     XLSX.writeFile(wb, "modelo-departamento-cadastro.xlsx");
   };
-  const nomes = { alvaras: "renovação de alvarás (municipal, sanitário, bombeiros)", documentos: "certidões e alvarás", faturamentos: "faturamento", empresas: "empresas", ignorada: "ignorada (sem coluna Empresa)" };
+  const nomes = { acessorias: "empresas do Acessórias (contatos, IE e departamentos)", alvaras: "renovação de alvarás (municipal, sanitário, bombeiros)", documentos: "certidões e alvarás", faturamentos: "faturamento", empresas: "empresas", ignorada: "ignorada (sem coluna Empresa)" };
   return (
     <section className="cartao p-4 sm:p-5 space-y-3">
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex-1 min-w-[240px]">
-          <h2 className="text-[16px] font-semibold">Planilha (Excel)</h2>
+          <h2 className="text-[16px] font-semibold">Planilha (Excel ou CSV)</h2>
+          <p className="text-[13px] text-muted"><strong className="text-ink-2">Empresas do Acessórias:</strong> o CSV do cadastro de empresas (separado por ponto e vírgula) entra como está: razão, fantasia, CNPJ, contato, IE e os departamentos marcados com S. O CNPJ é a chave: o que veio preenchido atualiza a empresa, campo vazio não apaga nada e linhas repetidas (mais de um contato ou IE) viram uma empresa só.</p>
           <p className="text-[13px] text-muted">A planilha de renovação de alvarás (colunas CNPJ, Municipal, Sanitário e Bombeiro, com a data ou a situação) entra do jeito que está. Também: empresas, certidões e alvarás (colunas Empresa, Tipo e Vencimento) e faturamento (Empresa e os meses Jan a Dez; o ano vem do nome da aba). Pode ter várias abas no mesmo arquivo. Também lê a aba Empresas exportada do sistema do Depto. Contábil (regime, sócios, responsáveis, entrada e saída); as colunas de senha são ignoradas.</p>
         </div>
         <button type="button" className="btn-fantasma" onClick={modelo}>Baixar modelo</button>
@@ -174,13 +175,13 @@ function Planilha() {
         {(() => {
           const pv = svc.previaPlanilha(plano);
           return (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               {[["Empresas novas", pv.novas, "text-brand"], ["Já cadastradas (serão completadas)", pv.existentes, "text-ink"], ["Alvarás", pv.alvaras, "text-ink"],
-                ["Certidões e documentos", plano.documentos.length, "text-ink"]].map(([t, n, cor]) => (
+                ["Certidões e documentos", plano.documentos.length, "text-ink"], ["Linhas com problema", pv.comProblema, pv.comProblema ? "text-warn" : "text-ink"]].map(([t, n, cor]) => (
                 <div key={t} className="rounded-lg border border-line px-3 py-2"><div className="text-[12px] text-muted">{t}</div><div className={"text-[20px] font-semibold tabular-nums " + cor}>{numero(n)}</div></div>
               ))}
-              <p className="col-span-2 md:col-span-4 text-[12.5px] text-muted">
-                A empresa é reconhecida pelo <strong>CNPJ</strong> (filiais com o mesmo nome ficam separadas); sem CNPJ, pelo nome{pv.semCnpj ? " (" + numero(pv.semCnpj) + " sem CNPJ)" : ""}. Nada é apagado: o que já existe só é completado.
+              <p className="col-span-2 md:col-span-5 text-[12.5px] text-muted">
+                A empresa é reconhecida pelo <strong>CNPJ</strong> (filiais com o mesmo nome ficam separadas); sem CNPJ, pelo nome{pv.semCnpj ? " (" + numero(pv.semCnpj) + " sem CNPJ)" : ""}. Nada é apagado: o que já existe só é completado{plano.abas.some((a) => a.tipo === "acessorias") ? " (na planilha do Acessórias, o que veio preenchido atualiza)" : ""}.
                 {plano.faturamentos.length ? " " + numero(plano.faturamentos.length) + " valor(es) de faturamento." : ""}
               </p>
             </div>

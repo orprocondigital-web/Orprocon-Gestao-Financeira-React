@@ -49,12 +49,21 @@ export function lerTexto(file) {
   });
 }
 
+/** Bytes de um CSV → texto: UTF-8 (com ou sem BOM); se não for, Windows-1252 (o "Salvar como CSV" do Excel). */
+export function textoCsv(bytes) {
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^﻿/, ""); }
+  catch (e) { return new TextDecoder("windows-1252").decode(bytes); }
+}
+
 /** Planilha → [{ nome, rows }] (todas as abas, na ordem da pasta de trabalho). */
 export async function lerPlanilha(file) {
   const [XLSX, buf] = await Promise.all([carregarXlsx(), lerBuffer(file)]);
   await new Promise((r) => setTimeout(r, 30));   // deixa a mensagem "Lendo…" aparecer antes do trabalho pesado
-  const wb = XLSX.read(new Uint8Array(buf), { type: "array", cellDates: true });
-  return wb.SheetNames.map((n) => ({ nome: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: "" }) }));
+  // CSV (ex.: Acessórias, separado por ;): lido como texto, para o CNPJ, o telefone e a IE não perderem os zeros
+  const wb = /\.(csv|txt)$/i.test(file.name || "") ? XLSX.read(textoCsv(new Uint8Array(buf)), { type: "string", raw: true })
+    : XLSX.read(new Uint8Array(buf), { type: "array", cellDates: true });
+  const csv = /\.(csv|txt)$/i.test(file.name || "");
+  return wb.SheetNames.map((n) => ({ nome: csv ? file.name : n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: "" }) }));
 }
 
 async function itensDoPdf(buffer) {

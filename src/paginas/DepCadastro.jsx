@@ -421,6 +421,8 @@ function Ficha({ id, aoVoltar }) {
         </Bloco>
 
         <Bloco titulo="Dados e contato">
+          <Linha rotulo="Nome fantasia">{c.fantasia}</Linha>
+          <Linha rotulo="Insc. estadual">{(c.ies && c.ies.length ? c.ies : c.ie ? [{ ie: c.ie, uf: c.ieUf }] : []).map((x) => x.ie + (x.uf ? " (" + x.uf + ")" : "")).join(", ")}</Linha>
           <Linha rotulo="Segmento">{c.segmento}</Linha>
           <Linha rotulo="Contato">{c.contato}</Linha>
           <Linha rotulo="Telefone">{c.telefone}</Linha>
@@ -428,7 +430,11 @@ function Ficha({ id, aoVoltar }) {
           <Linha rotulo="Cliente">{c.inicio || c.saida ? (c.inicio ? "desde " + c.inicio.split("-").reverse().join("/") : "") + (c.saida ? " · saiu " + c.saida.split("-").reverse().join("/") : "") : ""}</Linha>
           <Linha rotulo="Lucro Real">{c.regime === "Lucro Real" ? c.tipoLucroReal || "falta: trimestral ou anual" : ""}</Linha>
           <Linha rotulo="Observações">{c.obs}</Linha>
-          {!c.segmento && !c.contato && !c.telefone && !c.email && !c.obs && <p className="text-[13px] text-muted">Sem contato cadastrado. Em Editar empresa dá para incluir, e a mensagem de renovação sai com o nome e o WhatsApp.</p>}
+          {c.contatos && c.contatos.length > 1 && <div className="mt-2 pt-2 border-t border-line text-[13px]"><span className="text-muted">Outros contatos: </span>
+            {c.contatos.slice(1).map((x, i) => <span key={i}>{i ? " · " : ""}{[x.nome, x.telefone, x.email].filter(Boolean).join(", ")}</span>)}</div>}
+          {c.departamentos && c.departamentos.length > 0 && <div className="mt-2 flex flex-wrap gap-1 items-center text-[12px]"><span className="text-muted text-[13px] mr-1">Departamentos (Acessórias):</span>
+            {c.departamentos.map((d) => <span key={d} className="px-2 py-0.5 rounded-full bg-surface-2 border border-line">{d}</span>)}</div>}
+          {!c.segmento && !c.fantasia && !c.contato && !c.telefone && !c.email && !c.obs && <p className="text-[13px] text-muted">Sem contato cadastrado. Em Editar empresa dá para incluir, e a mensagem de renovação sai com o nome e o WhatsApp.</p>}
           {f.filiais.length > 0 && <div className="mt-2 text-[13px]"><span className="text-muted">Filiais: </span>{f.filiais.map((x, i) => <span key={x.id}>{i ? ", " : ""}<Link className="text-brand hover:underline" to={"/departamento-cadastro/buscar?empresa=" + x.id}>{x.documento || x.nome}{x.cidade ? " (" + x.cidade + ")" : ""}</Link></span>)}</div>}
         </Bloco>
 
