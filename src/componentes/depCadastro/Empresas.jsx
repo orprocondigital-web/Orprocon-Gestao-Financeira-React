@@ -22,7 +22,7 @@ export function FormEmpresa({ editando, aoFechar }) {
   const { aviso } = useAvisos();
   const setores = emDia.setores();
   const resp = emDia.todosResponsaveis();
-  const vazio = { nome: "", documento: "", codigo: "", regime: "", tipoLucroReal: "", inicio: "", saida: "", baixa: "", segmento: "", contato: "", telefone: "", email: "", obs: "", cidade: "", uf: "", envioTaxas: "" };
+  const vazio = { nome: "", documento: "", codigo: "", regime: "", tipoLucroReal: "", inicio: "", saida: "", baixa: "", segmento: "", contato: "", telefone: "", email: "", obs: "", cidade: "", uf: "", envioTaxas: "", fantasia: "", ie: "", ieUf: "" };
   const [f, setF] = useState(() => Object.assign({}, vazio, editando || {}));
   const [socios, setSocios] = useState(() => (editando && !editando.sociosDaMatriz && editando.socios ? editando.socios.map((x) => Object.assign({}, x)) : []));
   const [r, setR] = useState(() => {
@@ -54,9 +54,12 @@ export function FormEmpresa({ editando, aoFechar }) {
       <form id="form-emp" onSubmit={salvar} className="grid sm:grid-cols-6 gap-3">
         <Campo rotulo="Razão social" id="emp-nome" className="sm:col-span-4"><input id="emp-nome" value={f.nome} onChange={muda("nome")} data-foco autoComplete="off" /></Campo>
         <Campo rotulo="Código" id="emp-cod" className="sm:col-span-2"><input id="emp-cod" value={f.codigo} onChange={muda("codigo")} autoComplete="off" /></Campo>
+        <Campo rotulo="Nome fantasia" id="emp-fan" className="sm:col-span-6"><input id="emp-fan" value={f.fantasia} onChange={muda("fantasia")} autoComplete="off" /></Campo>
         <Campo rotulo="CNPJ/CPF" id="emp-doc" className="sm:col-span-3" dica="0001 no CNPJ = matriz; os outros números são filiais.">
           <input id="emp-doc" value={f.documento} onChange={muda("documento")} autoComplete="off" inputMode="numeric" /></Campo>
         <Campo rotulo="Segmento" id="emp-seg" className="sm:col-span-3"><input id="emp-seg" value={f.segmento} onChange={muda("segmento")} placeholder="Comércio, serviços, indústria…" autoComplete="off" /></Campo>
+        <Campo rotulo="Inscrição estadual" id="emp-ie" className="sm:col-span-2"><input id="emp-ie" value={f.ie} onChange={muda("ie")} autoComplete="off" /></Campo>
+        <Campo rotulo="UF da IE" id="emp-ieuf" className="sm:col-span-1"><input id="emp-ieuf" value={f.ieUf} onChange={muda("ieUf")} maxLength={2} autoComplete="off" /></Campo>
         <Campo rotulo="Regime" id="emp-reg" className="sm:col-span-3">
           <select id="emp-reg" value={f.regime} onChange={muda("regime")}><option value="">—</option>{REGIMES.map((x) => <option key={x} value={x}>{x}</option>)}</select></Campo>
         {f.regime === "Lucro Real" && <Campo rotulo="Apuração do Lucro Real" id="emp-lr" className="sm:col-span-3">

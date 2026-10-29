@@ -141,7 +141,7 @@ describe("importar planilha", () => {
     ];
     const p = D.lerPlanilhaCadastro(abas, Core.toIsoDate, 2026);
     assert.deepEqual(p.abas.map((a) => [a.tipo, a.linhas]), [["documentos", 2], ["faturamentos", 1], ["empresas", 1], ["ignorada", 0]]);
-    assert.equal(p.avisos.length, 1);
+    assert.equal(p.avisos.length, 2, "sem vencimento + CNPJ \"55\" inválido");
     assert.deepEqual(p.empresas.map((e) => e.nome), ["Nova Empresa SA", "Empresa Exemplo Ltda", "Terceira Ltda"]);
     assert.deepEqual(p.faturamentos.map((f) => [f.ano, f.mes, f.valor]), [["2025", "01", 1000], ["2025", "02", 2500.5], ["2025", "04", 10], ["2025", "05", 20], ["2025", "06", 30]]);
     const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
@@ -231,6 +231,54 @@ describe("sócios, Lucro Real, baixa e cadastro do sistema antigo", () => {
     svc.aplicarPlanilha(p);
     const c = svc.empresas()[0];
     assert.deepEqual([c.regime, c.tipoLucroReal, c.socios[0].entrada], ["Lucro Real", "Trimestral", "2020-01-01"]);
+  });
+});
+
+describe("planilha de empresas do Acessórias", () => {
+  const CAB_ACS = ["ID Empresa", "CNPJ / CPF / CAEPF", "Razão Empresa", "Nome Fantasia", "Apelido e-Contínuo", "Nome Contato", "E-mail Contato", "Fone Contato", "I.E.", "I.E. UF",
+    "Alvarás", "Cadastros", "Certificado Digital", "Departamento Contábil", "Departamento Fiscal", "Departamento Pessoal", "Financeiro", "ISS Serviço Municipal", "Recepção", "Retenções", "Societário"];
+  const linha = (doc, razao, fant, cont, mail, fone, ie, uf, deptos) => ["", doc, razao, fant, "", cont, mail, fone, ie, uf].concat(deptos.split(""));
+  const plano = () => D.lerPlanilhaCadastro([{ nome: "modelo-importacao-empresas", rows: [CAB_ACS,
+    linha("11.111.111/0001-11", "Alfa Exemplo Ltda", "Alfa", "Ana Exemplo", "ana@exemplo.invalid", "48999990000", "123456789", "SC", "SNNSSNNNNNN"),
+    linha("11.111.111/0001-11", "Alfa Exemplo Ltda", "Alfa", "Bruno Exemplo", "bruno@exemplo.invalid", "", "987654321", "PR", "NNNNNSNNNNN"),
+    linha("00000000000191", "Beta Exemplo ME", "", "", "", "", "", "", "NNNNNNNNNNN"),
+    linha("123", "Gama Exemplo", "", "", "", "", "", "", "NNNNNNNNNNN")] }], (v) => v, 2026);
+
+  test("lê o modelo: uma empresa por CNPJ, contatos, IEs e departamentos marcados com S", () => {
+    const p = plano();
+    assert.equal(p.abas[0].tipo, "acessorias");
+    assert.equal(p.empresas.length, 3);
+    const a = p.empresas.find((e) => e.chave === "d:11111111000111");
+    assert.deepEqual([a.nome, a.fantasia, a.contato, a.email, a.telefone, a.ie, a.ieUf], ["Alfa Exemplo Ltda", "Alfa", "Ana Exemplo", "ana@exemplo.invalid", "48999990000", "123456789", "SC"]);
+    assert.deepEqual(a.contatos.map((x) => x.nome), ["Ana Exemplo", "Bruno Exemplo"]);
+    assert.deepEqual(a.ies, [{ ie: "123456789", uf: "SC" }, { ie: "987654321", uf: "PR" }]);
+    assert.deepEqual(a.departamentos, ["Alvarás", "Contábil", "Fiscal", "Pessoal"]);
+    assert.ok(!a.responsaveis, "S/N de departamento não vira responsável");
+    assert.ok(p.empresas.some((e) => e.chave === "d:00000000000191"), "CNPJ sem máscara mantém os zeros");
+    assert.equal(p.avisos.length, 1);
+    assert.match(p.avisos[0], /"123" inválido/);
+  });
+
+  test("importa, e importar de novo atualiza sem duplicar nem apagar", () => {
+    const { svc } = amb();
+    svc.salvarEmpresa({ nome: "Alfa Antiga", documento: "11111111000111", telefone: "4833330000", segmento: "Comércio" });
+    const pv = svc.previaPlanilha(plano());
+    assert.deepEqual([pv.novas, pv.existentes, pv.comProblema], [2, 1, 1]);
+    const r = svc.aplicarPlanilha(plano());
+    assert.deepEqual([r.novasEmp, r.atualizadas], [2, 1]);
+    let a = svc.empresas().find((c) => c.documento.replace(/\D/g, "") === "11111111000111");
+    assert.deepEqual([a.nome, a.telefone, a.segmento, a.fantasia, a.contatos.length], ["Alfa Exemplo Ltda", "48999990000", "Comércio", "Alfa", 2]);
+    const r2 = svc.aplicarPlanilha(plano());
+    assert.deepEqual([r2.novasEmp, r2.atualizadas, svc.empresas().length], [0, 0, 3]);
+    // editar a empresa no sistema mantém contatos, IEs e departamentos
+    svc.salvarEmpresa(Object.assign({}, a, { obs: "ok" }), a.id);
+    a = svc.empresas().find((c) => c.id === a.id);
+    assert.deepEqual([a.obs, a.ies.length, a.departamentos.length], ["ok", 2, 4]);
+    assert.equal(svc.buscarEmpresas("alfa")[0].id, a.id);
+  });
+
+  test("documentoValido", () => {
+    assert.deepEqual(["111.111.111-11", "11.111.111/0001-11", "123", ""].map(D.documentoValido), [true, true, false, false]);
   });
 });
 
@@ -387,7 +435,7 @@ describe("alvarás: grade e planilha de renovação", () => {
     assert.equal(p.empresas.length, 3, "matriz e filial com o mesmo nome ficam separadas");
     assert.equal(p.alvaras.length, 7);
     const { svc } = amb();
-    assert.deepEqual(svc.previaPlanilha(p), { novas: 3, existentes: 0, semCnpj: 0, alvaras: 7 });
+    assert.deepEqual(svc.previaPlanilha(p), { novas: 3, existentes: 0, semCnpj: 0, alvaras: 7, comProblema: 0 });
     const r = svc.aplicarPlanilha(p);
     assert.deepEqual([r.novasEmp, r.alvNovos], [3, 7]);
     const g = svc.gradeAlvaras();
