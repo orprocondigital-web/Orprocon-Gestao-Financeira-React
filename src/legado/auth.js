@@ -61,6 +61,17 @@
     return a.charAt(0).toUpperCase() + a.slice(1) + "-" + p(N, 4) + "-" + p(L, 4);
   }
 
+  /**
+   * Senha de um acesso novo ou redefinido: a que o administrador escolheu (com as mesmas regras) ou uma provisória gerada.
+   * trocarSenha (padrão true) = a pessoa cria a própria senha no primeiro acesso.
+   */
+  function senhaDoAcesso(opcoes) {
+    opcoes = opcoes || {};
+    var escolhida = String(opcoes.senhaInicial || "");
+    if (escolhida) { var p = problemaSenha(escolhida); if (p) throw erro("senha", p); }
+    return { senha: escolhida || opcoes.senhaProvisoria || senhaProvisoria(), escolhida: !!escolhida, trocar: opcoes.trocarSenha !== false };
+  }
+
   // ---------------------------------------------------------------- hash
 
   function b64(buf) {
@@ -273,12 +284,12 @@
           var perfil = dados.perfil === "admin" ? "admin" : "usuario";
           var areas = (dados.areas || []).filter(function (a) { return IDS_AREAS.indexOf(a) > -1; });
           if (perfil === "usuario" && !areas.length) throw erro("dados", "Marque pelo menos uma área que a pessoa pode acessar.");
-          var provisoria = dados.senhaProvisoria || senhaProvisoria();
-          return gerarHash(provisoria).then(function (h) {
-            var u = { id: novoId(), nome: nome, email: email, perfil: perfil, areas: areas, ativo: true, trocarSenha: true,
+          var s = senhaDoAcesso(dados);
+          return gerarHash(s.senha).then(function (h) {
+            var u = { id: novoId(), nome: nome, email: email, perfil: perfil, areas: areas, ativo: true, trocarSenha: s.trocar,
               senha: h, criadoEm: iso(), atualizadoEm: iso() };
             l.push(u);
-            return gravar(l).then(function () { return { usuario: publico(u), senhaProvisoria: provisoria }; });
+            return gravar(l).then(function () { return { usuario: publico(u), senhaProvisoria: s.senha, trocarSenha: s.trocar }; });
           });
         });
       },
@@ -306,17 +317,17 @@
         });
       },
 
-      /** Nova senha provisória (a pessoa troca no próximo acesso). */
-      redefinirSenha: function (id) {
+      /** Nova senha: escolhida pelo administrador ou provisória; opcoes.trocarSenha (padrão true) = a pessoa troca no próximo acesso. */
+      redefinirSenha: function (id, opcoes) {
         return exigirAdmin().then(function (eu) {
           var l = lista(), u = porId(l, id);
           if (!u) throw erro("nao-encontrado", "Usuário não encontrado.");
           protegerPrincipal(eu, u);
           if (u.teste) throw erro("teste", "A conta de teste não tem senha.");
-          var provisoria = senhaProvisoria();
-          return gerarHash(provisoria).then(function (h) {
-            u.senha = h; u.trocarSenha = true; u.atualizadoEm = iso();
-            return gravar(l).then(function () { return { usuario: publico(u), senhaProvisoria: provisoria }; });
+          var s = senhaDoAcesso(opcoes);
+          return gerarHash(s.senha).then(function (h) {
+            u.senha = h; u.trocarSenha = s.trocar; u.atualizadoEm = iso();
+            return gravar(l).then(function () { return { usuario: publico(u), senhaProvisoria: s.senha, trocarSenha: s.trocar }; });
           });
         });
       },
@@ -405,6 +416,10 @@
         principal: !!u.principal, teste: false };
     }
     function comSenha(r) { return { usuario: doServidor(r.usuario), senhaProvisoria: r.senhaProvisoria }; }
+    /** Resposta do servidor + a senha escolhida (o servidor só devolve a que ele gerou) e se a pessoa troca no primeiro acesso. */
+    function comEscolha(s) {
+      return function (r) { var o = comSenha(r); if (!o.senhaProvisoria && s.escolhida) o.senhaProvisoria = s.senha; o.trocarSenha = s.trocar; return o; };
+    }
     function semArquivo() {
       return Promise.reject(erro("com-servidor", "Com o servidor, os acessos ficam guardados nele: não é preciso arquivo de acessos."));
     }
@@ -474,13 +489,20 @@
         return api.get("/api/usuarios").then(function (l) { return (l || []).map(doServidor); });
       },
       criarUsuario: function (dados) {
-        return api.post("/api/usuarios", { nome: dados.nome, email: dados.email, perfil: dados.perfil, areas: dados.areas || [] }).then(comSenha);
+        var corpo = { nome: dados.nome, email: dados.email, perfil: dados.perfil, areas: dados.areas || [] };
+        try { var s = senhaDoAcesso(dados); } catch (e) { return Promise.reject(e); }
+        if (s.escolhida) corpo.senhaInicial = s.senha;
+        corpo.trocarSenha = s.trocar;
+        return api.post("/api/usuarios", corpo).then(comEscolha(s));
       },
       atualizarUsuario: function (id, dados) {
         return api.put(caminho(id), dados).then(doServidor);
       },
-      redefinirSenha: function (id) {
-        return api.post(caminho(id) + "/redefinir-senha").then(comSenha);
+      redefinirSenha: function (id, opcoes) {
+        try { var s = senhaDoAcesso(opcoes); } catch (e) { return Promise.reject(e); }
+        var corpo = { trocarSenha: s.trocar };
+        if (s.escolhida) corpo.senha = s.senha;
+        return api.post(caminho(id) + "/redefinir-senha", corpo).then(comEscolha(s));
       },
       excluirUsuario: function (id) {
         return api.del(caminho(id)).then(function () {});

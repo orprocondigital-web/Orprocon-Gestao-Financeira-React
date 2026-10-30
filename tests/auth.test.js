@@ -109,6 +109,42 @@ describe("administração", () => {
     await auth.excluirUsuario(b.id);
     assert.deepEqual((await auth.listarUsuarios()).map((u) => u.nome), ["Mauricio"]);
   });
+  test("senha escolhida pelo administrador, com ou sem troca no primeiro acesso", async () => {
+    const { auth } = await comAdmin();
+    await assert.rejects(auth.criarUsuario({ nome: "Davi", email: "davi@orprocon.com.br", perfil: "usuario", areas: ["integracao"], senhaInicial: "curta1" }), /8 caracteres/);
+    const r = await auth.criarUsuario({ nome: "Davi", email: "davi@orprocon.com.br", perfil: "usuario", areas: ["integracao"], senhaInicial: "Escritorio2026", trocarSenha: false });
+    assert.deepEqual([r.senhaProvisoria, r.trocarSenha, r.usuario.trocarSenha], ["Escritorio2026", false, false]);
+    const e = await auth.criarUsuario({ nome: "Eva", email: "eva@orprocon.com.br", perfil: "usuario", areas: ["integracao"], senhaInicial: "Escritorio2026" });
+    assert.equal(e.usuario.trocarSenha, true, "por padrão pede para trocar");
+    const g = await auth.criarUsuario({ nome: "Gil", email: "gil@orprocon.com.br", perfil: "usuario", areas: ["integracao"] });
+    assert.match(g.senhaProvisoria, /^[A-Z][a-z]{3}-\d{4}-[a-z]{4}$/, "sem senha escolhida, gera a provisória");
+    await auth.sair();
+    assert.equal((await auth.entrar("davi@orprocon.com.br", "Escritorio2026")).trocarSenha, false, "entra direto");
+    await auth.sair();
+    await auth.entrar(A.ADMIN_EMAIL, SENHA_ADMIN);
+    await assert.rejects(auth.redefinirSenha(r.usuario.id, { senhaInicial: "semnumero" }), /letras e números/);
+    const n = await auth.redefinirSenha(r.usuario.id, { senhaInicial: "NovaSenha2027" });
+    assert.deepEqual([n.senhaProvisoria, n.trocarSenha], ["NovaSenha2027", true]);
+    await auth.sair();
+    assert.equal((await auth.entrar("davi@orprocon.com.br", "NovaSenha2027")).trocarSenha, true);
+  });
+  test("com o servidor, a senha escolhida e a troca vão para a API", async () => {
+    const chamadas = [];
+    globalThis.fetch = async (url, op) => {
+      chamadas.push({ url, corpo: op.body ? JSON.parse(op.body) : null });
+      return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({ usuario: { id: "u1", nome: "Davi", email: "davi@orprocon.com.br", perfil: "usuario", areas: ["integracao"] } }),
+        text: async () => JSON.stringify({ usuario: { id: "u1", nome: "Davi", email: "davi@orprocon.com.br", perfil: "usuario", areas: ["integracao"] } }) };
+    };
+    const ls = {};
+    const sessao = { getItem: (k) => (k in ls ? ls[k] : null), setItem: (k, v) => { ls[k] = String(v); }, removeItem: (k) => { delete ls[k]; } };
+    const api = A.criarAuthApi("https://api.exemplo.invalid", sessao, {});
+    const r = await api.criarUsuario({ nome: "Davi", email: "davi@orprocon.com.br", perfil: "usuario", areas: ["integracao"], senhaInicial: "Escritorio2026", trocarSenha: false });
+    assert.deepEqual([chamadas[0].corpo.senhaInicial, chamadas[0].corpo.trocarSenha, r.senhaProvisoria, r.trocarSenha], ["Escritorio2026", false, "Escritorio2026", false]);
+    await api.redefinirSenha("u1", {});
+    assert.deepEqual(chamadas[1].corpo, { trocarSenha: true }, "sem senha escolhida, o servidor gera");
+    await assert.rejects(api.criarUsuario({ nome: "X", email: "x@orprocon.com.br", senhaInicial: "curta1" }), /8 caracteres/);
+    delete globalThis.fetch;
+  });
   test("acessos vão para outro computador pelo arquivo (sem senha em texto)", async () => {
     const { auth } = await comAdmin();
     const { senhaProvisoria } = await auth.criarUsuario({ nome: "Carla", email: "carla@orprocon.com.br", perfil: "usuario", areas: ["integracao"] });
