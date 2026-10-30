@@ -359,6 +359,64 @@ export function planilhaEmpresas(clientes) {
   });
   return linhas;
 }
+// ---------------------------------------------------------------- limites de faturamento (MEI e Simples Nacional)
+
+/**
+ * Limites de receita bruta no ano (LC 123/2006). Ano de início de atividade: proporcional aos meses (mensal × meses).
+ * Valores de 2026: se a lei mudar, é só trocar aqui.
+ */
+export const LIMITES = {
+  MEI: { nome: "MEI", anual: 81000, mensal: 6750 },
+  SIMPLES: { nome: "Simples Nacional", anual: 4800000, mensal: 400000 },
+  SUBLIMITE: { nome: "sublimite de ICMS e ISS", anual: 3600000, mensal: 300000 }
+};
+const CONSEQUENCIA = {
+  MEI: { ate20: "Passou até 20%: deixa de ser MEI a partir de janeiro do ano seguinte e paga DAS complementar sobre o excesso.",
+    mais20: "Passou mais de 20%: o desenquadramento do MEI volta ao início do ano (ou da atividade), com tributação pelo Simples desde então." },
+  SIMPLES: { ate20: "Passou até 20%: sai do Simples a partir de janeiro do ano seguinte.",
+    mais20: "Passou mais de 20%: sai do Simples já a partir do mês seguinte ao excesso." },
+  SUBLIMITE: { ate20: "Passou o sublimite em até 20%: ICMS e ISS passam a ser pagos fora do DAS a partir do ano seguinte.",
+    mais20: "Passou o sublimite em mais de 20%: ICMS e ISS saem do DAS já a partir do mês seguinte." }
+};
+
+/**
+ * Situação de uma empresa diante do limite do ano. totalAno: receita do ano (matriz + filiais); meses: { "01": valor, … }.
+ * inicioAtividade (AAAA-MM-DD) no mesmo ano = limite proporcional. hoje (AAAA-MM-DD) projeta o ano pela média.
+ * Devolve { tipo, limite, total, pct, nivel: ok|atencao|acima|excesso20, projecao, mesEstouro, texto, consequencia } ou null.
+ */
+export function situacaoLimite(tipo, totalAno, ano, opcoes = {}) {
+  const L = LIMITES[tipo];
+  if (!L) return null;
+  const ini = txt(opcoes.inicioAtividade);
+  const abriuNoAno = ini.slice(0, 4) === String(ano);
+  const mesesAtivos = abriuNoAno ? 13 - Number(ini.slice(5, 7)) : 12;
+  const limite = abriuNoAno ? L.mensal * mesesAtivos : L.anual;
+  const total = Math.round((totalAno || 0) * 100) / 100;
+  const pct = limite ? total / limite : 0;
+  // projeção: média dos meses já lançados × meses ativos do ano (só no ano corrente)
+  let projecao = null, mesEstouro = "";
+  const hoje = txt(opcoes.hoje);
+  const meses = opcoes.meses || {};
+  const lancados = Object.keys(meses).filter((m) => isFinite(meses[m]));
+  if (hoje.slice(0, 4) === String(ano) && lancados.length) {
+    const media = total / lancados.length;
+    projecao = Math.round(media * mesesAtivos * 100) / 100;
+    if (pct < 1 && projecao > limite) {
+      const falta = limite - total, mesesAte = Math.ceil(falta / media);
+      const ultimo = Math.max(...lancados.map(Number));
+      const m = ultimo + mesesAte;
+      if (m <= 12) mesEstouro = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"][m - 1];
+    }
+  }
+  const nivel = pct > 1.2 ? "excesso20" : pct > 1 ? "acima" : pct >= 0.8 || (projecao !== null && projecao > limite) ? "atencao" : "ok";
+  const pctTxt = Math.round(pct * 100) + "%";
+  const texto = nivel === "ok" ? pctTxt + " do limite " + (abriuNoAno ? "proporcional " : "") + "do " + L.nome
+    : nivel === "atencao" ? pctTxt + " do limite do " + L.nome + (mesEstouro ? "; no ritmo atual, passa em " + mesEstouro : projecao > limite ? "; no ritmo atual, passa até dezembro" : "")
+    : "Passou o limite do " + L.nome + " (" + pctTxt + ")";
+  const consequencia = nivel === "acima" ? CONSEQUENCIA[tipo].ate20 : nivel === "excesso20" ? CONSEQUENCIA[tipo].mais20 : "";
+  return { tipo, nome: L.nome, limite, total, pct, nivel, projecao, mesEstouro, proporcional: abriuNoAno, texto, consequencia };
+}
+
 /** CNPJ/CPF/CAEPF tem 11 ou 14 dígitos. */
 export function documentoValido(doc) { const n = txt(doc).replace(/\D/g, "").length; return n === 11 || n === 14; }
 const simNao = (v) => /^(s|n|sim|nao|não|x)?$/i.test(txt(v));
@@ -831,6 +889,39 @@ export function criarDepCadastro(deps) {
     return t;
   }
 
+  /**
+   * Empresas do MEI e do Simples diante do limite do ano: matriz e filiais somadas (o limite é da empresa, pelo CNPJ raiz).
+   * Devolve [{ empresa, filiais, meses, situacoes: [situacaoLimite…], pior }] do maior percentual para o menor.
+   */
+  function limitesDoAno(ano, dia) {
+    const diaRef = dia || hoje();
+    const lista = empresas().filter((c) => !c.baixa);
+    const grupos = {};
+    lista.forEach((c) => {
+      const raiz = raizCnpj(c.documento);
+      const k = raiz ? "r" + raiz : "i" + c.id;
+      (grupos[k] = grupos[k] || []).push(c);
+    });
+    const ordem = { excesso20: 3, acima: 2, atencao: 1, ok: 0 };
+    const res = [];
+    Object.keys(grupos).forEach((k) => {
+      const g = grupos[k];
+      const matriz = g.find((c) => !c.filial) || g[0];
+      const tipo = matriz.regime === "MEI" ? "MEI" : matriz.regime === "Simples Nacional" ? "SIMPLES" : "";
+      if (!tipo) return;
+      const meses = {};
+      g.forEach((c) => { const e = faturamentos(String(ano))[c.id] || {}; Object.keys(e).forEach((m) => { meses[m] = (meses[m] || 0) + e[m]; }); });
+      const total = Object.keys(meses).reduce((t, m) => t + meses[m], 0);
+      if (!total) return;
+      const op = { inicioAtividade: matriz.inicioAtividade, hoje: diaRef, meses };
+      const situacoes = [situacaoLimite(tipo, total, ano, op)];
+      if (tipo === "SIMPLES") situacoes.push(situacaoLimite("SUBLIMITE", total, ano, op));
+      const pior = situacoes.slice().sort((a, b) => ordem[b.nivel] - ordem[a.nivel] || b.pct - a.pct)[0];
+      res.push({ empresa: matriz, filiais: g.filter((c) => c !== matriz), meses, total, situacoes, pior });
+    });
+    return res.sort((a, b) => ordem[b.pior.nivel] - ordem[a.pior.nivel] || b.pior.pct - a.pior.pct);
+  }
+
   // ------------------------------------------------------------ demonstrativos (por empresa e ano)
   function demonstrativos(ano) { return dados().demonstrativos[ano] || {}; }
   function definirDemonstrativo(ano, empresaId, tipo, status) {
@@ -1064,6 +1155,6 @@ export function criarDepCadastro(deps) {
   return {
     aplicarPlanilha, previaPlanilha, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
     hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, gradeAlvaras, buscarEmpresas, fichaEmpresa, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
-    faturamentos, definirFaturamento, totalAno, ultimos12, demonstrativos, definirDemonstrativo, progressoDemonstrativos
+    faturamentos, definirFaturamento, totalAno, ultimos12, limitesDoAno, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };
 }

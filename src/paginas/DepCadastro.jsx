@@ -375,6 +375,8 @@ function Ficha({ id, aoVoltar }) {
   const c = f.empresa;
   const setores = emDia.setores();
   const maxFat = Math.max(1, ...f.faturamento.meses.map((x) => x.valor || 0));
+  const anoAtual = Number(svc.hoje().slice(0, 4));
+  const limite = svc.limitesDoAno(anoAtual).find((x) => x.empresa.id === c.id || x.filiais.some((y) => y.id === c.id));
   /** Atualiza a situação, o CNAE e o endereço pela Receita; o resto só é preenchido se estiver vazio. Sócios não mudam. */
   const atualizarReceita = async () => {
     setReceita({ ocupado: true, texto: "Consultando a Receita…" });
@@ -482,6 +484,10 @@ function Ficha({ id, aoVoltar }) {
             </div>
             <p className="text-[13px] mt-2">Total em 12 meses: <strong className="tabular-nums">R$ {Core.formatBR(f.faturamento.total)}</strong> <span className="text-muted">({f.faturamento.comValor} de 12 meses lançados)</span></p>
           </>)}
+          {limite && <div className="mt-3 pt-3 border-t border-line space-y-2">
+            <p className="text-[12.5px] text-muted">Limite de {anoAtual}{limite.filiais.length || limite.empresa.id !== c.id ? " (matriz e filiais somadas)" : ""}</p>
+            {limite.situacoes.map((s) => <BarraLimite key={s.tipo} s={s} />)}
+          </div>}
           <p className="text-[13px] mt-3 pt-3 border-t border-line"><span className="text-muted">Demonstrativos de {f.demonstrativos.exercicio}: </span>
             {f.demonstrativos.itens.map((x, i) => <span key={x.tipo}>{i ? " · " : ""}{x.tipo}: <strong className={x.status === "entregue" ? "text-credit" : x.status ? "" : "text-warn"}>{NOME_DEMO[x.status] || "pendente"}</strong></span>)}</p>
         </Bloco>
@@ -646,6 +652,7 @@ function Faturamentos() {
         <div className="flex-1" />
         <Link to="/departamento-cadastro/empresas" className="btn-contorno btn-sm">Empresas</Link>
       </div>
+      {lista.length > 0 && <LimitesDoAno ano={ano} />}
       <div className="cartao overflow-hidden">
         {!lista.length ? <Vazio titulo="Nenhuma empresa cadastrada" texto="Cadastre as empresas (em Empresas), importe uma planilha de faturamento ou carregue a demonstração." /> : (
           <div className="overflow-x-auto relative">
@@ -678,6 +685,54 @@ function Faturamentos() {
         )}
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- limites do MEI e do Simples
+const COR_LIMITE = { ok: "bg-credit", atencao: "bg-warn", acima: "bg-debit", excesso20: "bg-debit" };
+const TXT_LIMITE = { ok: "text-ink-2", atencao: "text-warn", acima: "text-debit", excesso20: "text-debit" };
+
+/** Uma barra por limite (MEI, Simples, sublimite): o quanto do limite do ano já foi usado. */
+function BarraLimite({ s }) {
+  const larg = Math.min(100, Math.round(s.pct / 1.2 * 100));
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap justify-between gap-x-3 text-[12.5px]">
+        <span className={"font-semibold " + TXT_LIMITE[s.nivel]}>{s.texto}</span>
+        <span className="text-muted tabular-nums">R$ {Core.formatBR(s.total)} de R$ {Core.formatBR(s.limite)}{s.proporcional ? " (proporcional)" : ""}</span>
+      </div>
+      <div className="relative h-2 rounded-full bg-surface-2 border border-line overflow-hidden" role="img" aria-label={s.texto}>
+        <div className={"h-full " + COR_LIMITE[s.nivel]} style={{ width: larg + "%" }} />
+        <div className="absolute top-0 bottom-0 w-px bg-ink-2" style={{ left: (100 / 1.2) + "%" }} title="100% do limite" />
+      </div>
+      {s.consequencia && <p className="text-[12.5px] text-ink-2">{s.consequencia}</p>}
+    </div>
+  );
+}
+
+function LimitesDoAno({ ano }) {
+  const [svc, versao] = useDepCadastro();
+  const lista = useMemo(() => svc.limitesDoAno(Number(ano)), [svc, ano, versao]);   // eslint-disable-line
+  const alertas = lista.filter((x) => x.pior.nivel !== "ok");
+  return (
+    <section className="cartao p-4 sm:p-5 space-y-3" aria-labelledby="t-limites">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 id="t-limites" className="text-[16px] font-semibold">Limites do MEI e do Simples · {ano}</h2>
+        <span className="text-[13px] text-muted">{numero(lista.length)} empresa(s) conferida(s) · matriz e filiais somadas · aviso a partir de 80% ou quando o ritmo do ano passa do limite</span>
+      </div>
+      {!lista.length ? <p className="text-[13px] text-muted">Nenhuma empresa do MEI ou do Simples com faturamento lançado em {ano}. O regime vem do cadastro da empresa.</p>
+        : !alertas.length ? <p className="text-[13px] text-credit font-semibold">Nenhuma empresa perto do limite.</p>
+        : <ul className="divide-y divide-line">{alertas.map((x) => (
+          <li key={x.empresa.id} className="py-3 grid md:grid-cols-[minmax(0,240px)_1fr] gap-x-6 gap-y-2">
+            <div>
+              <Link className="font-semibold text-brand hover:underline" to={"/departamento-cadastro/buscar?empresa=" + x.empresa.id}>{x.empresa.nome}</Link>
+              <span className="block text-[12.5px] text-muted">{x.empresa.regime}{x.filiais.length ? " · com " + x.filiais.length + " filial(is)" : ""}</span>
+            </div>
+            <div className="space-y-3">{x.situacoes.filter((s) => s.nivel !== "ok").map((s) => <BarraLimite key={s.tipo} s={s} />)}</div>
+          </li>
+        ))}</ul>}
+      <p className="text-[12px] text-muted">Limites de 2026: MEI R$ 81 mil, Simples R$ 4,8 milhões, sublimite de ICMS e ISS R$ 3,6 milhões; no ano de abertura, proporcional aos meses (data de início da atividade, vinda da Receita). Confira com a legislação se ela mudar.</p>
+    </section>
   );
 }
 
