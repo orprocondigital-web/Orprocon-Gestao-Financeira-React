@@ -577,6 +577,8 @@ export function criarDepCadastro(deps) {
     if (dadosEmp.fantasia !== undefined) campos.fantasia = txt(dadosEmp.fantasia);
     if (dadosEmp.ie !== undefined) campos.ie = txt(dadosEmp.ie);
     if (dadosEmp.ieUf !== undefined) campos.ieUf = txt(dadosEmp.ieUf).toUpperCase().slice(0, 2);
+    // dados da consulta à Receita (CNAE, endereço, situação): só entram quando vêm no formulário
+    ["cnae", "endereco", "cep", "situacaoReceita", "dataSituacao", "inicioAtividade", "consultaReceita"].forEach((c) => { if (dadosEmp[c] !== undefined) campos[c] = txt(dadosEmp[c]); });
     if (campos.regime && !REGIMES.includes(campos.regime)) throw new Error("Regime inválido.");
     if (campos.tipoLucroReal && !TIPOS_LUCRO_REAL.includes(campos.tipoLucroReal)) throw new Error("Tipo do Lucro Real inválido.");
     if (campos.baixa && !iso(campos.baixa)) throw new Error("Data de baixa inválida.");

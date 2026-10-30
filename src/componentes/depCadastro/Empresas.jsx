@@ -9,6 +9,10 @@ import Janela from "../Janela.jsx";
 import Icone from "../Icone.jsx";
 import { Campo, Selo, TextoRapido, numero } from "../contabil/ui.jsx";
 import { carregarDemo } from "./Importar.jsx";
+import { cnpjValido, completarComReceita, consultarCnpj, situacaoPedeAtencao } from "../../lib/receita.mjs";
+
+const NOME_CAMPO = { nome: "razão social", fantasia: "nome fantasia", documento: "CNPJ", cidade: "cidade", uf: "UF", telefone: "telefone", email: "e-mail",
+  regime: "regime", cnae: "CNAE", endereco: "endereço", cep: "CEP" };
 
 /*
  * Cadastro geral de empresas: o mesmo cadastro que Certidões, Faturamentos, Demonstrativos e o Em Dia
@@ -34,6 +38,29 @@ export function FormEmpresa({ editando, aoFechar }) {
   const [desde, setDesde] = useState(emDia.mesPadrao());
   const [erro, setErro] = useState("");
   const muda = (c) => (e) => setF((x) => Object.assign({}, x, { [c]: e.target.value }));
+  const [receita, setReceita] = useState({ ocupado: false, texto: "", tipo: "info" });
+  /** Busca o CNPJ na Receita e preenche só o que está vazio (o que a equipe digitou fica). */
+  const buscarReceita = async () => {
+    setReceita({ ocupado: true, texto: "Consultando a Receita…", tipo: "info" });
+    try {
+      const r = await consultarCnpj(f.documento);
+      const { dados, preenchidos } = completarComReceita(f, r);
+      dados.consultaReceita = svc.hoje();
+      setF(dados);
+      let sociosNovos = 0;
+      if (!socios.length && r.socios.length && !(editando && editando.sociosDaMatriz)) {
+        setSocios(r.socios.map((x) => ({ nome: x.nome, cpf: "", percentual: "", entrada: /^\d{4}-\d{2}-\d{2}$/.test(x.entrada) ? x.entrada : "", saida: "" })));
+        sociosNovos = r.socios.length;
+      }
+      const partes = [];
+      if (preenchidos.length) partes.push("Preenchido: " + preenchidos.map((c) => NOME_CAMPO[c]).join(", ") + ".");
+      if (sociosNovos) partes.push(sociosNovos + " sócio(s) da Receita: falta o % de cada um.");
+      if (!preenchidos.length && !sociosNovos) partes.push("Os campos já estavam preenchidos; nada foi trocado.");
+      const alerta = situacaoPedeAtencao(r.situacaoReceita);
+      setReceita({ ocupado: false, tipo: alerta ? "aviso" : "ok",
+        texto: "Situação na Receita: " + (r.situacaoReceita || "não informada") + (alerta ? " (confira antes de cadastrar)" : "") + ". " + partes.join(" ") });
+    } catch (e) { setReceita({ ocupado: false, texto: e.message, tipo: "aviso" }); }
+  };
   const mudaSocio = (i, c, v) => setSocios((l) => l.map((x, k) => (k === i ? Object.assign({}, x, { [c]: v }) : x)));
   const soma = socios.reduce((t, x) => t + (parseFloat(String(x.percentual || 0).replace(",", ".")) || 0), 0);
   const trocou = setores.some((s) => editando && (resp[s.id] || {})[editando.id] && (r[s.id] || "") !== ((resp[s.id] || {})[editando.id] || ""));
@@ -57,7 +84,13 @@ export function FormEmpresa({ editando, aoFechar }) {
         <Campo rotulo="Código" id="emp-cod" className="sm:col-span-2"><input id="emp-cod" value={f.codigo} onChange={muda("codigo")} autoComplete="off" /></Campo>
         <Campo rotulo="Nome fantasia" id="emp-fan" className="sm:col-span-6"><input id="emp-fan" value={f.fantasia} onChange={muda("fantasia")} autoComplete="off" /></Campo>
         <Campo rotulo="CNPJ/CPF" id="emp-doc" className="sm:col-span-3" dica="0001 no CNPJ = matriz; os outros números são filiais.">
-          <input id="emp-doc" value={f.documento} onChange={muda("documento")} autoComplete="off" inputMode="numeric" /></Campo>
+          <div className="flex gap-2">
+            <input id="emp-doc" value={f.documento} onChange={muda("documento")} autoComplete="off" inputMode="numeric" />
+            <button type="button" className="btn-contorno btn-sm shrink-0 h-10" onClick={buscarReceita} disabled={receita.ocupado || !cnpjValido(f.documento)}
+              title={cnpjValido(f.documento) ? "Preenche com os dados públicos da Receita Federal" : "Digite um CNPJ válido (14 números)"}>Buscar na Receita</button>
+          </div></Campo>
+        {receita.texto && <p role="status" className={"sm:col-span-6 text-[12.5px] rounded-md px-3 py-2 " + (receita.tipo === "aviso" ? "bg-warn-soft text-warn" : receita.tipo === "ok" ? "bg-ok-soft text-credit" : "bg-surface-2 text-muted")}>{receita.texto}</p>}
+        {(f.cnae || f.endereco) && <p className="sm:col-span-6 text-[12.5px] text-muted -mt-1">{f.cnae && <span className="block">CNAE: {f.cnae}</span>}{f.endereco && <span className="block">Endereço: {f.endereco}{f.cep ? " · CEP " + f.cep.replace(/^(\d{5})(\d{3})$/, "$1-$2") : ""}</span>}</p>}
         <Campo rotulo="Segmento" id="emp-seg" className="sm:col-span-3"><input id="emp-seg" value={f.segmento} onChange={muda("segmento")} placeholder="Comércio, serviços, indústria…" autoComplete="off" /></Campo>
         <Campo rotulo="Inscrição estadual" id="emp-ie" className="sm:col-span-2"><input id="emp-ie" value={f.ie} onChange={muda("ie")} autoComplete="off" /></Campo>
         <Campo rotulo="UF da IE" id="emp-ieuf" className="sm:col-span-1"><input id="emp-ieuf" value={f.ieUf} onChange={muda("ieUf")} maxLength={2} autoComplete="off" /></Campo>

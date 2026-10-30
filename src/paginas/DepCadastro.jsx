@@ -9,6 +9,7 @@ import Importar, { carregarDemo } from "../componentes/depCadastro/Importar.jsx"
 import Empresas, { FormEmpresa } from "../componentes/depCadastro/Empresas.jsx";
 import Mensagem from "../componentes/depCadastro/Mensagem.jsx";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
+import { cnpjValido, completarComReceita, consultarCnpj, situacaoPedeAtencao } from "../lib/receita.mjs";
 import { useEmDia } from "../lib/useEmDia.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import Janela from "../componentes/Janela.jsx";
@@ -368,10 +369,26 @@ function Ficha({ id, aoVoltar }) {
   const [form, setForm] = useState(null);
   const [renovando, setRenovando] = useState(null);
   const [mensagem, setMensagem] = useState(null);
+  const [receita, setReceita] = useState({ ocupado: false, texto: "" });
+  const { aviso } = useAvisos();
   if (!f) return <div className="cartao p-8 text-center"><strong>Empresa não encontrada.</strong> <button type="button" className="btn-fantasma btn-sm" onClick={aoVoltar}>Voltar à busca</button></div>;
   const c = f.empresa;
   const setores = emDia.setores();
   const maxFat = Math.max(1, ...f.faturamento.meses.map((x) => x.valor || 0));
+  /** Atualiza a situação, o CNAE e o endereço pela Receita; o resto só é preenchido se estiver vazio. Sócios não mudam. */
+  const atualizarReceita = async () => {
+    setReceita({ ocupado: true, texto: "Consultando a Receita…" });
+    try {
+      const r = await consultarCnpj(c.documento);
+      const { dados, preenchidos } = completarComReceita(c, r);
+      ["cnae", "endereco", "cep"].forEach((k) => { if (r[k]) dados[k] = r[k]; });
+      dados.consultaReceita = svc.hoje();
+      delete dados.socios;
+      svc.salvarEmpresa(dados, c.id);
+      setReceita({ ocupado: false, texto: "" });
+      aviso("Receita: " + (r.situacaoReceita || "situação não informada") + (preenchidos.length ? ". Também preenchido o que estava vazio." : "."));
+    } catch (e) { setReceita({ ocupado: false, texto: e.message }); }
+  };
   const docLinha = (d) => (
     <li key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
       <span className="flex-1 min-w-[150px] text-[13.5px]">{nomeDoTipo(d)}{d.observacoes && <span className="block text-[12px] text-muted truncate" title={d.observacoes}>{d.observacoes}</span>}</span>
@@ -391,6 +408,7 @@ function Ficha({ id, aoVoltar }) {
           <p className="text-[13.5px] text-ink-2 tabular-nums mt-0.5">{[c.documento || "sem CNPJ/CPF", c.codigo && "cód. " + c.codigo, c.regime, [c.cidade, c.uf].filter(Boolean).join("/")].filter(Boolean).join(" · ")}</p>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {c.baixa && <Selo tipo="erro">Baixada em {dataBR(c.baixa)}</Selo>}
+            {situacaoPedeAtencao(c.situacaoReceita) && <Selo tipo="erro">Receita: {c.situacaoReceita}</Selo>}
             {f.matriz && <Link to={"/departamento-cadastro/buscar?empresa=" + f.matriz.id}><Selo tipo="neutro">Filial de {f.matriz.nome} →</Selo></Link>}
             {c.filial && !f.matriz && <Selo tipo="neutro">Filial (matriz não cadastrada)</Selo>}
             {f.filiais.length > 0 && <Selo tipo="novo">Matriz · {f.filiais.length} filial(is)</Selo>}
@@ -420,8 +438,13 @@ function Ficha({ id, aoVoltar }) {
             : <ul className="divide-y divide-line -my-1.5">{f.certificados.concat(f.certidoes).map(docLinha)}</ul>}
         </Bloco>
 
-        <Bloco titulo="Dados e contato">
+        <Bloco titulo="Dados e contato" acao={<button type="button" className="btn-fantasma btn-sm" onClick={atualizarReceita} disabled={receita.ocupado || !cnpjValido(c.documento)}
+          title={cnpjValido(c.documento) ? "Situação, CNAE e endereço pelos dados públicos da Receita" : "Precisa de um CNPJ válido"}>Atualizar pela Receita</button>}>
+          {receita.texto && <p role="status" className="text-[12.5px] text-warn mb-2">{receita.texto}</p>}
+          <Linha rotulo="Receita">{c.situacaoReceita ? <span className={situacaoPedeAtencao(c.situacaoReceita) ? "text-debit font-semibold" : ""}>{c.situacaoReceita}{c.consultaReceita ? <span className="text-muted font-normal"> · consultado em {dataBR(c.consultaReceita)}</span> : null}</span> : null}</Linha>
           <Linha rotulo="Nome fantasia">{c.fantasia}</Linha>
+          <Linha rotulo="CNAE">{c.cnae}</Linha>
+          <Linha rotulo="Endereço">{c.endereco ? c.endereco + (c.cep ? " · CEP " + c.cep.replace(/^(\d{5})(\d{3})$/, "$1-$2") : "") : ""}</Linha>
           <Linha rotulo="Insc. estadual">{(c.ies && c.ies.length ? c.ies : c.ie ? [{ ie: c.ie, uf: c.ieUf }] : []).map((x) => x.ie + (x.uf ? " (" + x.uf + ")" : "")).join(", ")}</Linha>
           <Linha rotulo="Segmento">{c.segmento}</Linha>
           <Linha rotulo="Contato">{c.contato}</Linha>
