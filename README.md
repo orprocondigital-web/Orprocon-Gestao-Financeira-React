@@ -6,7 +6,7 @@
 [![PWA](https://img.shields.io/badge/PWA-instal%C3%A1vel_e_offline-5A0FC8?logo=pwa&logoColor=white)](#-app-instalável-pwa)
 [![Testes](https://img.shields.io/badge/testes-360%2B_(node%3Atest)-339933?logo=nodedotjs&logoColor=white)](#-testes-e-qualidade)
 [![Publicar](https://github.com/orprocondigital-web/Orprocon-Gestao-Financeira-React/actions/workflows/publicar.yml/badge.svg)](https://github.com/orprocondigital-web/Orprocon-Gestao-Financeira-React/actions/workflows/publicar.yml)
-[![Versão](https://img.shields.io/badge/vers%C3%A3o-1.0.0--alpha.26-F5A524)](#-versões)
+[![Versão](https://img.shields.io/badge/vers%C3%A3o-1.0.0--alpha.27-F5A524)](#-versões)
 
 **Sistema web em produção que reúne as rotinas de um escritório de contabilidade: integração contábil com o ERP, conciliação bancária, tributos (ICMS, ISS, IBS/CBS), vencimentos de certidões, alvarás e certificados, encerramento do exercício e acompanhamento das entregas por setor.**
 
