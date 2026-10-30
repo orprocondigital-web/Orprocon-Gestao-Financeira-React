@@ -22,27 +22,70 @@ function Selo({ tipo, children, title }) {
 }
 function linkDoSistema() { return location.origin + location.pathname.replace(/index\.html$/, ""); }
 
-function mensagemAcesso(u, senha, servidor) {
+function mensagemAcesso(u, senha, servidor, trocar) {
   return "Olá, " + u.nome.split(" ")[0] + "! Segue o seu acesso à Central Orprocon:\n\n" +
-    "Link: " + linkDoSistema() + "\n" + "E-mail: " + u.email + "\n" + "Senha provisória: " + senha + "\n\n" +
-    "No primeiro acesso o sistema pede para você criar a sua própria senha." +
+    "Link: " + linkDoSistema() + "\n" + "E-mail: " + u.email + "\n" + (trocar ? "Senha provisória: " : "Senha: ") + senha + "\n\n" +
+    (trocar ? "No primeiro acesso o sistema pede para você criar a sua própria senha." : "Guarde a senha com você; se esquecer, é só me pedir uma nova.") +
     (servidor ? "" : "\nNesta fase de testes, na primeira vez neste computador, escolha \"Importar o arquivo de acessos\" e use o arquivo que vou te enviar junto.");
+}
+
+/** Senha do acesso: vazia = o sistema gera uma provisória; "trocar" = a pessoa cria a dela no primeiro acesso. */
+function CamposSenha({ senha, setSenha, trocar, setTrocar, rotulo = "Senha inicial" }) {
+  const [ver, setVer] = useState(false);
+  return (
+    <div className="space-y-2 rounded-lg border border-line p-3">
+      <div className="space-y-1.5">
+        <label className="rotulo" htmlFor="usr-senha">{rotulo} <span className="font-normal text-muted">(opcional)</span></label>
+        <div className="flex gap-2">
+          <input id="usr-senha" type={ver ? "text" : "password"} value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password"
+            placeholder="Vazio = o sistema gera uma senha provisória" />
+          <button type="button" className="btn-fantasma btn-sm shrink-0" onClick={() => setVer(!ver)}>{ver ? "Ocultar" : "Mostrar"}</button>
+        </div>
+        <p className="text-[12.5px] text-muted">Se escolher, use 8 ou mais caracteres, com letras e números.</p>
+      </div>
+      <label className="flex items-start gap-2 text-[14px]">
+        <input type="checkbox" className="mt-1" checked={trocar} onChange={(e) => setTrocar(e.target.checked)} />
+        <span>Pedir para trocar no primeiro acesso
+          <span className="block text-[12.5px] text-muted">{trocar ? "Recomendado: só a pessoa sabe a senha dela, e o \"quem fez\" do sistema vale."
+            : "A pessoa entra direto com esta senha. Use só em casos especiais (ex.: computador compartilhado)."}</span></span>
+      </label>
+    </div>
+  );
+}
+
+function JanelaNovaSenha({ alvo, aoGerar, aoFechar }) {
+  const [senha, setSenha] = useState(""), [trocar, setTrocar] = useState(true), [erro, setErro] = useState(""), [ocupado, setOcupado] = useState(false);
+  useEffect(() => { if (alvo) { setSenha(""); setTrocar(true); setErro(""); setOcupado(false); } }, [alvo]);
+  if (!alvo) return null;
+  const gerar = () => { setErro(""); setOcupado(true); aoGerar(alvo, { senhaInicial: senha, trocarSenha: trocar }).catch((e) => { setErro(e.message); setOcupado(false); }); };
+  return (
+    <Janela aberta titulo={"Nova senha para " + alvo.nome} aoFechar={aoFechar} largura="max-w-[520px]"
+      rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button>
+        <button type="button" className="btn-primario" disabled={ocupado} onClick={gerar}>Gerar nova senha</button></>}>
+      <p className="text-[13.5px] text-muted">A senha atual de {alvo.nome.split(" ")[0]} deixa de funcionar.</p>
+      <CamposSenha rotulo="Nova senha" senha={senha} setSenha={setSenha} trocar={trocar} setTrocar={setTrocar} />
+      {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
+    </Janela>
+  );
 }
 
 function FormUsuario({ editando, aoSalvar, aoFechar, aberta }) {
   const [nome, setNome] = useState(""), [email, setEmail] = useState(""), [perfil, setPerfil] = useState("usuario");
   const [areas, setAreas] = useState([]), [ativo, setAtivo] = useState(true), [erro, setErro] = useState(""), [ocupado, setOcupado] = useState(false);
+  const [senha, setSenha] = useState(""), [trocar, setTrocar] = useState(true);
   useEffect(() => {
     if (!aberta) return;
     const u = editando;
     setNome(u ? u.nome : ""); setEmail(u ? u.email : ""); setPerfil(u ? u.perfil : "usuario");
     setAreas(u ? (u.perfil === "admin" ? AuthCore.AREAS.map((a) => a.id) : u.areas.slice()) : []);
-    setAtivo(u ? u.ativo : true); setErro(""); setOcupado(false);
+    setAtivo(u ? u.ativo : true); setErro(""); setOcupado(false); setSenha(""); setTrocar(true);
   }, [aberta, editando]);
   const alternar = (id) => setAreas((l) => (l.indexOf(id) > -1 ? l.filter((x) => x !== id) : l.concat(id)));
   const salvar = () => {
     setErro(""); setOcupado(true);
-    aoSalvar({ nome, email, perfil, areas: perfil === "admin" ? [] : areas, ativo })
+    const dados = { nome, email, perfil, areas: perfil === "admin" ? [] : areas, ativo };
+    if (!editando) Object.assign(dados, { senhaInicial: senha, trocarSenha: trocar });
+    aoSalvar(dados)
       .catch((e) => setErro(e.message)).finally(() => setOcupado(false));
   };
   const principal = editando && editando.email === AuthCore.ADMIN_EMAIL;
@@ -82,6 +125,7 @@ function FormUsuario({ editando, aoSalvar, aoFechar, aberta }) {
           })}
         </div>
       </fieldset>
+      {!editando && <CamposSenha senha={senha} setSenha={setSenha} trocar={trocar} setTrocar={setTrocar} />}
       {editando && <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} /> Acesso ativo</label>}
       {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
     </Janela>
@@ -91,7 +135,8 @@ function FormUsuario({ editando, aoSalvar, aoFechar, aberta }) {
 function JanelaAcesso({ dados, aoFechar, servidor }) {
   const { aviso } = useAvisos();
   if (!dados) return null;
-  const texto = mensagemAcesso(dados.usuario, dados.senha, servidor);
+  const trocar = dados.trocar !== false;
+  const texto = mensagemAcesso(dados.usuario, dados.senha, servidor, trocar);
   const copiar = () => navigator.clipboard.writeText(texto).then(() => aviso("Mensagem copiada."));
   return (
     <Janela aberta titulo={dados.titulo} aoFechar={aoFechar} soPeloBotao largura="max-w-[560px]"
@@ -102,7 +147,8 @@ function JanelaAcesso({ dados, aoFechar, servidor }) {
         <a className="btn-contorno" target="_blank" rel="noopener noreferrer" href={"https://wa.me/?text=" + encodeURIComponent(texto)}>WhatsApp</a>
         <button type="button" className="btn-primario" onClick={copiar}>Copiar mensagem</button>
       </>}>
-      <p className="text-[13px] text-muted">A senha provisória aparece só agora. Envie a mensagem para a pessoa; no primeiro acesso ela cria a senha dela.</p>
+      <p className="text-[13px] text-muted">{trocar ? "A senha provisória aparece só agora. Envie a mensagem para a pessoa; no primeiro acesso ela cria a senha dela."
+        : "A senha aparece só agora. Envie a mensagem para a pessoa; ela entra direto com esta senha."}</p>
       <textarea readOnly rows={10} value={texto} className="font-mono text-[13px] leading-relaxed" onFocus={(e) => e.target.select()} />
     </Janela>
   );
@@ -132,15 +178,15 @@ export default function Usuarios() {
     }
     return auth.criarUsuario(dados).then((r) => {
       setForm({ aberta: false, editando: null });
-      setAcesso({ usuario: r.usuario, senha: r.senhaProvisoria, titulo: "Acesso criado" });
+      setAcesso({ usuario: r.usuario, senha: r.senhaProvisoria, trocar: r.trocarSenha, titulo: "Acesso criado" });
     }).then(carregar);
   };
-  const novaSenha = async (u) => {
-    if (!(await confirmar({ titulo: "Nova senha provisória?", botao: "Gerar nova senha",
-      texto: "A senha atual de " + u.nome + " deixa de funcionar, e a pessoa cria uma nova no próximo acesso." }))) return;
-    auth.redefinirSenha(u.id).then((r) => { carregar(); setAcesso({ usuario: r.usuario, senha: r.senhaProvisoria, titulo: "Nova senha provisória" }); })
-      .catch((e) => aviso(e.message));
-  };
+  const [novaPara, setNovaPara] = useState(null);
+  const novaSenha = (u) => setNovaPara(u);
+  const gerarSenha = (u, opcoes) => auth.redefinirSenha(u.id, opcoes).then((r) => {
+    setNovaPara(null); carregar();
+    setAcesso({ usuario: r.usuario, senha: r.senhaProvisoria, trocar: r.trocarSenha, titulo: r.trocarSenha === false ? "Nova senha" : "Nova senha provisória" });
+  });
   const alternarAtivo = async (u) => {
     if (u.ativo && !(await confirmar({ titulo: "Desativar " + u.nome + "?", botao: "Desativar", perigo: true,
       texto: "A pessoa não consegue mais entrar até ser ativada de novo. Nada do que ela fez é apagado." }))) return;
@@ -198,7 +244,7 @@ export default function Usuarios() {
         <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 pb-3">
           <div className="max-w-[640px]">
             <h2 className="text-[15px] font-semibold">Usuários</h2>
-            <p className="text-[13px] text-muted mt-0.5">Quem pode entrar no sistema e o que cada pessoa vê. Ao criar um usuário, o sistema gera uma senha provisória e a mensagem de acesso para enviar.</p>
+            <p className="text-[13px] text-muted mt-0.5">Quem pode entrar no sistema e o que cada pessoa vê. Ao criar um usuário, você escolhe a senha inicial (ou o sistema gera uma provisória) e recebe a mensagem de acesso para enviar.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {!servidor && <button type="button" className="btn-fantasma btn-sm" onClick={exportar} title="Arquivo com os acessos, para a pessoa importar no computador dela">Exportar acessos</button>}
@@ -256,6 +302,7 @@ export default function Usuarios() {
         )}
       </section>
       <FormUsuario aberta={form.aberta} editando={form.editando} aoSalvar={salvar} aoFechar={() => setForm({ aberta: false, editando: null })} />
+      <JanelaNovaSenha alvo={novaPara} aoGerar={gerarSenha} aoFechar={() => setNovaPara(null)} />
       <JanelaAcesso dados={acesso} servidor={servidor} aoFechar={() => setAcesso(null)} />
     </div>
   );
