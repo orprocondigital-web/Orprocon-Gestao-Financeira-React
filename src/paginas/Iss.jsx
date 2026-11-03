@@ -1,3 +1,4 @@
+import { DEMO_LIBERADA } from "../lib/sincronizacao.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import L from "../lib/iss/leitor.mjs";
@@ -271,7 +272,7 @@ export default function Iss() {
           </button>
           <div className="flex flex-wrap justify-center gap-2">
             <button type="button" className="btn-fantasma btn-sm" onClick={() => setAba("como")}>Como exportar do Meu ISS</button>
-            {!temExemplo && <button type="button" className="btn-contorno btn-sm" onClick={() => { const x = svc.exemplo(mes); aviso("Exemplo carregado: " + x.empresas + " empresas fictícias."); }}>Ver com dados de exemplo</button>}
+            {!temExemplo && DEMO_LIBERADA && <button type="button" className="btn-contorno btn-sm" onClick={() => { const x = svc.exemplo(mes); aviso("Exemplo carregado: " + x.empresas + " empresas fictícias."); }}>Ver com dados de exemplo</button>}
           </div>
           {outros.length > 0 && <p className="text-[13px] text-muted">Meses com dados: {outros.slice(0, 6).map((m, k) => <span key={m}>{k ? " · " : ""}<button type="button" className="text-brand hover:underline" onClick={() => irMes(m)}>{D.rotuloMes(m)}</button></span>)}</p>}
         </section>

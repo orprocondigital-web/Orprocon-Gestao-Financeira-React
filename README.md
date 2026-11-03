@@ -197,9 +197,11 @@ Não use "Clear site data": isso apaga também os dados e os acessos.
 
 ## 🔐 Dados e segurança
 
-- Enquanto o backend não está no ar, os dados ficam **no navegador de quem usa** (localStorage e IndexedDB), com backup em arquivo pela Integração contábil.
+- Com a API ligada (`apiUrl`), **login, usuários e os dados dos módulos ficam no servidor** (API Spring Boot + PostgreSQL no Supabase): ao abrir, o sistema traz os dados do servidor; ao salvar, manda de volta. Cada módulo tem versão: se duas pessoas salvam ao mesmo tempo, a primeira vale e a segunda é avisada para atualizar.
+- Ainda ficam no navegador: os PDFs anexados, os lançamentos da Integração contábil e as conciliações (próximas etapas).
+- Com servidor, as **demonstrações e dados de exemplo ficam desligados**, para não misturar dados fictícios com os de verdade.
 - **Nada de dado de cliente, senha ou chave no repositório.** Senhas e acessos do banco ficam só em variáveis de ambiente do servidor.
-- Colunas de senha de sistemas antigos são **ignoradas de propósito** na importação.
+- Colunas de senha de sistemas antigos são **ignoradas de propósito** na importação; a importação de contatos deixa de fora a própria Orprocon e a equipe (`@orprocon.com.br`).
 
 ---
 
