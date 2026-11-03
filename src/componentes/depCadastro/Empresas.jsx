@@ -8,7 +8,7 @@ import { useAvisos } from "../Avisos.jsx";
 import Janela from "../Janela.jsx";
 import Icone from "../Icone.jsx";
 import { Campo, Selo, TextoRapido, numero } from "../contabil/ui.jsx";
-import { carregarDemo } from "./Importar.jsx";
+import { carregarDemo, DEMO_LIBERADA } from "./Importar.jsx";
 import { cnpjValido, completarComReceita, consultarCnpj, situacaoPedeAtencao } from "../../lib/receita.mjs";
 
 const NOME_CAMPO = { nome: "razão social", fantasia: "nome fantasia", documento: "CNPJ", cidade: "cidade", uf: "UF", telefone: "telefone", email: "e-mail",
@@ -237,7 +237,7 @@ export default function Empresas() {
             <strong className="block text-[15px]">Nenhuma empresa cadastrada</strong>
             <span className="block text-muted text-[13.5px]">Este é o cadastro que o sistema inteiro usa. Cadastre em Nova empresa, importe uma planilha (Empresa, CNPJ, Código, Regime) ou veja como fica com a demonstração.</span>
             <div className="flex flex-wrap justify-center gap-2 pt-1">
-              <button type="button" className="btn-contorno btn-sm" onClick={() => aviso(carregarDemo(svc) ? "Demonstração carregada." : "Já há dados: a demonstração só entra onde está vazio.")}>Carregar demonstração</button>
+              {DEMO_LIBERADA && <button type="button" className="btn-contorno btn-sm" onClick={() => aviso(carregarDemo(svc) ? "Demonstração carregada." : "Já há dados: a demonstração só entra onde está vazio.")}>Carregar demonstração</button>}
               <Link to="/departamento-cadastro/importar" className="btn-contorno btn-sm">Importar planilha</Link>
             </div>
           </div>

@@ -20,6 +20,7 @@ import Horas from "./paginas/Horas.jsx";
 import IbsCbs from "./paginas/IbsCbs.jsx";
 import { AvisosProvider } from "./componentes/Avisos.jsx";
 import AvisoAtualizacao from "./componentes/AvisoAtualizacao.jsx";
+import AvisoSincronizacao from "./componentes/AvisoSincronizacao.jsx";
 
 function Protegida({ children }) {
   const { carregando, usuario } = useAuth();
@@ -72,6 +73,7 @@ export default function App() {
         </Routes>
       </HashRouter>
       <AvisoAtualizacao />
+      <AvisoSincronizacao />
       </AvisosProvider>
     </AuthProvider>
   );

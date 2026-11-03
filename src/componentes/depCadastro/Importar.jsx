@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Core, Inicio } from "../../lib/legado.js";
+import { useAuth } from "../../lib/auth.jsx";
+import { DEMO_LIBERADA } from "../../lib/sincronizacao.js";
 import { TIPOS_ALVARAS, TIPOS_CERTIDOES, chaveNome, grupoDoTipo, lerCertidao, lerPlanilhaCadastro, planilhaEmpresas, MESES } from "../../lib/depCadastro.mjs";
 import { useDepCadastro } from "../../lib/useDepCadastro.js";
 import { emDia } from "../../lib/useEmDia.js";
@@ -15,8 +17,11 @@ import { BotaoArquivo, Mensagem, numero } from "../contabil/ui.jsx";
  */
 const TODOS_TIPOS = TIPOS_CERTIDOES.concat(TIPOS_ALVARAS);
 
+export { DEMO_LIBERADA };
+
 /** Carrega a demonstração (empresas, certidões, alvarás, faturamento e demonstrativos fictícios). */
 export function carregarDemo(svc) {
+  if (!DEMO_LIBERADA) return false;
   return svc.carregarDemonstracao(Inicio.vencimentosExemplo(svc.hoje()));
 }
 
@@ -157,13 +162,13 @@ function Planilha() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Empresa"].concat(MESES), ["Empresa Exemplo Ltda", 10000, 12000]]), "Faturamento " + ano);
     XLSX.writeFile(wb, "modelo-departamento-cadastro.xlsx");
   };
-  const nomes = { acessorias: "empresas do Acessórias (contatos, IE e departamentos)", alvaras: "renovação de alvarás (municipal, sanitário, bombeiros)", documentos: "certidões e alvarás", faturamentos: "faturamento", empresas: "empresas", ignorada: "ignorada (sem coluna Empresa)" };
+  const nomes = { acessorias: "empresas do Acessórias (contatos, IE e departamentos)", contatos: "contatos das empresas (Acessórias)", alvaras: "renovação de alvarás (municipal, sanitário, bombeiros)", documentos: "certidões e alvarás", faturamentos: "faturamento", empresas: "empresas", ignorada: "ignorada (sem coluna Empresa)" };
   return (
     <section className="cartao p-4 sm:p-5 space-y-3">
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex-1 min-w-[240px]">
           <h2 className="text-[16px] font-semibold">Planilha (Excel ou CSV)</h2>
-          <p className="text-[13px] text-muted"><strong className="text-ink-2">Empresas do Acessórias:</strong> o CSV do cadastro de empresas (separado por ponto e vírgula) entra como está: razão, fantasia, CNPJ, contato, IE e os departamentos marcados com S. O CNPJ é a chave: o que veio preenchido atualiza a empresa, campo vazio não apaga nada e linhas repetidas (mais de um contato ou IE) viram uma empresa só.</p>
+          <p className="text-[13px] text-muted"><strong className="text-ink-2">Empresas do Acessórias:</strong> o CSV do cadastro de empresas (separado por ponto e vírgula) entra como está: razão, fantasia, CNPJ, contato, IE e os departamentos marcados com S. O CNPJ é a chave: o que veio preenchido atualiza a empresa, campo vazio não apaga nada e linhas repetidas (mais de um contato ou IE) viram uma empresa só. <strong className="text-ink-2">Contatos do Acessórias:</strong> a lista de e-mails e contatos (CNPJ, Razão Social, Nome, E-mail, Telefone) soma os contatos em cada empresa, sem apagar os que já existem; a própria Orprocon e a equipe (@orprocon.com.br) ficam de fora.</p>
           <p className="text-[13px] text-muted">A planilha de renovação de alvarás (colunas CNPJ, Municipal, Sanitário e Bombeiro, com a data ou a situação) entra do jeito que está. Também: empresas, certidões e alvarás (colunas Empresa, Tipo e Vencimento) e faturamento (Empresa e os meses Jan a Dez; o ano vem do nome da aba). Pode ter várias abas no mesmo arquivo. Também lê a aba Empresas exportada do sistema do Depto. Contábil (regime, sócios, responsáveis, entrada e saída); as colunas de senha são ignoradas.</p>
         </div>
         <button type="button" className="btn-fantasma" onClick={modelo} title="Abas: Empresas (formato do Acessórias), Certidões e alvarás, Faturamento">Baixar modelo</button>
@@ -186,6 +191,8 @@ function Planilha() {
               <p className="col-span-2 md:col-span-5 text-[12.5px] text-muted">
                 A empresa é reconhecida pelo <strong>CNPJ</strong> (filiais com o mesmo nome ficam separadas); sem CNPJ, pelo nome{pv.semCnpj ? " (" + numero(pv.semCnpj) + " sem CNPJ)" : ""}. Nada é apagado: o que já existe só é completado{plano.abas.some((a) => a.tipo === "acessorias") ? " (na planilha do Acessórias, o que veio preenchido atualiza)" : ""}.
                 {plano.faturamentos.length ? " " + numero(plano.faturamentos.length) + " valor(es) de faturamento." : ""}
+                {plano.abas.some((a) => a.tipo === "contatos") ? " Os contatos somam aos que a empresa já tem." : ""}
+                {plano.foraDaImportacao ? " " + plano.foraDaImportacao : ""}
               </p>
             </div>
           );
@@ -199,17 +206,31 @@ function Planilha() {
 
 function Dados() {
   const [svc] = useDepCadastro();
+  const { usuario } = useAuth();
+  const comServidor = !DEMO_LIBERADA;
   const { aviso, confirmar } = useAvisos();
   const temDemo = svc.temDemonstracao();
   const demo = () => { aviso(carregarDemo(svc) ? "Demonstração carregada: empresas, certidões, alvarás, faturamento e demonstrativos fictícios." : "Já há dados cadastrados: a demonstração só entra onde está vazio."); };
   const tirarDemo = () => { const d = svc.limpar(true); aviso("Demonstração removida. Os dados de verdade continuam.", { desfazer: d }); };
   const apagar = async () => {
     if (!(await confirmar({ titulo: "Apagar tudo do Departamento Cadastro?", perigo: true, botao: "Apagar tudo",
-      texto: "Empresas, certidões, alvarás, faturamentos, demonstrativos e os PDFs anexados saem deste navegador.\n\nDá para desfazer nos próximos segundos (os PDFs, não). Se quiser guardar, baixe o backup na Integração contábil antes." }))) return;
+      texto: comServidor
+        ? "Empresas, certidões, alvarás, faturamentos e demonstrativos saem do servidor, para TODOS os usuários (e os PDFs anexados saem deste navegador).\n\nDá para desfazer nos próximos segundos (os PDFs, não)."
+        : "Empresas, certidões, alvarás, faturamentos, demonstrativos e os PDFs anexados saem deste navegador.\n\nDá para desfazer nos próximos segundos (os PDFs, não). Se quiser guardar, baixe o backup na Integração contábil antes." }))) return;
     const d = svc.limpar(false);
     apagarTodos();
     aviso("Departamento Cadastro apagado.", { desfazer: d });
   };
+  if (comServidor && !(usuario && usuario.perfil === "admin")) return null;   // com servidor, só o admin limpa (vale para todos)
+  if (comServidor) {
+    return (
+      <section className="cartao p-4 sm:p-5 space-y-3">
+        <h2 className="text-[16px] font-semibold">Limpeza</h2>
+        <p className="text-[13px] text-muted">Os dados do Departamento Cadastro ficam no servidor e são os mesmos para todos os usuários. A demonstração fica desligada para não misturar dados fictícios com os de verdade.</p>
+        <button type="button" className="btn-perigo btn-sm" onClick={apagar}>Apagar tudo do Departamento Cadastro (para todos)</button>
+      </section>
+    );
+  }
   return (
     <section className="cartao p-4 sm:p-5 space-y-3">
       <h2 className="text-[16px] font-semibold">Demonstração e limpeza</h2>

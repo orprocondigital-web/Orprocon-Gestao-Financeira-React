@@ -33,7 +33,9 @@ anterior é arquivada.
 | Conciliação por conta (extrato × lançamentos, conciliar à mão, conferido, exportar) | ✅ React |
 | Conciliação Extrato × planilha (planilha, balancete de fornecedores, XML de NF-e, conciliações salvas) | ⏳ Próxima entrega |
 | Usuários (administração), trocar a minha senha | ✅ React (com confirmações no visual do sistema e "Desfazer" ao desativar) |
-| Ligar os dados à API (lançamentos, cadastros, módulos) | ⏳ A fazer, junto com cada tela |
+| Dados dos módulos no servidor (Departamento Cadastro, Em Dia, Fechamento, Lucros, Encerramento, ISS, Horas, ICMS, IBS/CBS): ao abrir, vêm do servidor; ao salvar, vão para ele, com versão (quem salvou antes vale, o outro é avisado) | ✅ React (`src/lib/sincronizar.mjs` + `sincronizacao.js`, API `/api/modulos`; demonstrações desligadas com servidor) |
+| Lançamentos e cadastros da Integração contábil e conciliações no servidor | ⏳ A fazer (estão no IndexedDB; a API já tem `/api/empresas/{e}/lancamentos` e `/cadastros`) |
+| PDFs anexados (certidões, alvarás) no servidor | ⏳ A fazer (continuam no navegador de quem anexou) |
 | App instalável, abre sem internet, aviso de versão nova (PWA) | ✅ React (`pwa/`: o `sw.js` é gerado a cada build) |
 
 Ordem sugerida: Conciliação → virada (esta versão vira a oficial) → dados no servidor → módulos, dos mais

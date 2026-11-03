@@ -417,6 +417,21 @@ export function situacaoLimite(tipo, totalAno, ano, opcoes = {}) {
   return { tipo, nome: L.nome, limite, total, pct, nivel, projecao, mesEstouro, proporcional: abriuNoAno, texto, consequencia };
 }
 
+/**
+ * O próprio escritório: na lista de contatos do Acessórias ele aparece como empresa (com a equipe como contatos)
+ * e a equipe também aparece como contato de alguns clientes (para receber cópia). Nenhum dos dois é cliente:
+ * a importação de contatos deixa de fora.
+ */
+export const ESCRITORIO = { cnpj: "82585332000140", dominios: ["orprocon.com.br"] };
+/** O e-mail é de alguém da equipe do escritório? */
+export function emailDoEscritorio(email) { const e = txt(email).toLowerCase(); return ESCRITORIO.dominios.some((d) => e.endsWith("@" + d)); }
+/** Mesmo contato: mesmo e-mail (sem diferença de maiúsculas) ou, sem e-mail, mesmo nome e telefone. */
+export function mesmoContato(a, b) {
+  const ea = txt(a && a.email).toLowerCase(), eb = txt(b && b.email).toLowerCase();
+  if (ea || eb) return ea === eb;
+  return chaveNome(a && a.nome) === chaveNome(b && b.nome) && txt(a && a.telefone).replace(/\D/g, "") === txt(b && b.telefone).replace(/\D/g, "");
+}
+
 /** CNPJ/CPF/CAEPF tem 11 ou 14 dígitos. */
 export function documentoValido(doc) { const n = txt(doc).replace(/\D/g, "").length; return n === 11 || n === 14; }
 const simNao = (v) => /^(s|n|sim|nao|não|x)?$/i.test(txt(v));
@@ -467,7 +482,33 @@ export function lerPlanilhaCadastro(abas, toIsoDate, ano) {
     let tipo = "", n = 0;
     if (col.empresa === undefined) { plano.abas.push({ nome: a.nome, tipo: "ignorada", linhas: 0 }); return; }
     const colsAlv = Object.keys(COL_ALVARA).filter((c) => col[c] !== undefined);
-    if (colsAlv.length >= 2) {
+    // lista de contatos do Acessórias: CNPJ; Razão Social; Grupo de Empresas; Telefone; Nome (da pessoa); E-mail
+    const cabN = rows[h].map(normCab);
+    const iPessoa = cabN.indexOf("nome");
+    const ehContatos = iPessoa > -1 && iPessoa !== col.empresa && col.email !== undefined && col.fantasia === undefined && col.ie === undefined && colsAlv.length < 2;
+    if (ehContatos) {
+      tipo = "contatos";
+      let doEscritorio = 0, daEquipe = 0;
+      rows.slice(h + 1).forEach((r, i) => {
+        if (!r || !txt(get(r, "empresa"))) return;
+        const doc = txt(get(r, "documento"));
+        if (doc.replace(/\D/g, "") === ESCRITORIO.cnpj) { doEscritorio++; return; }
+        if (doc && !documentoValido(doc)) plano.avisos.push("Aba \"" + a.nome + "\", linha " + (h + i + 2) + ": CNPJ/CPF \"" + doc + "\" inválido (" + txt(get(r, "empresa")) + ").");
+        const ct = { nome: txt(r[iPessoa]), email: txt(get(r, "email")), telefone: txt(get(r, "telefone")) };
+        const equipe = emailDoEscritorio(ct.email);
+        const k = empresa(get(r, "empresa"), doc, equipe ? null : { contato: ct.nome, email: ct.email, telefone: ct.telefone });
+        if (!k) return;
+        const v = vistas[k];
+        v.somarContatos = true;
+        v.contatos = v.contatos || [];
+        if (equipe) daEquipe++;
+        else if ((ct.nome || ct.email || ct.telefone) && !v.contatos.some((x) => mesmoContato(x, ct))) v.contatos.push(ct);
+        n++;
+      });
+      if (doEscritorio || daEquipe) {
+        plano.foraDaImportacao = "Ficaram de fora " + [doEscritorio ? doEscritorio + " contato(s) da própria Orprocon" : "", daEquipe ? daEquipe + " contato(s) da equipe (e-mail @" + ESCRITORIO.dominios[0] + ") cadastrados em clientes" : ""].filter(Boolean).join(" e ") + ": a equipe entra como usuário do sistema, não como contato.";
+      }
+    } else if (colsAlv.length >= 2) {
       tipo = "alvaras";
       rows.slice(h + 1).forEach((r, i) => {
         if (!r || !txt(get(r, "empresa"))) return;
@@ -960,11 +1001,17 @@ export function criarDepCadastro(deps) {
       const k = chaveNome(c.nome);
       porNome[k] = porNome[k] === undefined ? c : null;   // null = nome repetido (filiais): não dá para escolher
     });
-    const mapa = {};
+    const mapa = {}, usadosPeloNome = new Set();
     plano.empresas.forEach((p) => {
       const k = p.chave || chaveEmpresa(p.nome, p.documento);
       const d = txt(p.documento).replace(/\D/g, "");
-      mapa[k] = d.length >= 11 ? porDoc[d] || null : porNome[chaveNome(p.nome)] || null;
+      if (d.length < 11) { mapa[k] = porNome[chaveNome(p.nome)] || null; return; }
+      if (porDoc[d]) { mapa[k] = porDoc[d]; return; }
+      // CNPJ que não está no cadastro, mas o nome é de um (só um) cliente cadastrado sem CNPJ: é ele (ganha o CNPJ)
+      const c = porNome[chaveNome(p.nome)];
+      const semDoc = c && txt(c.documento).replace(/\D/g, "").length < 11 && !usadosPeloNome.has(c);
+      if (semDoc) usadosPeloNome.add(c);
+      mapa[k] = semDoc ? c : null;
     });
     return mapa;
   }
@@ -1000,7 +1047,15 @@ export function criarDepCadastro(deps) {
         let mudou = false;
         // planilha do Acessórias (a fonte do cadastro): o que veio preenchido atualiza; vazio não apaga. As outras só completam.
         if (p.atualizar && p.nome && existe.nome !== p.nome) { existe.nome = p.nome; mudou = true; }
+        // lista de contatos: os novos somam aos que a empresa já tinha (nenhum contato some)
+        if (p.somarContatos && cheia(p.contatos)) {
+          const atuais = Array.isArray(existe.contatos) ? existe.contatos.slice() : [];
+          if (!atuais.length && (existe.contato || existe.email || existe.telefone)) atuais.push({ nome: txt(existe.contato), email: txt(existe.email), telefone: txt(existe.telefone) });
+          const novos = p.contatos.filter((c) => !atuais.some((x) => mesmoContato(x, c)));
+          if (novos.length) { existe.contatos = atuais.concat(novos); mudou = true; }
+        }
         extras.concat(listas).forEach((x) => {
+          if (x === "contatos" && p.somarContatos) return;
           if (!cheia(p[x])) return;
           if (p.atualizar ? JSON.stringify(existe[x]) !== JSON.stringify(p[x]) : !cheia(existe[x])) { existe[x] = p[x]; mudou = true; }
         });

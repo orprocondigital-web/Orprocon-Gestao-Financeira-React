@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AuthCore, CONFIG, Store } from "./legado.js";
+import { iniciarSincronizacao } from "./sincronizacao.js";
 
 /*
  * Login: o mesmo AuthCore da versão anterior. Sem servidor, os usuários ficam no navegador
@@ -32,7 +33,11 @@ export function AuthProvider({ children }) {
     return () => { vivo = false; };
   }, []);
 
-  const definirUsuario = useCallback((u) => setEstado((s) => Object.assign({}, s, { usuario: u ? Object.assign({}, u, { usuarioId: u.id }) : null })), []);
+  const definirUsuario = useCallback((u) => {
+    setEstado((s) => Object.assign({}, s, { usuario: u ? Object.assign({}, u, { usuarioId: u.id }) : null }));
+    // acabou de entrar: traz os dados do servidor; se mudou algo, recarrega para as telas lerem a versão do servidor
+    if (u) iniciarSincronizacao().then((r) => { if (r.mudou && r.mudou.length) window.location.reload(); });
+  }, []);
   const sair = useCallback(() => (estado.auth ? estado.auth.sair() : Promise.resolve()).then(() => definirUsuario(null)), [estado.auth, definirUsuario]);
   const pode = useCallback((area) => AuthCore.podeAcessar(estado.usuario, area), [estado.usuario]);
 
