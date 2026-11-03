@@ -168,7 +168,7 @@ npm run build      # gera a pasta dist/ (o que vai para o ar)
 npm run preview    # serve o build localmente
 ```
 
-> Para testar com a API rodando no computador, abra uma vez `http://localhost:5173/?api=http://localhost:8080` e acrescente `http://localhost:5173` em `CORS_ORIGENS` da API.
+> O site publicado usa a API no ar (`apiUrl` em `src/legado/config.js`: Render + Supabase). Para testar com a API rodando no computador, abra uma vez `http://localhost:5173/?api=http://localhost:8080` (a porta 5173 já está liberada no CORS da API); `?api=sair` volta para a API configurada.
 
 ---
 

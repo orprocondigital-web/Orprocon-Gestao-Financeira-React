@@ -19,8 +19,9 @@
  *  desvie o login para outro servidor.)
  */
 var CONFIG = {
-  modoTeste: true,
-  apiUrl: "",
+  modoTeste: false,
+  // API Java no Render (banco no Supabase). Login, usuários e senhas ficam no servidor.
+  apiUrl: "https://central-orprocon-api.onrender.com",
   // Botão "Suporte" (canto da tela e tela de login): quem atende e o WhatsApp com DDI e DDD, só números.
   // Deixe whatsapp vazio para esconder o botão.
   // Tela Início: false = capa com as ferramentas e mini cards de pendências; true = lista completa de pendências.
