@@ -5,7 +5,7 @@ import { ALVARAS_GRADE, CERTIFICADO, DEMONSTRATIVOS, MESES, MODELOS_CERTIFICADO,
 import { carregarXlsx } from "../lib/leitores.js";
 import { abrirArquivo, apagarArquivo, guardarArquivo } from "../lib/arquivos.js";
 import { textoDoPdf } from "../lib/leitores.js";
-import Importar, { carregarDemo } from "../componentes/depCadastro/Importar.jsx";
+import Importar, { carregarDemo, DEMO_LIBERADA } from "../componentes/depCadastro/Importar.jsx";
 import Empresas, { FormEmpresa } from "../componentes/depCadastro/Empresas.jsx";
 import Mensagem from "../componentes/depCadastro/Mensagem.jsx";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
@@ -31,7 +31,7 @@ function Vazio({ titulo, texto }) {
       <strong className="block text-[15px]">{titulo}</strong>
       <span className="block text-muted text-[13.5px]">{texto}</span>
       <div className="flex flex-wrap justify-center gap-2 pt-1">
-        <button type="button" className="btn-contorno btn-sm" onClick={() => aviso(carregarDemo(svc) ? "Demonstração carregada." : "Já há dados: a demonstração só entra onde está vazio.")}>Carregar demonstração</button>
+        {DEMO_LIBERADA && <button type="button" className="btn-contorno btn-sm" onClick={() => aviso(carregarDemo(svc) ? "Demonstração carregada." : "Já há dados: a demonstração só entra onde está vazio.")}>Carregar demonstração</button>}
         <Link to="/departamento-cadastro/importar" className="btn-contorno btn-sm">Importar PDF ou planilha</Link>
       </div>
     </div>

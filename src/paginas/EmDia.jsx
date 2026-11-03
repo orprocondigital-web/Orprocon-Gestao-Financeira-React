@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Core, Importacao, Inicio } from "../lib/legado.js";
+import { DEMO_LIBERADA } from "../lib/sincronizacao.js";
 import { ATALHOS_MESES, VENCE_DEPOIS, ehMesmaPessoa, textoRegra } from "../lib/emDia.mjs";
 import { MESES, REGIMES, TIPOS_LUCRO_REAL } from "../lib/depCadastro.mjs";
 import { carregarXlsx } from "../lib/leitores.js";
@@ -542,13 +543,13 @@ export default function EmDia() {
           <div className="cartao p-10 text-center space-y-3">
             <strong className="block text-[15px]">Nenhuma empresa cadastrada</strong>
             <span className="block text-[13.5px] text-muted">As empresas são as mesmas do Departamento Cadastro. Importe o CSV de entregas ou a planilha de controle, ou veja como fica com a demonstração.</span>
-            <div className="flex justify-center gap-2"><button type="button" className="btn-primario btn-sm" onClick={() => setJanela("importar")}>Importar</button><button type="button" className="btn-contorno btn-sm" onClick={demo}>Carregar demonstração</button></div>
+            <div className="flex justify-center gap-2"><button type="button" className="btn-primario btn-sm" onClick={() => setJanela("importar")}>Importar</button>{DEMO_LIBERADA && <button type="button" className="btn-contorno btn-sm" onClick={demo}>Carregar demonstração</button>}</div>
           </div>
         ) : <Grade setorId={setor.id} mes={mes} eu={eu} />}
         <div className="flex flex-wrap gap-2 pt-1">
           <button type="button" className="btn-contorno btn-sm" onClick={() => setJanela("importar")}>Importar CSV ou planilha</button>
           <button type="button" className="btn-contorno btn-sm" onClick={() => setJanela("colunas")}>Obrigações de {setor.nome}</button>
-          {!vazio && <button type="button" className="btn-fantasma btn-sm" onClick={demo}>Carregar demonstração</button>}
+          {!vazio && DEMO_LIBERADA && <button type="button" className="btn-fantasma btn-sm" onClick={demo}>Carregar demonstração</button>}
           <button type="button" className="btn-perigo btn-sm" onClick={limpar}>Limpar</button>
         </div>
       </>)}

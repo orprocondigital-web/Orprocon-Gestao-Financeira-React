@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Core, Importacao } from "../lib/legado.js";
+import { DEMO_LIBERADA } from "../lib/sincronizacao.js";
 import { CODIGO_DARF, LIMITE_MENSAL, calcular, prazoDarf, prazoReinf } from "../lib/lucros.mjs";
 import { useLucros } from "../lib/useLucros.js";
 import { useEmDia } from "../lib/useEmDia.js";
@@ -222,7 +223,7 @@ function Distribuicoes() {
           {!h.lista.length ? (
             <div className="p-10 text-center space-y-3"><strong className="block text-[15px]">Nenhuma distribuição em {ano}</strong>
               <span className="block text-[13.5px] text-muted">Registre em Registrar distribuição, ou veja como fica com a demonstração.</span>
-              <button type="button" className="btn-contorno btn-sm" onClick={demo}>Carregar demonstração</button></div>
+              {DEMO_LIBERADA && <button type="button" className="btn-contorno btn-sm" onClick={demo}>Carregar demonstração</button>}</div>
           ) : (
             <div className="overflow-x-auto relative">
               <table className="w-full text-[13.5px]">

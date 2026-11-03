@@ -1,3 +1,4 @@
+import { DEMO_LIBERADA } from "../lib/sincronizacao.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import R from "../lib/horas/regras.mjs";
@@ -682,7 +683,7 @@ export default function Horas() {
           <span className="block text-[13.5px] text-muted">Cadastre o cliente e os funcionários dele, gere a planilha de presença e importe quando ela voltar preenchida.</span>
           <div className="flex flex-wrap justify-center gap-2">
             <button type="button" className="btn-primario btn-sm" onClick={() => setNova(true)}>Cadastrar empresa</button>
-            <button type="button" className="btn-contorno btn-sm" onClick={exemplo}>Ver com dados de exemplo</button>
+            {DEMO_LIBERADA && <button type="button" className="btn-contorno btn-sm" onClick={exemplo}>Ver com dados de exemplo</button>}
           </div>
         </section>
       ) : aba === "funcionarios" ? <Funcionarios emp={emp} />
