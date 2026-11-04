@@ -787,6 +787,69 @@ function Demonstrativos() {
   );
 }
 
+/** Conferência do cadastro: o que falta ou está errado nas empresas e documentos, para arrumar antes de depender dos avisos. */
+function Conferencia() {
+  const [svc, v] = useDepCadastro();
+  const { aviso } = useAvisos();
+  const c = useMemo(() => svc.conferencia(), [svc, v]);
+  const [aberta, setAberta] = useState("");
+  const [busca, setBusca] = useState("");
+  const atual = c.listas.find((l) => l.id === aberta) || c.listas.find((l) => l.itens.length) || c.listas[0];
+  const b = busca.trim().toLowerCase(), bDig = b.replace(/\D/g, "");
+  const itens = atual.itens.filter((i) => !b || i.empresa.toLowerCase().indexOf(b) > -1 || (bDig.length >= 3 && i.documento.replace(/\D/g, "").indexOf(bDig) > -1));
+  const baixar = async () => {
+    try {
+      const XLSX = await carregarXlsx();
+      const wb = XLSX.utils.book_new();
+      c.listas.forEach((l) => {
+        const ws = XLSX.utils.aoa_to_sheet([["Empresa", "CNPJ/CPF", "O que conferir"]].concat(l.itens.map((i) => [i.empresa, i.documento, i.detalhe])));
+        ws["!cols"] = [{ wch: 44 }, { wch: 20 }, { wch: 70 }];
+        XLSX.utils.book_append_sheet(wb, ws, l.titulo.slice(0, 31));
+      });
+      XLSX.writeFile(wb, "conferencia-cadastro-" + svc.hoje() + ".xlsx");
+    } catch (e) { aviso("Não consegui gerar o Excel: " + (e.message || e)); }
+  };
+  if (!svc.empresas().length) return <div className="cartao"><Vazio titulo="Nenhuma empresa cadastrada ainda" texto="Importe a planilha de alvarás e a do Acessórias; a conferência aponta o que ficou faltando." /></div>;
+  return (
+    <div className="space-y-4">
+      <div className="cartao px-4 py-3 flex flex-wrap items-center gap-3">
+        <div className="flex-1 min-w-[220px]">
+          <strong className="block text-[15px]">{c.total ? numero(c.total) + " ponto(s) para conferir" : "Tudo certo no cadastro"}</strong>
+          <span className="block text-[13px] text-muted">Arrume aqui o que falta para os avisos de vencimento e as mensagens chegarem certo. A lista se atualiza sozinha conforme você corrige.</span>
+        </div>
+        <button type="button" className="btn-contorno btn-sm" onClick={baixar} disabled={!c.total}>Exportar Excel</button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {c.listas.map((l) => (
+          <button key={l.id} type="button" onClick={() => { setAberta(l.id); setBusca(""); }} aria-pressed={atual.id === l.id}
+            className={"cartao px-4 py-3 text-left transition-colors hover:border-brand-fill " + (atual.id === l.id ? "border-brand-fill" : "")}>
+            <div className="text-[12.5px] text-muted">{l.titulo}</div>
+            <div className={"text-[24px] font-semibold tabular-nums " + (l.itens.length ? "text-warn" : "text-muted")}>{numero(l.itens.length)}</div>
+          </button>
+        ))}
+      </div>
+      <Bloco titulo={atual.titulo + " (" + numero(atual.itens.length) + ")"}
+        acao={atual.itens.length > 8 && <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar empresa ou CNPJ…" aria-label="Buscar" className="max-w-[240px] h-8" />}>
+        <p className="text-[13px] text-muted mb-3">{atual.texto}</p>
+        {!atual.itens.length ? <p className="text-[13.5px] text-credit">Nada para conferir aqui.</p> : (
+          <ul className="divide-y divide-line">
+            {itens.map((i, n) => (
+              <li key={i.empresaId + "-" + n} className="py-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                <div className="flex-1 min-w-[200px]">
+                  <span className="block text-[13.5px] font-medium">{i.empresa || "(sem nome)"}{i.documento && <span className="text-muted font-normal"> · {i.documento}</span>}</span>
+                  <span className="block text-[12.5px] text-muted">{i.detalhe}</span>
+                </div>
+                <Link to={"/departamento-cadastro/buscar?empresa=" + encodeURIComponent(i.empresaId)} className="btn-contorno btn-sm">Abrir ficha</Link>
+              </li>
+            ))}
+            {!itens.length && <li className="py-2 text-[13.5px] text-muted">Nenhuma empresa com essa busca.</li>}
+          </ul>
+        )}
+      </Bloco>
+    </div>
+  );
+}
+
 export default function DepCadastro() {
   const { secao } = useParams();
   if (secao === "empresas") return <Empresas />;
@@ -797,5 +860,6 @@ export default function DepCadastro() {
   if (secao === "faturamentos") return <Faturamentos />;
   if (secao === "demonstrativos") return <Demonstrativos />;
   if (secao === "importar") return <Importar />;
+  if (secao === "conferencia") return <Conferencia />;
   return <Navigate to="/departamento-cadastro/certidoes" replace />;
 }

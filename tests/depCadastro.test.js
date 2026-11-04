@@ -512,3 +512,52 @@ describe("busca por CNPJ e ficha da empresa", () => {
     assert.equal(svc.fichaEmpresa("nao-existe"), null);
   });
 });
+
+describe("conferência do cadastro", () => {
+  const base = () => JSON.stringify({
+    clientes: [
+      { id: "a", nome: "Alfa Ltda", documento: "11.222.333/0001-81", contatos: [{ nome: "Ana" }], departamentos: ["Alvarás", "Certificado Digital"] },
+      { id: "b", nome: "Beta ME", documento: "", email: "beta@x.com" },
+      { id: "c", nome: "Gama SA", documento: "11.222.333/0001-82", telefone: "48 9999" },
+      { id: "d", nome: "Delta", documento: "12345", email: "d@x.com" },
+      { id: "e", nome: "Alfa Filial", documento: "11222333000181", email: "f@x.com" },
+      { id: "f", nome: "Beta ME", documento: "123.456.789-09", email: "b2@x.com" },
+      { id: "g", nome: "Ômega", documento: "", baixa: "2026-03-10" },
+      { id: "h", nome: "Sem Contato Ltda", documento: "123.456.789-09" }
+    ],
+    documentos: [
+      { id: "1", clienteId: "g", tipo: "CND Federal", vencimento: "2026-10-01", historico: [] },
+      { id: "2", clienteId: "b", tipo: "CND Estadual", vencimento: "", historico: [] },
+      { id: "3", clienteId: "b", tipo: "CND Municipal", vencimento: "2023-01-10", historico: [] },
+      { id: "4", clienteId: "c", tipo: "Alvará", vencimento: "", sitAlvara: "dispensado", historico: [] }
+    ]
+  });
+  const ids = (c, lista) => c.listas.find((l) => l.id === lista).itens.map((i) => i.empresaId).sort();
+
+  test("confere CNPJ e CPF pelos dígitos verificadores", () => {
+    assert.equal(D.conferirDocumento("11.222.333/0001-81"), "ok");
+    assert.equal(D.conferirDocumento("11.222.333/0001-82"), "digito");
+    assert.equal(D.conferirDocumento("123.456.789-09"), "ok");
+    assert.equal(D.conferirDocumento("111.111.111-11"), "digito");
+    assert.equal(D.conferirDocumento("12345"), "tamanho");
+    assert.equal(D.conferirDocumento(""), "");
+  });
+  test("separa o que falta em listas, cada uma apontando a empresa", () => {
+    const { svc } = amb({ "painelVencimentos:v1": base() });
+    const c = svc.conferencia();
+    assert.deepEqual(ids(c, "sem-cnpj"), ["b"]);
+    assert.deepEqual(ids(c, "cnpj-invalido"), ["c", "d"]);
+    assert.deepEqual(ids(c, "duplicadas"), ["a", "b", "e", "f", "f", "h"].filter((x, i, l) => l.indexOf(x) === i).sort());
+    assert.deepEqual(ids(c, "sem-contato"), ["h"]);
+    assert.deepEqual(ids(c, "depto-sem-documento"), ["a", "a"]);
+    assert.deepEqual(ids(c, "ex-clientes"), ["g"]);
+    assert.deepEqual(ids(c, "sem-vencimento"), ["b"]);       // o alvará dispensado sem data não conta
+    assert.deepEqual(ids(c, "vencidos-antigos"), ["b"]);
+    assert.equal(c.total, c.listas.reduce((n, l) => n + l.itens.length, 0));
+    assert.match(c.listas.find((l) => l.id === "cnpj-invalido").itens.find((i) => i.empresaId === "d").detalhe, /5 dígitos/);
+  });
+  test("cadastro vazio não tem nada para conferir", () => {
+    const { svc } = amb({});
+    assert.equal(svc.conferencia().total, 0);
+  });
+});

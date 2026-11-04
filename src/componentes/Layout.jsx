@@ -6,13 +6,14 @@ import { gravarLocal, lerJson, lerLocal, useTema } from "../lib/tema.js";
 import { montarMenu } from "../lib/menu.js";
 import Icone from "./Icone.jsx";
 import Suporte from "./Suporte.jsx";
+import { SeloDados } from "./AvisoSincronizacao.jsx";
 import TrocarSenha from "./TrocarSenha.jsx";
 import Competencia from "./contabil/Competencia.jsx";
 import { useContabil } from "../lib/useContabil.js";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
 import { instalarApp, usePwa } from "../lib/pwa.js";
 
-const VERSAO = "1.0.0-alpha.30";
+const VERSAO = "1.0.0-alpha.31";
 const FECHADAS_PADRAO = { "Outras movimentações": 1, "Cadastros": 1 };
 
 function iniciais(nome) {
@@ -170,8 +171,7 @@ export default function Layout() {
           <div className="flex items-center gap-2 flex-wrap">
             {comMes && <Competencia />}
             {ehTeste && <span className="rounded-full bg-brand-soft text-brand text-[12px] font-bold uppercase tracking-wide px-2.5 py-1" title="Você entrou sem senha, no modo de teste.">Modo de teste</span>}
-            <span className="hidden xl:inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] text-muted">
-              <span className="h-2 w-2 rounded-full bg-credit" aria-hidden="true" />Salvo neste navegador</span>
+            <SeloDados className="hidden xl:inline-flex" />
             <button type="button" onClick={alternarTema} className="btn-contorno h-10 w-10 p-0 rounded-full" aria-label={tema === "dark" ? "Ativar tema claro" : "Ativar tema escuro"} title={tema === "dark" ? "Tema claro" : "Tema escuro"}>
               <Icone nome={tema === "dark" ? "sol" : "lua"} /></button>
           </div>

@@ -50,6 +50,7 @@ export function montarMenu(pode, ehAdmin) {
       { id: "dep-alvaras", label: "Alvarás", para: "/departamento-cadastro/alvaras", icone: "alvara", contador: depCadastro.urgentes("alvaras") },
       { id: "dep-faturamentos", label: "Faturamentos", para: "/departamento-cadastro/faturamentos", icone: "faturamento" },
       { id: "dep-demonstrativos", label: "Demonstrativos contábeis", para: "/departamento-cadastro/demonstrativos", icone: "demonstrativo" },
+      { id: "dep-conferencia", label: "Conferência do cadastro", para: "/departamento-cadastro/conferencia", icone: "conferencia" },
       { id: "dep-importar", label: "Importar e demonstração", para: "/departamento-cadastro/importar", icone: "importar" }
     ] : [] },
     // Em Dia: tela em React (a grade simples); o módulo antigo saiu

@@ -432,6 +432,26 @@ export function mesmoContato(a, b) {
   return chaveNome(a && a.nome) === chaveNome(b && b.nome) && txt(a && a.telefone).replace(/\D/g, "") === txt(b && b.telefone).replace(/\D/g, "");
 }
 
+/**
+ * O documento confere? "" (vazio), "ok", "tamanho" (não tem 11 nem 14 dígitos) ou "digito" (os dígitos
+ * verificadores não batem: digitação errada, ou um CAEPF, que tem 14 dígitos com outra conta).
+ */
+export function conferirDocumento(doc) {
+  const d = txt(doc).replace(/\D/g, "");
+  if (!d) return "";
+  if (d.length !== 11 && d.length !== 14) return "tamanho";
+  if (/^(\d)\1+$/.test(d)) return "digito";
+  const dv = (base, pesos) => { const r = base.split("").reduce((t, c, i) => t + Number(c) * pesos[i], 0) % 11; return r < 2 ? 0 : 11 - r; };
+  if (d.length === 14) {
+    const p1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], p2 = [6].concat(p1);
+    const d1 = dv(d.slice(0, 12), p1), d2 = dv(d.slice(0, 12) + d1, p2);
+    return d.slice(12) === "" + d1 + d2 ? "ok" : "digito";
+  }
+  const cpf = (base, ini) => { const r = (base.split("").reduce((t, c, i) => t + Number(c) * (ini - i), 0) * 10) % 11; return r === 10 ? 0 : r; };
+  const c1 = cpf(d.slice(0, 9), 10), c2 = cpf(d.slice(0, 9) + c1, 11);
+  return d.slice(9) === "" + c1 + c2 ? "ok" : "digito";
+}
+
 /** CNPJ/CPF/CAEPF tem 11 ou 14 dígitos. */
 export function documentoValido(doc) { const n = txt(doc).replace(/\D/g, "").length; return n === 11 || n === 14; }
 const simNao = (v) => /^(s|n|sim|nao|não|x)?$/i.test(txt(v));
@@ -853,6 +873,88 @@ export function criarDepCadastro(deps) {
   /** Vencidos ou vencendo em até 7 dias (número no menu). */
   function urgentes(grupo) { const r = resumo(grupo); return r.vencido + r["7"]; }
 
+  /**
+   * Conferência do cadastro: o que falta ou está errado, em listas (cada item aponta a empresa).
+   * Devolve { listas: [{ id, titulo, texto, itens: [{ empresaId, empresa, documento, detalhe }] }], total }.
+   * Empresas que saíram ou foram baixadas só entram na lista de ex-clientes.
+   */
+  function conferencia() {
+    const e = docs(), h = hoje();
+    const ativa = (c) => !c.saida && !c.baixa;
+    const dig = (c) => txt(c.documento).replace(/\D/g, "");
+    const item = (c, detalhe) => ({ empresaId: c.id, empresa: txt(c.nome), documento: txt(c.documento), detalhe });
+    const docsDe = {};
+    e.documentos.forEach((d) => { if (d) (docsDe[d.clienteId] = docsDe[d.clienteId] || []).push(d); });
+    const temDoc = (c, teste) => (docsDe[c.id] || []).some(teste);
+    const dataBR = (v) => (iso(v) ? v.slice(8, 10) + "/" + v.slice(5, 7) + "/" + v.slice(0, 4) : "");
+    const ativas = e.clientes.filter(ativa);
+
+    const semDoc = ativas.filter((c) => !dig(c)).map((c) => item(c, "Entrou pelo nome, sem CNPJ/CPF"));
+    const docErrado = ativas.map((c) => ({ c, r: conferirDocumento(c.documento) })).filter((x) => x.r === "tamanho" || x.r === "digito")
+      .map(({ c, r }) => item(c, r === "tamanho" ? "Tem " + dig(c).length + " dígitos (CNPJ tem 14, CPF tem 11)" : "Dígito verificador não confere (erro de digitação, ou um CAEPF)"));
+
+    const duplicadas = [];
+    const porDoc = {}, porNome = {};
+    e.clientes.forEach((c) => {
+      if (dig(c).length >= 11) (porDoc[dig(c)] = porDoc[dig(c)] || []).push(c);
+      (porNome[chaveNome(c.nome)] = porNome[chaveNome(c.nome)] || []).push(c);
+    });
+    Object.keys(porDoc).forEach((k) => { const g = porDoc[k]; if (g.length > 1) g.forEach((c) => duplicadas.push(item(c, "Mesmo CNPJ/CPF de " + g.filter((x) => x !== c).map((x) => x.nome).join(", ")))); });
+    Object.keys(porNome).forEach((k) => {
+      const g = porNome[k];
+      if (!k || g.length < 2 || !g.some((c) => !dig(c))) return;   // filiais com o mesmo nome e CNPJ diferentes não são duplicadas
+      g.forEach((c) => { if (!duplicadas.some((x) => x.empresaId === c.id)) duplicadas.push(item(c, "Mesmo nome de outra empresa, e uma delas está sem CNPJ")); });
+    });
+
+    const semContato = ativas.filter((c) => !(Array.isArray(c.contatos) && c.contatos.length) && !txt(c.email) && !txt(c.telefone))
+      .map((c) => item(c, "Sem contato, e-mail ou telefone (a mensagem de renovação não tem para quem ir)"));
+
+    const deptoSemDoc = [];
+    ativas.forEach((c) => {
+      const dep = Array.isArray(c.departamentos) ? c.departamentos : [];
+      if (dep.includes("Alvarás") && !temDoc(c, (d) => grupoDoTipo(d.tipo) === "alvaras")) deptoSemDoc.push(item(c, "Departamento Alvarás marcado, sem alvará cadastrado"));
+      if (dep.includes("Certificado Digital") && !temDoc(c, (d) => ehCertificado(d.tipo))) deptoSemDoc.push(item(c, "Departamento Certificado Digital marcado, sem certificado cadastrado"));
+    });
+
+    const exClientes = [];
+    e.clientes.filter((c) => !ativa(c)).forEach((c) => {
+      const pend = (docsDe[c.id] || []).filter((d) => {
+        const s = grupoDoTipo(d.tipo) === "alvaras" ? situacaoAlvara(d, h) : situacao(d.vencimento, h);
+        return s.status === "vencido" || s.status === "7" || s.status === "30";
+      });
+      if (pend.length) exClientes.push(item(c, (c.baixa ? "Baixada em " + dataBR(c.baixa) : "Saiu em " + c.saida.slice(5) + "/" + c.saida.slice(0, 4)) + " · " + pend.length + " documento(s) vencido(s) ou vencendo"));
+    });
+
+    const porId = {};
+    e.clientes.forEach((c) => { porId[c.id] = c; });
+    const docsSemData = [], vencidosAntigos = [];
+    e.documentos.forEach((d) => {
+      const c = d && porId[d.clienteId];
+      if (!c || !ativa(c)) return;
+      const alvara = grupoDoTipo(d.tipo) === "alvaras";
+      if (!iso(d.vencimento)) {
+        // alvará sem data é normal quando a situação já diz algo (dispensado, solicitado, débitos...)
+        if (!alvara || situacaoAlvara(d, h).status === "sem") docsSemData.push(item(c, nomeDoTipo(d) + " sem vencimento"));
+        return;
+      }
+      const s = situacao(d.vencimento, h);
+      if (s.dias !== null && s.dias < -730) vencidosAntigos.push(item(c, nomeDoTipo(d) + " vencido em " + dataBR(d.vencimento) + " (mais de 2 anos)"));
+    });
+
+    const ordenar = (l) => l.sort((a, b) => a.empresa.localeCompare(b.empresa, "pt-BR"));
+    const listas = [
+      { id: "sem-cnpj", titulo: "Sem CNPJ/CPF", texto: "Entraram só pelo nome. Sem CNPJ, a importação não acha a empresa com certeza.", itens: ordenar(semDoc) },
+      { id: "cnpj-invalido", titulo: "CNPJ/CPF a conferir", texto: "Quantidade de dígitos errada ou dígito verificador que não confere.", itens: ordenar(docErrado) },
+      { id: "duplicadas", titulo: "Possíveis duplicadas", texto: "Mesmo CNPJ em duas empresas, ou mesmo nome com uma delas sem CNPJ.", itens: ordenar(duplicadas) },
+      { id: "sem-contato", titulo: "Sem contato", texto: "Nenhum contato, e-mail ou telefone cadastrado.", itens: ordenar(semContato) },
+      { id: "depto-sem-documento", titulo: "Departamento sem documento", texto: "Marcadas no Acessórias para Alvarás ou Certificado Digital, mas sem o documento aqui.", itens: ordenar(deptoSemDoc) },
+      { id: "ex-clientes", titulo: "Ex-clientes com pendência", texto: "Saíram ou foram baixadas, mas ainda têm documento vencido ou vencendo (arquivar ou parar de cobrar).", itens: ordenar(exClientes) },
+      { id: "sem-vencimento", titulo: "Documentos sem vencimento", texto: "Certidões e certificados sem data, e alvarás sem data e sem situação.", itens: ordenar(docsSemData) },
+      { id: "vencidos-antigos", titulo: "Vencidos há mais de 2 anos", texto: "Provavelmente já renovados fora do sistema, ou de empresa que não precisa mais.", itens: ordenar(vencidosAntigos) }
+    ];
+    return { listas, total: listas.reduce((n, l) => n + l.itens.length, 0) };
+  }
+
   function salvarDocumento(d, id) {
     const { tipo, modelo } = normalizarTipo(d.tipo, d.modelo), clienteId = txt(d.clienteId);
     if (!clienteId) throw new Error("Escolha a empresa.");
@@ -1209,7 +1311,7 @@ export function criarDepCadastro(deps) {
 
   return {
     aplicarPlanilha, previaPlanilha, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
-    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, gradeAlvaras, buscarEmpresas, fichaEmpresa, resumo, urgentes, salvarDocumento, renovar, excluirDocumento,
+    hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, gradeAlvaras, buscarEmpresas, fichaEmpresa, resumo, urgentes, conferencia, salvarDocumento, renovar, excluirDocumento,
     faturamentos, definirFaturamento, totalAno, ultimos12, limitesDoAno, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };
 }
