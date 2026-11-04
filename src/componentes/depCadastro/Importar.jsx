@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { Core, Inicio } from "../../lib/legado.js";
 import { useAuth } from "../../lib/auth.jsx";
 import { DEMO_LIBERADA } from "../../lib/sincronizacao.js";
@@ -215,7 +214,7 @@ function Dados() {
   const apagar = async () => {
     if (!(await confirmar({ titulo: "Apagar tudo do Departamento Cadastro?", perigo: true, botao: "Apagar tudo",
       texto: comServidor
-        ? "Empresas, certidões, alvarás, faturamentos e demonstrativos saem do servidor, para TODOS os usuários (e os PDFs anexados saem deste navegador).\n\nDá para desfazer nos próximos segundos (os PDFs, não)."
+        ? "Empresas, certidões, alvarás, faturamentos e demonstrativos saem do servidor, para TODOS os usuários.\n\nDá para desfazer nos próximos segundos."
         : "Empresas, certidões, alvarás, faturamentos, demonstrativos e os PDFs anexados saem deste navegador.\n\nDá para desfazer nos próximos segundos (os PDFs, não). Se quiser guardar, baixe o backup na Integração contábil antes." }))) return;
     const d = svc.limpar(false);
     apagarTodos();
@@ -250,7 +249,9 @@ export default function Importar() {
       <Pdfs />
       <Planilha />
       <Dados />
-      <p className="text-[12.5px] text-muted">Os PDFs ficam guardados neste navegador, junto com o documento (botão PDF em <Link to="/departamento-cadastro/certidoes" className="underline">Certidões</Link> e Alvarás). Eles não vão no arquivo de backup.</p>
+      <p className="text-[12.5px] text-muted">{DEMO_LIBERADA
+        ? "Os PDFs ficam guardados neste navegador, junto com o documento (botão PDF em Certidões e Alvarás). Eles não vão no arquivo de backup."
+        : "Os PDFs ficam guardados no servidor, junto com o documento: qualquer pessoa do Departamento Cadastro abre de qualquer computador (botão PDF em Certidões e Alvarás)."}</p>
     </div>
   );
 }
