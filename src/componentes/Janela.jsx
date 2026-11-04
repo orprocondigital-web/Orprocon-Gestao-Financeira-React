@@ -13,7 +13,12 @@ export default function Janela({ aberta, titulo, aoFechar, rodape, children, lar
   useEffect(() => {
     if (!aberta) return;
     anterior.current = document.activeElement;
-    const esc = (e) => { if (e.key === "Escape" && !soPeloBotao) { e.preventDefault(); aoFechar(); } };
+    const esc = (e) => {
+      if (e.key !== "Escape" || soPeloBotao) return;
+      const abertas = document.querySelectorAll("[role=dialog][aria-modal=true]");
+      if (abertas.length && abertas[abertas.length - 1] !== caixa.current) return;   // janela por cima de outra: o Esc fecha só a de cima
+      e.preventDefault(); aoFechar();
+    };
     document.addEventListener("keydown", esc);
     setTimeout(() => {
       const alvo = caixa.current && caixa.current.querySelector("[data-foco], input:not([readonly]), textarea, select, button.btn-primario");
