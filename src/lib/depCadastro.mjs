@@ -1226,6 +1226,55 @@ export function criarDepCadastro(deps) {
   }
 
   /** Documento novo a partir de um PDF lido (lerCertidao). Cria a empresa se o CNPJ não estiver cadastrado e vier o nome. */
+  /**
+   * Certificados lidos do arquivo (.pfx): o que cada um vai virar, sem gravar nada.
+   * lidos: [{ titular, documento, emissao, vencimento }] (um por CNPJ/CPF). Situação de cada um:
+   *   "renovacao"    a empresa já tem certificado com vencimento anterior: renova (o antigo vai para o histórico);
+   *   "novo"         a empresa existe e não tem certificado;
+   *   "empresa-nova" ninguém com esse CNPJ/CPF: cria a empresa com o certificado;
+   *   "igual"        já está cadastrado com esse vencimento (nada muda);
+   *   "antigo"       o cadastrado vence depois deste (arquivo velho, nada muda).
+   */
+  function previaCertificados(lidos) {
+    const e = docs();
+    return lidos.map((l) => {
+      const emp = empresaPorDocumento(l.documento);
+      const atuais = emp ? e.documentos.filter((d) => d.clienteId === emp.id && ehCertificado(d.tipo)) : [];
+      const atual = atuais.reduce((m, d) => (!m || (d.vencimento || "") > (m.vencimento || "") ? d : m), null);
+      let situacao = !emp ? "empresa-nova" : !atual ? "novo" : (atual.vencimento || "") === l.vencimento ? "igual" : (atual.vencimento || "") < l.vencimento ? "renovacao" : "antigo";
+      return Object.assign({}, l, { situacao, empresaId: emp ? emp.id : "", empresa: emp ? emp.nome : l.titular, docId: atual ? atual.id : "", vencimentoAtual: atual ? atual.vencimento || "" : "" });
+    });
+  }
+
+  /** Grava o que previaCertificados mostrou. Devolve { renovados, novos, empresasNovas, ignorados }. */
+  function gravarCertificados(lidos) {
+    const itens = previaCertificados(lidos);
+    const e = docs();
+    let renovados = 0;
+    itens.filter((i) => i.situacao === "renovacao").forEach((i) => {
+      const d = e.documentos.find((x) => x.id === i.docId);
+      if (!d) return;
+      d.historico = (Array.isArray(d.historico) ? d.historico : []).concat({
+        data: hoje(), vencimentoAnterior: d.vencimento, novoVencimento: i.vencimento, emissaoAnterior: d.emissao || "", numeroAnterior: d.numero || "", obs: "Lido do arquivo do certificado"
+      });
+      d.vencimento = i.vencimento;
+      if (iso(i.emissao)) d.emissao = i.emissao;
+      if (!d.modelo) d.modelo = "A1";
+      d.andamento = "pendente";
+      renovados++;
+    });
+    if (renovados) gravar(CHAVE_DOCS, e);
+    const entram = itens.filter((i) => i.situacao === "novo" || i.situacao === "empresa-nova");
+    const plano = { empresas: [], documentos: [], faturamentos: [], alvaras: [], avisos: [], abas: [] };
+    entram.forEach((i) => {
+      const k = chaveEmpresa(i.titular, i.documento);
+      plano.empresas.push({ chave: k, nome: i.titular, documento: i.documento, regime: "", codigo: "" });
+      plano.documentos.push({ chave: k, empresa: i.titular, tipo: CERTIFICADO, modelo: "A1", numero: "", emissao: i.emissao || "", vencimento: i.vencimento, responsavel: "" });
+    });
+    const r = entram.length ? aplicarPlanilha(plano) : { novasEmp: 0, novosDocs: 0 };
+    return { renovados, novos: r.novosDocs, empresasNovas: r.novasEmp, ignorados: itens.length - renovados - r.novosDocs };
+  }
+
   function empresaPorDocumento(documento) {
     const dig = String(documento || "").replace(/\D/g, "");
     if (dig.length < 11) return null;
@@ -1310,7 +1359,7 @@ export function criarDepCadastro(deps) {
   }
 
   return {
-    aplicarPlanilha, previaPlanilha, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
+    aplicarPlanilha, previaPlanilha, previaCertificados, gravarCertificados, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
     hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, gradeAlvaras, buscarEmpresas, fichaEmpresa, resumo, urgentes, conferencia, salvarDocumento, renovar, excluirDocumento,
     faturamentos, definirFaturamento, totalAno, ultimos12, limitesDoAno, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };
