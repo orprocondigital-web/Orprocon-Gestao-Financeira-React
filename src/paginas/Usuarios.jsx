@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthCore } from "../lib/legado.js";
 import { useAuth } from "../lib/auth.jsx";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import Janela from "../componentes/Janela.jsx";
+import { useDepCadastro } from "../lib/useDepCadastro.js";
+import { chaveSetor, contarPorSetor, lerPlanilhaCarteira, setoresDasEmpresas } from "../lib/carteira.mjs";
+import { lerPlanilha } from "../lib/leitores.js";
+import { BotaoArquivo } from "../componentes/contabil/ui.jsx";
 
 /*
  * Usuários (só administradores): criar, editar, áreas de acesso, nova senha provisória, desativar,
@@ -69,13 +73,54 @@ function JanelaNovaSenha({ alvo, aoGerar, aoFechar }) {
   );
 }
 
-function FormUsuario({ editando, aoSalvar, aoFechar, aberta }) {
+/**
+ * Empresas que a pessoa vê: por setor (departamentos do Acessórias que vieram na importação das empresas) e/ou a
+ * carteira importada (CNPJs). Nada marcado = todas.
+ */
+function CamposCarteira({ setores, setSetores, cnpjs, setCnpjs }) {
+  const [svc, v] = useDepCadastro();
+  const empresas = useMemo(() => svc.empresas(), [svc, v]);   // eslint-disable-line
+  const lista = useMemo(() => setoresDasEmpresas(empresas), [empresas]);
+  const n = useMemo(() => contarPorSetor(empresas), [empresas]);
+  const marcado = (s) => setores.some((x) => chaveSetor(x) === chaveSetor(s));
+  const alternar = (s) => setSetores((l) => (marcado(s) ? l.filter((x) => chaveSetor(x) !== chaveSetor(s)) : l.concat(s)));
+  const extras = setores.filter((s) => !lista.some((x) => chaveSetor(x) === chaveSetor(s)));
+  return (
+    <fieldset className="space-y-2">
+      <legend className="rotulo mb-1">Empresas que vê</legend>
+      <p className="text-[12.5px] text-muted">Nada marcado: vê todas as empresas. Marcando setores, vê só as empresas que têm esse departamento no Acessórias
+        (Departamento Cadastro, Controle de horas e ISS).</p>
+      {lista.length === 0 && extras.length === 0 ? (
+        <p className="text-[12.5px] text-muted">Os setores aparecem aqui depois de importar as empresas do Acessórias (Departamento Cadastro › Importar).</p>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-2">
+          {lista.concat(extras).map((s) => (
+            <label key={s} className={"flex gap-2.5 items-center rounded-lg border px-2.5 py-2 cursor-pointer text-[13.5px] " + (marcado(s) ? "border-brand bg-brand-soft" : "border-line")}>
+              <input type="checkbox" checked={marcado(s)} onChange={() => alternar(s)} />
+              <span className="flex-1">{s}</span><span className="text-[12px] text-muted tabular-nums">{n[chaveSetor(s)] || 0}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2 text-[13px]">
+        {cnpjs.length > 0
+          ? <><span>Carteira importada: <strong>{cnpjs.length}</strong> empresa(s){setores.length ? " (dentro dos setores marcados)" : ""}.</span>
+            <button type="button" className="btn-fantasma btn-sm" onClick={() => setCnpjs([])}>Tirar a carteira</button></>
+          : <span className="text-muted">Sem carteira individual. Para separar as empresas de cada pessoa, use "Importar carteiras".</span>}
+      </div>
+    </fieldset>
+  );
+}
+
+function FormUsuario({ editando, aoSalvar, aoFechar, aberta, servidor }) {
   const [nome, setNome] = useState(""), [email, setEmail] = useState(""), [perfil, setPerfil] = useState("usuario");
   const [areas, setAreas] = useState([]), [ativo, setAtivo] = useState(true), [erro, setErro] = useState(""), [ocupado, setOcupado] = useState(false);
   const [senha, setSenha] = useState(""), [trocar, setTrocar] = useState(true);
+  const [setores, setSetores] = useState([]), [cnpjs, setCnpjs] = useState([]);
   useEffect(() => {
     if (!aberta) return;
     const u = editando;
+    setSetores(u ? (u.setores || []).slice() : []); setCnpjs(u ? (u.carteira || []).slice() : []);
     setNome(u ? u.nome : ""); setEmail(u ? u.email : ""); setPerfil(u ? u.perfil : "usuario");
     setAreas(u ? (u.perfil === "admin" ? AuthCore.AREAS.map((a) => a.id) : u.areas.slice()) : []);
     setAtivo(u ? u.ativo : true); setErro(""); setOcupado(false); setSenha(""); setTrocar(true);
@@ -84,6 +129,7 @@ function FormUsuario({ editando, aoSalvar, aoFechar, aberta }) {
   const salvar = () => {
     setErro(""); setOcupado(true);
     const dados = { nome, email, perfil, areas: perfil === "admin" ? [] : areas, ativo };
+    if (servidor) dados.carteira = perfil === "admin" ? { setores: [], cnpjs: [] } : { setores, cnpjs };
     if (!editando) Object.assign(dados, { senhaInicial: senha, trocarSenha: trocar });
     aoSalvar(dados)
       .catch((e) => setErro(e.message)).finally(() => setOcupado(false));
@@ -125,6 +171,7 @@ function FormUsuario({ editando, aoSalvar, aoFechar, aberta }) {
           })}
         </div>
       </fieldset>
+      {servidor && perfil !== "admin" && <CamposCarteira setores={setores} setSetores={setSetores} cnpjs={cnpjs} setCnpjs={setCnpjs} />}
       {!editando && <CamposSenha senha={senha} setSenha={setSenha} trocar={trocar} setTrocar={setTrocar} />}
       {editando && <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} /> Acesso ativo</label>}
       {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
@@ -154,6 +201,51 @@ function JanelaAcesso({ dados, aoFechar, servidor }) {
   );
 }
 
+/** Importar carteiras: a lista do Acessórias (responsável + empresa) separa as empresas de cada usuário. */
+function ImportarCarteiras({ usuarios, aoGravar, aoFechar }) {
+  const [svc] = useDepCadastro();
+  const [r, setR] = useState(null), [erro, setErro] = useState(""), [lendo, setLendo] = useState(false), [ocupado, setOcupado] = useState(false);
+  const ler = async (f) => {
+    setErro(""); setLendo(true);
+    try {
+      const res = lerPlanilhaCarteira(await lerPlanilha(f), usuarios.filter((u) => u.perfil !== "admin"), svc.empresas());
+      if (!res.linhas) setErro("Não achei linhas com responsável e empresa nesta planilha. Me mande o arquivo para ajustar a leitura.");
+      setR(res);
+    } catch (e) { setErro(e.message || String(e)); }
+    setLendo(false);
+  };
+  const gravar = () => {
+    setOcupado(true);
+    aoGravar(r.porUsuario.map((x) => ({ usuarioId: x.usuario.id, cnpjs: x.cnpjs }))).catch((e) => setErro(e.message)).finally(() => setOcupado(false));
+  };
+  return (
+    <Janela aberta titulo="Importar carteiras" aoFechar={aoFechar} largura="max-w-[720px]"
+      rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button>
+        <button type="button" className="btn-primario" disabled={ocupado || !r || !r.porUsuario.length} onClick={gravar}>{r && r.porUsuario.length ? "Gravar " + r.porUsuario.length + " carteira(s)" : "Gravar"}</button></>}>
+      <p className="text-[13.5px] text-ink-2">Planilha com o <strong>responsável</strong> (nome ou e-mail) e a <strong>empresa</strong> (CNPJ, ou o nome com [ID|final do CNPJ] como vem do Acessórias).
+        Pode ser uma planilha com todos os usuários. Para quem estiver nela, a carteira é trocada; os setores marcados continuam.</p>
+      <div><BotaoArquivo aceita=".xlsx,.xls,.csv" aoEscolher={ler} className="btn-contorno btn-sm" disabled={lendo}>{lendo ? "Lendo…" : "Escolher planilha"}</BotaoArquivo></div>
+      {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
+      {r && r.porUsuario.length > 0 && (
+        <table className="w-full text-[13px]">
+          <thead><tr className="text-left text-muted border-b border-line"><th className="py-1.5 font-medium">Usuário</th><th className="py-1.5 font-medium text-right">Empresas</th><th className="py-1.5 font-medium text-right">Carteira atual</th></tr></thead>
+          <tbody>{r.porUsuario.map((x) => (
+            <tr key={x.usuario.id} className="border-b border-line last:border-0"><td className="py-1.5">{x.usuario.nome}</td>
+              <td className="py-1.5 text-right tabular-nums">{x.cnpjs.length}</td>
+              <td className="py-1.5 text-right tabular-nums text-muted">{(x.usuario.carteira || []).length || "todas"}</td></tr>
+          ))}</tbody>
+        </table>
+      )}
+      {r && r.semUsuario.length > 0 && (
+        <p className="text-[12.5px] text-warn">Não achei estes responsáveis entre os usuários (crie o usuário ou confira o nome): {r.semUsuario.map((s) => s.nome + " (" + s.empresas + ")").join(", ")}.</p>
+      )}
+      {r && r.semEmpresa.length > 0 && (
+        <p className="text-[12.5px] text-muted">{r.semEmpresa.length} empresa(s) não encontradas no cadastro, ficaram de fora: {r.semEmpresa.slice(0, 8).join("; ")}{r.semEmpresa.length > 8 ? "…" : ""}</p>
+      )}
+    </Janela>
+  );
+}
+
 export default function Usuarios() {
   const { auth, usuario, definirUsuario } = useAuth();
   const { aviso, confirmar } = useAvisos();
@@ -161,6 +253,7 @@ export default function Usuarios() {
   const [erro, setErro] = useState("");
   const [form, setForm] = useState({ aberta: false, editando: null });
   const [acesso, setAcesso] = useState(null);
+  const [importando, setImportando] = useState(false);
   const servidor = auth.modo === "api";
   const eu = (u) => u.id === (usuario.usuarioId || usuario.id);
   const souPrincipal = usuario.email === AuthCore.ADMIN_EMAIL;
@@ -168,15 +261,17 @@ export default function Usuarios() {
   const carregar = useCallback(() => auth.listarUsuarios().then(setLista).catch((e) => setErro(e.message)), [auth]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const salvar = (dados) => {
+  const mudouCarteira = (u, c) => !!c && (JSON.stringify((u && u.setores) || []) !== JSON.stringify(c.setores) || JSON.stringify((u && u.carteira) || []) !== JSON.stringify(c.cnpjs));
+  const salvar = (dadosForm) => {
+    const { carteira, ...dados } = dadosForm;
     if (form.editando) {
       const ed = form.editando;
-      return auth.atualizarUsuario(ed.id, dados).then(() => {
+      return auth.atualizarUsuario(ed.id, dados).then(() => (mudouCarteira(ed, carteira) ? auth.definirCarteira(ed.id, carteira) : null)).then(() => {
         setForm({ aberta: false, editando: null }); aviso("Usuário atualizado.");
         if (eu(ed)) return auth.usuarioAtual().then((u) => u && definirUsuario(u));
       }).then(carregar);
     }
-    return auth.criarUsuario(dados).then((r) => {
+    return auth.criarUsuario(dados).then((r) => (carteira && carteira.setores.length ? auth.definirCarteira(r.usuario.id, carteira).then(() => r) : r)).then((r) => {
       setForm({ aberta: false, editando: null });
       setAcesso({ usuario: r.usuario, senha: r.senhaProvisoria, trocar: r.trocarSenha, titulo: "Acesso criado" });
     }).then(carregar);
@@ -236,6 +331,8 @@ export default function Usuarios() {
     : u.trocarSenha ? <Selo tipo="provisoria" title="Ainda não criou a própria senha">Senha provisória</Selo> : <Selo tipo="ativo">Ativo</Selo>;
   const areas = (u) => u.perfil === "admin" ? <span className="rounded-md bg-surface-2 border border-line px-1.5 py-0.5 text-[12px]">Tudo, inclusive usuários</span>
     : u.areas.length ? u.areas.map((a) => <span key={a} className="rounded-md bg-surface-2 border border-line px-1.5 py-0.5 text-[12px]">{NOME_AREA[a] || a}</span>)
+      .concat((u.setores || []).length || (u.carteira || []).length ? [<span key="carteira" className="rounded-md bg-brand-soft text-brand px-1.5 py-0.5 text-[12px]"
+        title="Empresas que vê">{[(u.setores || []).join(", "), (u.carteira || []).length ? (u.carteira || []).length + " empresa(s)" : ""].filter(Boolean).join(" · ")}</span>] : [])
     : <span className="text-[12px] text-muted">Nenhuma área</span>;
 
   return (
@@ -249,6 +346,7 @@ export default function Usuarios() {
           <div className="flex flex-wrap gap-2">
             {!servidor && <button type="button" className="btn-fantasma btn-sm" onClick={exportar} title="Arquivo com os acessos, para a pessoa importar no computador dela">Exportar acessos</button>}
             {!servidor && <label className="btn-fantasma btn-sm">Importar acessos<input type="file" accept=".json,application/json" hidden onChange={importar} /></label>}
+            {servidor && <button type="button" className="btn-contorno btn-sm" onClick={() => setImportando(true)} disabled={!lista}>Importar carteiras</button>}
             <button type="button" className="btn-primario btn-sm" onClick={() => setForm({ aberta: true, editando: null })}>Novo usuário</button>
           </div>
         </div>
@@ -301,7 +399,9 @@ export default function Usuarios() {
           </>
         )}
       </section>
-      <FormUsuario aberta={form.aberta} editando={form.editando} aoSalvar={salvar} aoFechar={() => setForm({ aberta: false, editando: null })} />
+      <FormUsuario aberta={form.aberta} editando={form.editando} servidor={servidor} aoSalvar={salvar} aoFechar={() => setForm({ aberta: false, editando: null })} />
+      {importando && lista && <ImportarCarteiras usuarios={lista} aoFechar={() => setImportando(false)}
+        aoGravar={(linhas) => auth.importarCarteiras(linhas).then(() => { setImportando(false); aviso(linhas.length + " carteira(s) gravada(s)."); carregar(); })} />}
       <JanelaNovaSenha alvo={novaPara} aoGerar={gerarSenha} aoFechar={() => setNovaPara(null)} />
       <JanelaAcesso dados={acesso} servidor={servidor} aoFechar={() => setAcesso(null)} />
     </div>

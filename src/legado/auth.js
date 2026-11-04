@@ -406,6 +406,7 @@
     function gravarSessao(u, token) {
       var anterior = lerSessao();
       var s = { usuarioId: u.id, nome: u.nome, email: u.email, perfil: u.perfil, areas: (u.areas || []).slice(),
+        setores: (u.setores || []).slice(), carteira: (u.carteira || []).slice(),
         expira: new Date(agora().getTime() + HORAS_SESSAO * 3600000).toISOString(),
         token: token || (anterior && anterior.token) || "" };
       sessao.setItem(CHAVE_SESSAO, JSON.stringify(s));
@@ -413,7 +414,7 @@
     function doServidor(u) {
       return { id: u.id, nome: u.nome, email: u.email, perfil: u.perfil, areas: (u.areas || []).slice(), ativo: u.ativo !== false,
         trocarSenha: !!u.trocarSenha, criadoEm: u.criadoEm || "", atualizadoEm: u.atualizadoEm || "", ultimoAcesso: u.ultimoAcesso || "",
-        principal: !!u.principal, teste: false };
+        principal: !!u.principal, teste: false, setores: (u.setores || []).slice(), carteira: (u.carteira || []).slice() };
     }
     function comSenha(r) { return { usuario: doServidor(r.usuario), senhaProvisoria: r.senhaProvisoria }; }
     /** Resposta do servidor + a senha escolhida (o servidor só devolve a que ele gerou) e se a pessoa troca no primeiro acesso. */
@@ -470,7 +471,8 @@
         }).catch(function (e) {
           if (e.codigo === "sem-conexao") {
             return { id: s.usuarioId, nome: s.nome, email: s.email, perfil: s.perfil, areas: s.areas || [], ativo: true,
-              trocarSenha: false, principal: s.email === ADMIN_EMAIL, teste: false, semConexao: true };
+              trocarSenha: false, principal: s.email === ADMIN_EMAIL, teste: false, semConexao: true,
+              setores: s.setores || [], carteira: s.carteira || [] };
           }
           if (e.status === 401 || e.status === 403) { limparSessao(); return null; }
           throw e;
@@ -506,6 +508,14 @@
       },
       excluirUsuario: function (id) {
         return api.del(caminho(id)).then(function () {});
+      },
+      /** Carteira: setores do Acessórias e CNPJs das empresas que a pessoa vê (vazio = todas). */
+      definirCarteira: function (id, carteira) {
+        return api.put(caminho(id) + "/carteira", { setores: carteira.setores || [], cnpjs: carteira.cnpjs || [] });
+      },
+      /** Importação: [{ usuarioId, cnpjs }] troca a lista de empresas de cada um (os setores ficam). */
+      importarCarteiras: function (linhas) {
+        return api.post("/api/usuarios/carteiras", linhas);
       },
 
       exportarAcessos: semArquivo,

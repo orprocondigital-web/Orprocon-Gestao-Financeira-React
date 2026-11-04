@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AuthCore, CONFIG, Store } from "./legado.js";
 import { iniciarSincronizacao } from "./sincronizacao.js";
+import { aplicarCarteira } from "./carteiraAtiva.js";
 
 /*
  * Login: o mesmo AuthCore da versão anterior. Sem servidor, os usuários ficam no navegador
@@ -26,6 +27,7 @@ export function AuthProvider({ children }) {
           if (!vivo) return;
           const usuario = u && !u.trocarSenha ? Object.assign({}, u, { usuarioId: u.id }) : null;
           if (u && u.trocarSenha) auth.sair();
+          aplicarCarteira(usuario);   // empresas que esta pessoa vê nas telas
           setEstado({ carregando: false, erro: "", auth, usuario });
         });
       })
@@ -34,6 +36,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const definirUsuario = useCallback((u) => {
+    aplicarCarteira(u);
     setEstado((s) => Object.assign({}, s, { usuario: u ? Object.assign({}, u, { usuarioId: u.id }) : null }));
     // acabou de entrar: traz os dados do servidor; se mudou algo, recarrega para as telas lerem a versão do servidor
     if (u) iniciarSincronizacao().then((r) => { if (r.mudou && r.mudou.length) window.location.reload(); });

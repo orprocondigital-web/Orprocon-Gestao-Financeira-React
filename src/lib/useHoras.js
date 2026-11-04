@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import H from "./horas/dados.mjs";
 import R from "./horas/regras.mjs";
+import { empresaVisivelPorCnpj } from "./carteiraAtiva.js";
 
 /*
  * Controle de horas: o estado em "horas:v1" (o mesmo do módulo antigo, então o que já existe continua),
@@ -27,10 +28,10 @@ export const horas = {
     avisar();
     return r;
   },
-  empresas: () => estado.empresas.slice().sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+  empresas: () => estado.empresas.filter((e) => empresaVisivelPorCnpj(e.cnpj)).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
   empresaId() {
     const id = lerLocal("horas:empresa");
-    if (H.porId(estado.empresas, id)) return id;
+    if (horas.empresas().some((e) => e.id === id)) return id;   // só uma empresa que a pessoa vê (carteira)
     const p = horas.empresas()[0];
     return p ? p.id : "";
   },

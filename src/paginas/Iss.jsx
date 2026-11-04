@@ -8,6 +8,7 @@ import { useAuth } from "../lib/auth.jsx";
 import { carregarXlsx } from "../lib/leitores.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import { Selo } from "../componentes/contabil/ui.jsx";
+import { issDaCarteira } from "../lib/carteiraAtiva.js";
 
 /*
  * ISS Tubarão: importa o XML do Movimento Econômico (Meu ISS) de cada empresa e confere as retenções.
@@ -55,7 +56,7 @@ function Empresa({ mes, chave, lista, abrir, voltar }) {
   const conferir = (sim) => {
     svc.marcarConferida(mes, chave, sim);
     if (!sim) return;
-    const prox = D.resumoMes(svc.estado(), mes).linhas.find((l) => !l.registro.conferida);
+    const prox = D.resumoMes(issDaCarteira(svc.estado()), mes).linhas.find((l) => !l.registro.conferida);
     aviso(prox ? "Conferida. Próxima: " + prox.empresa.nome : "Todas as empresas do mês conferidas.");
     if (prox) abrir(prox.chave); else voltar();
   };
@@ -163,7 +164,7 @@ export default function Iss() {
   useEffect(() => { const p = local.state && local.state.prefs; if (p && p["iss:mes"]) svc.definirMes(p["iss:mes"]); }, [local.key]);   // eslint-disable-line
   const mes = svc.mes();
   const e = svc.estado();
-  const r = useMemo(() => D.resumoMes(e, mes), [e, mes, versao]);   // eslint-disable-line
+  const r = useMemo(() => D.resumoMes(issDaCarteira(e), mes), [e, mes, versao]);   // eslint-disable-line
   const g = r.geral;
   const lista = r.linhas.map((l) => l.chave);
   const irMes = (m) => { svc.definirMes(m); setAberta(null); };
