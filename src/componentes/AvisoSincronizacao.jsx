@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { atualizarDoServidor } from "../lib/sincronizacao.js";
+import { atualizarDoServidor, COM_SERVIDOR } from "../lib/sincronizacao.js";
 import Icone from "./Icone.jsx";
 
 /*
@@ -49,5 +49,34 @@ export default function AvisoSincronizacao() {
       {comBotao && <button type="button" className="btn-primario btn-sm shrink-0" onClick={atualizarDoServidor}>Atualizar</button>}
       <button type="button" className="btn-sm shrink-0 opacity-80" aria-label="Fechar" onClick={() => setEv(null)}>✕</button>
     </div>
+  );
+}
+
+/**
+ * Selo do topo da tela: onde os dados estão guardados agora.
+ * Sem servidor: "Salvo neste navegador". Com servidor: salvo / salvando / sem conexão / há alterações.
+ */
+export function SeloDados({ className = "" }) {
+  const [estado, setEstado] = useState("ok");
+  useEffect(() => {
+    if (!COM_SERVIDOR) return undefined;
+    const ouvir = (e) => {
+      const t = (e.detail || {}).tipo;
+      if (t === "salvando") setEstado("salvando");
+      else if (t === "salvo") setEstado("ok");
+      else if (t === "erro" || t === "erro-inicio") setEstado("erro");
+      else if (t === "conflito" || t === "novidades") setEstado("atualizar");
+    };
+    window.addEventListener("gf-sinc", ouvir);
+    return () => window.removeEventListener("gf-sinc", ouvir);
+  }, []);
+  const [cor, texto, dica] = !COM_SERVIDOR ? ["bg-credit", "Salvo neste navegador", "Sem servidor: os dados ficam só neste computador."]
+    : estado === "salvando" ? ["bg-warn", "Salvando…", "Enviando as alterações para o servidor."]
+    : estado === "erro" ? ["bg-debit", "Sem conexão com o servidor", "O que você fez está guardado aqui e vai para o servidor assim que ele responder."]
+    : estado === "atualizar" ? ["bg-warn", "Há alterações: atualize", "Outra pessoa mudou os dados. Use o botão Atualizar no aviso do canto da tela."]
+    : ["bg-credit", "Salvo no servidor", "Os dados ficam no servidor e são os mesmos para toda a equipe."];
+  return (
+    <span className={"items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] text-muted " + className} title={dica} role="status">
+      <span className={"h-2 w-2 rounded-full " + cor} aria-hidden="true" />{texto}</span>
   );
 }
