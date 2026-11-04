@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { acumulado, apurar, lerValor, regraPadrao, xmlsDeExemplo } from "../lib/icms.mjs";
 import { useIcms } from "../lib/useIcms.js";
+import { COM_SERVIDOR } from "../lib/sincronizacao.js";
 import { carregarJsZip, carregarXlsx } from "../lib/leitores.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import { Selo } from "../componentes/contabil/ui.jsx";
@@ -204,7 +205,7 @@ export default function Icms() {
       </section>
 
       <section className="cartao p-5 space-y-3">
-        <div><h2 className="text-[15px] font-semibold">Ajustes manuais</h2><p className="text-[12.5px] text-muted">Valores que não aparecem nas NF-e. Ficam salvos neste navegador, por empresa e por mês.</p></div>
+        <div><h2 className="text-[15px] font-semibold">Ajustes manuais</h2><p className="text-[12.5px] text-muted">Valores que não aparecem nas NF-e. Ficam salvos {COM_SERVIDOR ? "no servidor" : "neste navegador"}, por empresa e por mês.</p></div>
         <div className="flex flex-wrap gap-4">
           <CampoAjuste id="aj-saldo" rotulo="Saldo credor do mês anterior" valor={ajustes.saldoAnt} aoGravar={(v) => svc.definirAjuste("saldoAnt", v)} />
           <CampoAjuste id="aj-cred" rotulo="Outros créditos" dica="CIAP, ICMS do frete (CT-e), presumido, TTD" valor={ajustes.outCred} aoGravar={(v) => svc.definirAjuste("outCred", v)} />
@@ -257,8 +258,8 @@ export default function Icms() {
           </table>
         </div>
         <p className="px-4 py-3 text-[12.5px] text-muted">{aba === "E"
-          ? "Nas notas de fornecedores o CFOP mostrado é o de entrada equivalente. Desmarque o que for uso e consumo, ativo ou não gerar crédito. As regras valem para todas as empresas neste navegador."
-          : "5929/6929 vêm desmarcados porque repetem vendas já registradas em cupom ou NFC-e. As regras valem para todas as empresas neste navegador."}</p>
+          ? "Nas notas de fornecedores o CFOP mostrado é o de entrada equivalente. Desmarque o que for uso e consumo, ativo ou não gerar crédito. As regras valem para todas as empresas" + (COM_SERVIDOR ? "." : " neste navegador.")
+          : "5929/6929 vêm desmarcados porque repetem vendas já registradas em cupom ou NFC-e. As regras valem para todas as empresas" + (COM_SERVIDOR ? "." : " neste navegador.")}</p>
       </section>
 
       <section className="cartao overflow-hidden">

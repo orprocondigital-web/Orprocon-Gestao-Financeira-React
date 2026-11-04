@@ -33,6 +33,8 @@ async function chamar(metodo, caminho, corpo) {
 
 /** Com o servidor ligado os dados são de todos: demonstrações e exemplos (dados fictícios) ficam desligados. */
 export const DEMO_LIBERADA = !CONFIG.apiUrl;
+/** Os dados dos módulos ficam no servidor (com API) ou só neste navegador (sem API)? */
+export const COM_SERVIDOR = !!CONFIG.apiUrl;
 
 export const sinc = CONFIG.apiUrl && original
   ? criarSincronizador({ storage: bruto, chamar, avisar: (e) => window.dispatchEvent(new CustomEvent("gf-sinc", { detail: e })) })

@@ -126,9 +126,15 @@ export default function Login() {
         </div>
       </section>
 
-      <section className="flex flex-col items-center justify-center px-6 py-10 sm:px-12">
+      {/* no celular: tudo começa perto do topo (o botão Entrar fica à vista); de tablet para cima, centralizado */}
+      <section className="flex flex-col items-center justify-start pt-12 pb-10 px-6 sm:justify-center sm:py-10 sm:px-12">
         <div className="w-full max-w-[400px]">
-          <div className="mb-8 lg:hidden"><Logo className="w-52" /></div>
+          {/* marca no celular e no tablet (no computador ela fica na coluna da esquerda) */}
+          <div className="mb-8 lg:hidden flex flex-col items-center text-center">
+            <Logo className="w-36 sm:w-44" />
+            <p className="mt-4 text-[18px] font-semibold tracking-tight text-ink">Central Orprocon</p>
+            <p className="text-[13px] text-muted">Sistema interno do escritório</p>
+          </div>
           {(carregando || tela === "carregando") && !erroGeral && <p className="text-muted">Carregando…</p>}
           {erroGeral && <p className="text-debit font-medium" role="alert">{erroGeral}</p>}
           {aviso && <p className="mb-4 rounded-lg bg-ok-soft text-credit px-3 py-2 text-[13px]" role="status">{aviso}</p>}
