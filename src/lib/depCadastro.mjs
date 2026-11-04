@@ -647,6 +647,13 @@ export function criarDepCadastro(deps) {
   const novoId = (p) => p + agora().getTime().toString(36) + (seq++).toString(36);
   const hoje = () => { const d = agora(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 
+  // carteira do usuário (carteira.mjs): quais empresas aparecem nas telas. null = todas. Gravação e importação não usam.
+  let visivel = null;
+  const vis = (c) => !visivel || (!!c && visivel(c));
+  /** Define o filtro das telas (fn(empresa) → boolean) ou null para mostrar todas. */
+  function definirVisivel(fn) { visivel = typeof fn === "function" ? fn : null; avisar(); }
+  function filtrado() { return !!visivel; }
+
   function ler(k, padrao) { try { const v = JSON.parse(ls.getItem(k) || "null"); return v && typeof v === "object" ? v : padrao; } catch (e) { return padrao; } }
   function gravar(k, v) { ls.setItem(k, JSON.stringify(v)); avisar(); }
   // o objeto inteiro do antigo painel é preservado (outros campos continuam como estavam)
@@ -677,7 +684,7 @@ export function criarDepCadastro(deps) {
     lista.forEach((c) => { const r = raizCnpj(c.documento); if (r && !ehFilial(c.documento)) matrizes[r] = c.id; });
     const porId = {};
     lista.forEach((c) => { porId[c.id] = c; });
-    return lista.map((c) => {
+    return lista.filter(vis).map((c) => {
       const matrizId = ehFilial(c.documento) ? matrizes[raizCnpj(c.documento)] || "" : "";
       // filial com a matriz cadastrada usa os sócios da matriz (como no sistema antigo)
       const socios = matrizId ? (porId[matrizId].socios || []) : (c.socios || []);
@@ -740,7 +747,7 @@ export function criarDepCadastro(deps) {
     const e = docs(), h = hoje();
     const porId = {};
     e.clientes.forEach((c) => { porId[c.id] = c; });
-    return e.documentos.filter((d) => grupoDoTipo(d.tipo) === grupo)
+    return e.documentos.filter((d) => grupoDoTipo(d.tipo) === grupo && vis(porId[d.clienteId]))
       .map((d) => { const c = porId[d.clienteId]; return Object.assign({}, d, { empresa: c ? c.nome : "(empresa excluída)", cnpj: c ? txt(c.documento) : "",
         contato: c ? { nome: txt(c.contato), email: txt(c.email), telefone: txt(c.telefone) } : { nome: "", email: "", telefone: "" },
         situacao: grupo === "alvaras" ? situacaoAlvara(d, h) : situacao(d.vencimento, h) }); })
@@ -764,7 +771,7 @@ export function criarDepCadastro(deps) {
       const atual = m[d.tipo];
       if (!atual || String(d.vencimento || "") > String(atual.vencimento || "") || (!atual.vencimento && !d.vencimento && String(d.criadoEm || "") >= String(atual.criadoEm || ""))) m[d.tipo] = d;
     });
-    const linhas = e.clientes.filter((c) => !c.baixa && !c.saida).slice().sort((a, b) => txt(a.nome).localeCompare(txt(b.nome), "pt-BR")).map((c) => {
+    const linhas = e.clientes.filter((c) => !c.baixa && !c.saida && vis(c)).slice().sort((a, b) => txt(a.nome).localeCompare(txt(b.nome), "pt-BR")).map((c) => {
       const alv = {}, sit = {};
       ALVARAS_GRADE.forEach((t) => {
         const d = (porEmp[c.id] || {})[t] || null;
@@ -941,7 +948,8 @@ export function criarDepCadastro(deps) {
       if (s.dias !== null && s.dias < -730) vencidosAntigos.push(item(c, nomeDoTipo(d) + " vencido em " + dataBR(d.vencimento) + " (mais de 2 anos)"));
     });
 
-    const ordenar = (l) => l.sort((a, b) => a.empresa.localeCompare(b.empresa, "pt-BR"));
+    const visiveis = new Set(e.clientes.filter(vis).map((c) => c.id));
+    const ordenar = (l) => l.filter((i) => visiveis.has(i.empresaId)).sort((a, b) => a.empresa.localeCompare(b.empresa, "pt-BR"));
     const listas = [
       { id: "sem-cnpj", titulo: "Sem CNPJ/CPF", texto: "Entraram só pelo nome. Sem CNPJ, a importação não acha a empresa com certeza.", itens: ordenar(semDoc) },
       { id: "cnpj-invalido", titulo: "CNPJ/CPF a conferir", texto: "Quantidade de dígitos errada ou dígito verificador que não confere.", itens: ordenar(docErrado) },
@@ -1359,7 +1367,7 @@ export function criarDepCadastro(deps) {
   }
 
   return {
-    aplicarPlanilha, previaPlanilha, previaCertificados, gravarCertificados, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
+    definirVisivel, filtrado, aplicarPlanilha, previaPlanilha, previaCertificados, gravarCertificados, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
     hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, gradeAlvaras, buscarEmpresas, fichaEmpresa, resumo, urgentes, conferencia, salvarDocumento, renovar, excluirDocumento,
     faturamentos, definirFaturamento, totalAno, ultimos12, limitesDoAno, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };

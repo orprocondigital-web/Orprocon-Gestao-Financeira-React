@@ -561,3 +561,22 @@ describe("conferência do cadastro", () => {
     assert.equal(svc.conferencia().total, 0);
   });
 });
+
+describe("carteira do usuário nas telas", () => {
+  test("com filtro, as listas mostram só as empresas da carteira; a gravação continua vendo tudo", () => {
+    const { svc, ls } = amb({ "painelVencimentos:v1": JSON.stringify({
+      clientes: [{ id: "a", nome: "Alfa", documento: "11.222.333/0001-81" }, { id: "b", nome: "Beta", documento: "11.444.777/0001-61" }],
+      documentos: [{ id: "d1", clienteId: "a", tipo: "CND Federal", vencimento: "2026-10-18", historico: [] }, { id: "d2", clienteId: "b", tipo: "CND Federal", vencimento: "2026-10-18", historico: [] }]
+    }) });
+    svc.definirVisivel((c) => c.documento === "11.444.777/0001-61");
+    assert.equal(svc.filtrado(), true);
+    assert.deepEqual(svc.empresas().map((c) => c.id), ["b"]);
+    assert.deepEqual(svc.documentos("certidoes").map((d) => d.id), ["d2"]);
+    assert.equal(svc.urgentes("certidoes"), 1);
+    assert.equal(svc.fichaEmpresa("a"), null);
+    svc.salvarDocumento({ clienteId: "a", tipo: "CRF FGTS", vencimento: "2026-12-01" });
+    assert.equal(JSON.parse(ls["painelVencimentos:v1"]).clientes.length, 2);   // nada some ao gravar
+    svc.definirVisivel(null);
+    assert.equal(svc.empresas().length, 2);
+  });
+});
