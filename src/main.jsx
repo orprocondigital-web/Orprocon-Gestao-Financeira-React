@@ -22,4 +22,6 @@ iniciarSincronizacao()
     clearTimeout(lento);
     raiz.innerHTML = "";
     createRoot(raiz).render(<React.StrictMode><App /></React.StrictMode>);
+    // PDFs anexados em versões anteriores (só neste navegador): sobem para o servidor, uma vez, sem atrapalhar a abertura
+    setTimeout(() => import("./lib/arquivos.js").then((m) => m.subirAnexosDoNavegador()), 5000);
   });
