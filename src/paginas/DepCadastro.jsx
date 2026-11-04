@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Core } from "../lib/legado.js";
 import { ALVARAS_GRADE, CERTIFICADO, DEMONSTRATIVOS, MESES, MODELOS_CERTIFICADO, NOME_CURTO_ALVARA, SITUACOES_ALVARA, STATUS_DEMO, TIPOS_ALVARAS, TIPOS_CERTIDOES, ehCertificado, grupoDoTipo, lerCertidao, linhasCertificados, nomeDoTipo, textoSituacao } from "../lib/depCadastro.mjs";
-import { carregarXlsx } from "../lib/leitores.js";
+import { carregarForge, carregarXlsx, lerBuffer } from "../lib/leitores.js";
+import { formatarDocumento, lerCertificado, senhasDoNome, unicosPorDocumento } from "../lib/certificado.mjs";
 import { abrirArquivo, apagarArquivo, guardarArquivo } from "../lib/arquivos.js";
 import { textoDoPdf } from "../lib/leitores.js";
 import Importar, { carregarDemo, DEMO_LIBERADA } from "../componentes/depCadastro/Importar.jsx";
@@ -568,6 +569,95 @@ function GrupoCert({ titulo, cor, lista, aoRenovar, aoEditar, aoMensagem, vazio 
   );
 }
 
+const SIT_CERT = {
+  renovacao: ["novo", "Renova"], novo: ["novo", "Cadastra"], "empresa-nova": ["pendente", "Empresa nova"],
+  igual: ["neutro", "Já cadastrado"], antigo: ["neutro", "Mais antigo que o cadastrado"]
+};
+
+/** Ler certificado: arrasta o .pfx/.p12 e o sistema preenche empresa, CNPJ/CPF, emissão e vencimento. */
+function LerCertificado({ aoFechar }) {
+  const [svc] = useDepCadastro();
+  const { aviso } = useAvisos();
+  const [arquivos, setArquivos] = useState([]);   // [{ nome, bytes, r, senha }] só na memória desta janela
+  const [lendo, setLendo] = useState(false);
+  const [erro, setErro] = useState("");
+  const [arrastando, setArrastando] = useState(false);
+  const ler = async (files) => {
+    setErro(""); setLendo(true);
+    try {
+      const forge = await carregarForge();
+      const novos = [];
+      for (const f of files.filter((f) => /\.(pfx|p12)$/i.test(f.name))) {
+        const bytes = new Uint8Array(await lerBuffer(f));
+        await new Promise((ok) => setTimeout(ok, 0));   // deixa a tela respirar entre um arquivo e outro
+        novos.push({ nome: f.name, bytes, r: lerCertificado(forge, bytes, senhasDoNome(f.name)), senha: "" });
+      }
+      if (!novos.length) setErro("Escolha arquivos .pfx ou .p12.");
+      setArquivos((a) => a.concat(novos));
+    } catch (e) { setErro(e.message || String(e)); }
+    setLendo(false);
+  };
+  const tentar = async (i) => {
+    const forge = await carregarForge();
+    setArquivos((a) => a.map((x, j) => (j === i ? Object.assign({}, x, { r: lerCertificado(forge, x.bytes, [x.senha]) }) : x)));
+  };
+  const semSenha = arquivos.map((a, i) => Object.assign({ i }, a)).filter((a) => !a.r.ok);
+  const previa = useMemo(() => svc.previaCertificados(unicosPorDocumento(arquivos.map((a) => a.r))), [svc, arquivos]);
+  const mudam = previa.filter((p) => p.situacao !== "igual" && p.situacao !== "antigo").length;
+  const gravar = () => {
+    const r = svc.gravarCertificados(unicosPorDocumento(arquivos.map((a) => a.r)));
+    aviso([r.renovados && r.renovados + " renovado(s)", r.novos && r.novos + " cadastrado(s)", r.empresasNovas && r.empresasNovas + " empresa(s) nova(s)"].filter(Boolean).join(", ") || "Nada mudou: já estava tudo cadastrado.");
+    aoFechar();
+  };
+  return (
+    <Janela aberta titulo="Ler certificado digital" aoFechar={aoFechar} largura="max-w-[760px]"
+      rodape={<><button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button>
+        <button type="button" className="btn-primario" onClick={gravar} disabled={!mudam}>{mudam ? "Gravar " + mudam + " certificado(s)" : "Gravar"}</button></>}>
+      <div onDragOver={(e) => { e.preventDefault(); setArrastando(true); }} onDragLeave={() => setArrastando(false)}
+        onDrop={(e) => { e.preventDefault(); setArrastando(false); ler(Array.from(e.dataTransfer.files || [])); }}
+        className={"rounded-lg border-2 border-dashed px-4 py-6 text-center space-y-2 transition-colors " + (arrastando ? "border-brand-fill bg-surface-2" : "border-line")}>
+        <p className="text-[13.5px]">Arraste aqui os arquivos do certificado (<strong>.pfx</strong> ou <strong>.p12</strong>), um ou vários.</p>
+        <BotaoArquivo aceita=".pfx,.p12" multiplo aoEscolher={ler} className="btn-contorno btn-sm" disabled={lendo}>{lendo ? "Lendo…" : "Escolher arquivos"}</BotaoArquivo>
+        <p className="text-[12.5px] text-muted">A senha do nome do arquivo é usada sozinha. O arquivo e a senha não saem deste computador e não são guardados: só o titular, o CNPJ/CPF e as datas vão para o sistema.</p>
+      </div>
+      {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
+      {semSenha.length > 0 && (
+        <div className="space-y-2">
+          <strong className="block text-[13.5px]">Não abriu ({semSenha.length})</strong>
+          {semSenha.map((a) => (
+            <div key={a.i} className="flex flex-wrap items-center gap-2 text-[13px]">
+              <span className="flex-1 min-w-[200px] break-all">{a.nome.replace(/\s*senha.*$/i, "")}<span className="text-muted"> · {a.r.motivo === "senha" ? "senha não confere" : "não é um certificado"}</span></span>
+              {a.r.motivo === "senha" && <>
+                <input type="password" aria-label={"Senha de " + a.nome} placeholder="Senha" value={a.senha} className="h-8 max-w-[160px]"
+                  onChange={(e) => { const v = e.target.value; setArquivos((l) => l.map((x, j) => (j === a.i ? Object.assign({}, x, { senha: v }) : x))); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") tentar(a.i); }} />
+                <button type="button" className="btn-contorno btn-sm" onClick={() => tentar(a.i)} disabled={!a.senha}>Abrir</button>
+              </>}
+            </div>
+          ))}
+        </div>
+      )}
+      {previa.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead><tr className="text-left text-muted border-b border-line"><th className="py-1.5 pr-3 font-medium">Titular</th><th className="py-1.5 pr-3 font-medium">CNPJ/CPF</th><th className="py-1.5 pr-3 font-medium">Vencimento</th><th className="py-1.5 font-medium">O que acontece</th></tr></thead>
+            <tbody>
+              {previa.map((p) => (
+                <tr key={p.documento + p.vencimento} className="border-b border-line last:border-0">
+                  <td className="py-1.5 pr-3">{p.empresa}</td>
+                  <td className="py-1.5 pr-3 tabular-nums whitespace-nowrap">{formatarDocumento(p.documento) || "—"}</td>
+                  <td className="py-1.5 pr-3 tabular-nums whitespace-nowrap">{dataBR(p.vencimento)}{p.situacao === "renovacao" && <span className="block text-[12px] text-muted">era {dataBR(p.vencimentoAtual)}</span>}</td>
+                  <td className="py-1.5"><Selo tipo={SIT_CERT[p.situacao][0]}>{SIT_CERT[p.situacao][1]}</Selo></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Janela>
+  );
+}
+
 function Certificados() {
   const [svc, versao] = useDepCadastro();
   const { aviso } = useAvisos();
@@ -576,6 +666,7 @@ function Certificados() {
   const [mensagem, setMensagem] = useState(null);
   const [form, setForm] = useState(null);
   const [renovando, setRenovando] = useState(null);
+  const [lerCert, setLerCert] = useState(false);
   const filtra = (l) => (modelo === "todos" ? l : l.filter((d) => (d.modelo || "") === (modelo === "sem" ? "" : modelo)));
   const baixar = async () => {
     try {
@@ -601,10 +692,11 @@ function Certificados() {
         <Segmentado pequeno rotulo="Modelo" valor={modelo} aoMudar={setModelo} opcoes={[["todos", "Todos"], ["A1", "A1"], ["A3", "A3"]].concat(g.semModelo ? [["sem", "Sem modelo (" + g.semModelo + ")"]] : [])} />
         <div className="flex-1" />
         <button type="button" className="btn-contorno btn-sm" onClick={baixar} disabled={!g.lista.length}>Baixar Excel</button>
+        <button type="button" className="btn-contorno btn-sm" onClick={() => setLerCert(true)}><Icone nome="cadeado" />Ler certificado</button>
         <button type="button" className="btn-primario btn-sm" onClick={() => setForm({ editando: null })}><Icone nome="mais" />Novo certificado</button>
       </div>
       {!g.lista.length ? (
-        <div className="cartao"><Vazio titulo="Nenhum certificado digital cadastrado" texto="Cadastre em Novo certificado, importe os PDFs ou uma planilha (com a coluna Modelo A1/A3), ou carregue a demonstração." /></div>
+        <div className="cartao"><Vazio titulo="Nenhum certificado digital cadastrado" texto="Use Ler certificado (arraste o .pfx), cadastre em Novo certificado, importe os PDFs ou uma planilha (com a coluna Modelo A1/A3)." /></div>
       ) : (
         <>
           <GrupoCert titulo="Vencidos" cor="text-debit" lista={filtra(g.vencidos)} aoRenovar={setRenovando} aoEditar={(d) => setForm({ editando: d })} aoMensagem={setMensagem} vazio="Nenhum certificado vencido." />
@@ -616,6 +708,7 @@ function Certificados() {
       {form && <FormDocumento grupo="certidoes" editando={form.editando} tipoInicial={CERTIFICADO} aoFechar={() => setForm(null)} />}
       {mensagem && <Mensagem doc={mensagem} aoFechar={() => setMensagem(null)} />}
       {renovando && <Renovar doc={renovando} aoFechar={() => setRenovando(null)} />}
+      {lerCert && <LerCertificado aoFechar={() => setLerCert(false)} />}
     </div>
   );
 }

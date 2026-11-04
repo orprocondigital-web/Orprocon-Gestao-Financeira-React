@@ -28,6 +28,9 @@ const EXCELJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/excelj
 export function carregarExcelJs() { return script(EXCELJS_URL, "ExcelJS", "gerador de planilhas"); }
 export function carregarJsZip() { return script(JSZIP_URL, "JSZip", "leitor de .zip"); }
 export function carregarXlsx() { return script(XLSX_URL, "XLSX", "leitor de planilhas"); }
+const FORGE_URL = "https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js";
+/** node-forge: abre o certificado digital (.pfx/.p12) no navegador, sem mandar o arquivo para lugar nenhum. */
+export function carregarForge() { return script(FORGE_URL, "forge", "leitor de certificado"); }
 function carregarPdfJs() {
   return script(PDFJS_URL, "pdfjsLib", "leitor de PDF").then((p) => { p.GlobalWorkerOptions.workerSrc = PDFJS_WORKER; return p; });
 }
