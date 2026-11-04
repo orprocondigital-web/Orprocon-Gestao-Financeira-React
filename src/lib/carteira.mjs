@@ -124,17 +124,19 @@ const ACESSORIAS_RESP = /^(departamento|depto\.?|dpto\.?)\s[^-]+?\s+-\s+\S/i;
  * "Empresa [ID|final do CNPJ]" e "Departamento X - Nome". empresas: as do Departamento Cadastro (com documento e codigo).
  * Devolve { porUsuario: [{ usuario, cnpjs: [...] }], semUsuario: [{ nome, empresas }], semEmpresa: [texto], linhas }.
  */
-export function lerPlanilhaCarteira(abas, usuarios, empresas) {
-  const porDoc = {}, porCodigo = {}, porNome = {};
+/**
+ * Acha o CNPJ/CPF de uma empresa do cadastro pelo que vem na planilha: o documento inteiro, ou o nome do Acessórias
+ * com [ID|final do CNPJ] (ou uma coluna de código). Devolve só os dígitos, ou "" se não achou com certeza.
+ */
+export function criarAchadorDeEmpresa(empresas) {
+  const porCodigo = {}, porNome = {};
   (empresas || []).forEach((c) => {
-    const d = digitos(c.documento);
-    if (d.length >= 11) porDoc[d] = c;
     const cod = txt(c.codigo).replace(/^0+(?=\d)/, "");
     if (cod) (porCodigo[cod] = porCodigo[cod] || []).push(c);
     const n = chaveNome(c.nome);
     if (n) (porNome[n] = porNome[n] || []).push(c);
   });
-  const acharEmpresa = (doc, texto, codigoCol) => {
+  return (doc, texto, codigoCol) => {
     const d = digitos(doc);
     if (d.length === 11 || d.length === 14) return d;   // CNPJ/CPF inteiro: vale mesmo que a empresa ainda não esteja no cadastro
     const e = separarEmpresa(texto);
@@ -145,35 +147,63 @@ export function lerPlanilhaCarteira(abas, usuarios, empresas) {
     if (cands.length !== 1) cands = (porNome[chaveNome(e.nome)] || []).filter(confere);
     return cands.length === 1 && digitos(cands[0].documento).length >= 11 ? digitos(cands[0].documento) : "";
   };
+}
 
-  const mapa = new Map(), semUsuario = {}, semEmpresa = [];
-  let linhas = 0;
+/** Linhas de cada aba: [{ resp, doc, emp, cod }] pelo cabeçalho; sem cabeçalho conhecido, acha pelas células (Acessórias). */
+function linhasDasAbas(abas, exigeResponsavel) {
+  const out = [];
   (abas || []).forEach((aba) => {
     const rows = (aba.rows || []).map((r) => (r || []).map((c) => (c instanceof Date ? "" : txt(c))));
-    // cabeçalho: a primeira linha (até a 15ª) com coluna de responsável e de empresa ou CNPJ
     let col = null, ini = 0;
     for (let i = 0; i < Math.min(rows.length, 15) && !col; i++) {
       const m = {};
       rows[i].forEach((c, j) => { const n = norm(c); Object.keys(CAB).forEach((k) => { if (m[k] === undefined && CAB[k].includes(n)) m[k] = j; }); });
-      if (m.responsavel !== undefined && (m.documento !== undefined || m.empresa !== undefined)) { col = m; ini = i + 1; }
+      if ((m.responsavel !== undefined || !exigeResponsavel) && (m.documento !== undefined || m.empresa !== undefined)) { col = m; ini = i + 1; }
     }
     rows.slice(ini).forEach((r) => {
-      let resp = col ? r[col.responsavel] : "", doc = col && col.documento !== undefined ? r[col.documento] : "";
-      let emp = col && col.empresa !== undefined ? r[col.empresa] : "", cod = col && col.codigo !== undefined ? r[col.codigo] : "";
-      if (!col) {   // sem cabeçalho conhecido (exportação do Acessórias): acha pelas células
-        emp = r.find((c) => ACESSORIAS_EMPRESA.test(c)) || "";
-        resp = r.find((c) => ACESSORIAS_RESP.test(c)) || "";
+      if (col) {
+        out.push({ resp: col.responsavel !== undefined ? r[col.responsavel] : "", doc: col.documento !== undefined ? r[col.documento] : "",
+          emp: col.empresa !== undefined ? r[col.empresa] : "", cod: col.codigo !== undefined ? r[col.codigo] : "" });
+      } else {
+        const emp = r.find((c) => ACESSORIAS_EMPRESA.test(c)) || "";
+        const doc = exigeResponsavel ? "" : (r.find((c) => { const d = digitos(c); return (d.length === 14 || d.length === 11) && /[./-]/.test(c); }) || "");
+        out.push({ resp: r.find((c) => ACESSORIAS_RESP.test(c)) || "", doc, emp, cod: "" });
       }
-      if (!txt(resp) || !(txt(doc) || txt(emp))) return;
-      linhas++;
-      const { nome } = separarResponsavel(resp);
-      const u = acharUsuario(nome, usuarios);
-      const d = acharEmpresa(doc, emp, cod);
-      if (!u) { const s = semUsuario[nome] = semUsuario[nome] || new Set(); if (d) s.add(d); return; }
-      if (!d) { if (!semEmpresa.includes(txt(emp) || txt(doc))) semEmpresa.push(txt(emp) || txt(doc)); return; }
-      if (!mapa.has(u.id)) mapa.set(u.id, { usuario: u, cnpjs: new Set() });
-      mapa.get(u.id).cnpjs.add(d);
     });
+  });
+  return out.filter((l) => txt(l.doc) || txt(l.emp));
+}
+
+/**
+ * Planilha de UM usuário (escolhida dentro do cadastro dele): só as empresas, sem precisar da coluna de responsável.
+ * Devolve { cnpjs: [...], semEmpresa: [texto], linhas }.
+ */
+export function empresasDaPlanilha(abas, empresas) {
+  const achar = criarAchadorDeEmpresa(empresas);
+  const cnpjs = new Set(), semEmpresa = [];
+  const linhas = linhasDasAbas(abas, false);
+  linhas.forEach((l) => {
+    const d = achar(l.doc, l.emp, l.cod);
+    if (d) cnpjs.add(d);
+    else if (!semEmpresa.includes(txt(l.emp) || txt(l.doc))) semEmpresa.push(txt(l.emp) || txt(l.doc));
+  });
+  return { cnpjs: Array.from(cnpjs).sort(), semEmpresa, linhas: linhas.length };
+}
+
+export function lerPlanilhaCarteira(abas, usuarios, empresas) {
+  const acharEmpresa = criarAchadorDeEmpresa(empresas);
+  const mapa = new Map(), semUsuario = {}, semEmpresa = [];
+  let linhas = 0;
+  linhasDasAbas(abas, true).forEach(({ resp, doc, emp, cod }) => {
+    if (!txt(resp)) return;
+    linhas++;
+    const { nome } = separarResponsavel(resp);
+    const u = acharUsuario(nome, usuarios);
+    const d = acharEmpresa(doc, emp, cod);
+    if (!u) { const s = semUsuario[nome] = semUsuario[nome] || new Set(); if (d) s.add(d); return; }
+    if (!d) { if (!semEmpresa.includes(txt(emp) || txt(doc))) semEmpresa.push(txt(emp) || txt(doc)); return; }
+    if (!mapa.has(u.id)) mapa.set(u.id, { usuario: u, cnpjs: new Set() });
+    mapa.get(u.id).cnpjs.add(d);
   });
   return {
     porUsuario: Array.from(mapa.values()).map((x) => ({ usuario: x.usuario, cnpjs: Array.from(x.cnpjs).sort() }))

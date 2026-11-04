@@ -4,7 +4,7 @@ import { useAuth } from "../lib/auth.jsx";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import Janela from "../componentes/Janela.jsx";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
-import { chaveSetor, contarPorSetor, lerPlanilhaCarteira, setoresDasEmpresas } from "../lib/carteira.mjs";
+import { chaveSetor, contarPorSetor, empresasDaPlanilha, lerPlanilhaCarteira, setoresDasEmpresas } from "../lib/carteira.mjs";
 import { lerPlanilha } from "../lib/leitores.js";
 import { BotaoArquivo } from "../componentes/contabil/ui.jsx";
 
@@ -73,12 +73,100 @@ function JanelaNovaSenha({ alvo, aoGerar, aoFechar }) {
   );
 }
 
+const dig = (v) => String(v || "").replace(/\D/g, "");
+const semAc = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const docFmt = (d) => (d.length === 14 ? d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : d.length === 11 ? d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4") : d);
+
+/**
+ * Escolher as empresas de UM usuário: busca e marca as que já estão no cadastro, ou importa a planilha dele
+ * (a lista do Acessórias, sem precisar da coluna de responsável).
+ */
+function EscolherEmpresas({ nome, inicial, aoConfirmar, aoFechar }) {
+  const [svc] = useDepCadastro();
+  const empresas = useMemo(() => svc.empresas().filter((c) => dig(c.documento).length >= 11), [svc]);
+  const setores = useMemo(() => setoresDasEmpresas(empresas), [empresas]);
+  const [sel, setSel] = useState(() => new Set(inicial || []));
+  const [busca, setBusca] = useState(""), [mostrar, setMostrar] = useState("todas"), [setor, setSetor] = useState("");
+  const [msg, setMsg] = useState(""), [lendo, setLendo] = useState(false);
+  const b = semAc(busca.trim()), bd = dig(busca);
+  const filtradas = empresas.filter((c) => {
+    const d = dig(c.documento);
+    if (mostrar === "marcadas" && !sel.has(d)) return false;
+    if (setor && !(c.departamentos || []).some((x) => chaveSetor(x) === chaveSetor(setor))) return false;
+    if (!b) return true;
+    return semAc(c.nome).indexOf(b) > -1 || (bd.length >= 3 && d.indexOf(bd) > -1) || String(c.codigo || "") === busca.trim();
+  });
+  const LIMITE = 300;
+  const mudar = (fn) => setSel((s) => { const n = new Set(s); fn(n); return n; });
+  const foraDoCadastro = Array.from(sel).filter((d) => !empresas.some((c) => dig(c.documento) === d)).length;
+  const importar = async (f) => {
+    setMsg(""); setLendo(true);
+    try {
+      const r = empresasDaPlanilha(await lerPlanilha(f), empresas);
+      if (!r.linhas) setMsg("Não achei empresas nesta planilha (precisa de uma coluna Empresa ou CNPJ, ou o formato do Acessórias).");
+      else {
+        const novas = r.cnpjs.filter((d) => !sel.has(d)).length;
+        mudar((n) => r.cnpjs.forEach((d) => n.add(d)));
+        setMostrar("marcadas");
+        setMsg(r.cnpjs.length + " empresa(s) na planilha, " + novas + " marcada(s) agora." + (r.semEmpresa.length ? " Não achei no cadastro: " + r.semEmpresa.slice(0, 6).join("; ") + (r.semEmpresa.length > 6 ? "…" : "") : ""));
+      }
+    } catch (e) { setMsg(e.message || String(e)); }
+    setLendo(false);
+  };
+  return (
+    <Janela aberta titulo={"Empresas de " + (nome || "usuário")} aoFechar={aoFechar} largura="max-w-[820px]"
+      rodape={<><span className="text-[13px] text-muted mr-auto self-center">{sel.size ? sel.size + " empresa(s) marcada(s)" : "Nenhuma marcada: vê todas"}</span>
+        <button type="button" className="btn-fantasma" onClick={aoFechar}>Cancelar</button>
+        <button type="button" className="btn-primario" onClick={() => aoConfirmar(Array.from(sel).sort())}>Usar estas empresas</button></>}>
+      <div className="flex flex-wrap items-center gap-2">
+        <BotaoArquivo aceita=".xlsx,.xls,.csv" aoEscolher={importar} className="btn-contorno btn-sm" disabled={lendo}>{lendo ? "Lendo…" : "Importar planilha deste usuário"}</BotaoArquivo>
+        <span className="text-[12.5px] text-muted">A lista do Acessórias dele (empresa com [ID|final do CNPJ]) ou qualquer planilha com Empresa ou CNPJ.</span>
+      </div>
+      {msg && <p className="text-[13px] text-ink-2" role="status">{msg}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nome, CNPJ ou código…" aria-label="Buscar empresa" className="max-w-[260px] h-9" data-foco />
+        <select value={mostrar} onChange={(e) => setMostrar(e.target.value)} aria-label="Mostrar" className="h-9 max-w-[170px]">
+          <option value="todas">Todas</option><option value="marcadas">Só as marcadas</option>
+        </select>
+        {setores.length > 0 && <select value={setor} onChange={(e) => setSetor(e.target.value)} aria-label="Setor" className="h-9 max-w-[220px]">
+          <option value="">Qualquer setor</option>{setores.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-[13px]">
+        <span className="text-muted">{filtradas.length} empresa(s) na lista</span>
+        <button type="button" className="btn-fantasma btn-sm" disabled={!filtradas.length} onClick={() => mudar((n) => filtradas.forEach((c) => n.add(dig(c.documento))))}>Marcar as {filtradas.length}</button>
+        <button type="button" className="btn-fantasma btn-sm" disabled={!filtradas.length} onClick={() => mudar((n) => filtradas.forEach((c) => n.delete(dig(c.documento))))}>Desmarcar as {filtradas.length}</button>
+        {sel.size > 0 && <button type="button" className="btn-fantasma btn-sm text-debit" onClick={() => setSel(new Set())}>Limpar tudo</button>}
+      </div>
+      <ul className="border border-line rounded-lg divide-y divide-line max-h-[46vh] overflow-y-auto">
+        {filtradas.slice(0, LIMITE).map((c) => {
+          const d = dig(c.documento), m = sel.has(d);
+          return (
+            <li key={c.id}>
+              <label className={"flex items-center gap-3 px-3 py-2 cursor-pointer text-[13.5px] " + (m ? "bg-brand-soft" : "hover:bg-surface-2")}>
+                <input type="checkbox" checked={m} onChange={() => mudar((n) => (m ? n.delete(d) : n.add(d)))} />
+                <span className="flex-1 min-w-0"><span className="block truncate">{c.nome}</span>
+                  <span className="block text-[12px] text-muted">{docFmt(d)}{c.codigo ? " · cód. " + c.codigo : ""}{(c.departamentos || []).length ? " · " + c.departamentos.join(", ") : ""}</span></span>
+                {(c.baixa || c.saida) && <span className="text-[11.5px] text-muted">{c.baixa ? "baixada" : "saiu"}</span>}
+              </label>
+            </li>
+          );
+        })}
+        {!filtradas.length && <li className="px-3 py-3 text-[13px] text-muted">Nenhuma empresa com esse filtro.</li>}
+        {filtradas.length > LIMITE && <li className="px-3 py-2 text-[12.5px] text-muted">Mostrando {LIMITE} de {filtradas.length}. Use a busca ou o setor para achar as outras ("Marcar" vale para todas da lista).</li>}
+      </ul>
+      {foraDoCadastro > 0 && <p className="text-[12.5px] text-muted">{foraDoCadastro} CNPJ(s) da carteira não estão no cadastro do Departamento Cadastro (continuam na carteira).</p>}
+    </Janela>
+  );
+}
+
 /**
  * Empresas que a pessoa vê: por setor (departamentos do Acessórias que vieram na importação das empresas) e/ou a
  * carteira importada (CNPJs). Nada marcado = todas.
  */
-function CamposCarteira({ setores, setSetores, cnpjs, setCnpjs }) {
+function CamposCarteira({ nome, setores, setSetores, cnpjs, setCnpjs }) {
   const [svc, v] = useDepCadastro();
+  const [escolhendo, setEscolhendo] = useState(false);
   const empresas = useMemo(() => svc.empresas(), [svc, v]);   // eslint-disable-line
   const lista = useMemo(() => setoresDasEmpresas(empresas), [empresas]);
   const n = useMemo(() => contarPorSetor(empresas), [empresas]);
@@ -103,11 +191,13 @@ function CamposCarteira({ setores, setSetores, cnpjs, setCnpjs }) {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2 text-[13px]">
+        <button type="button" className="btn-contorno btn-sm" onClick={() => setEscolhendo(true)}>Escolher empresas{cnpjs.length ? " (" + cnpjs.length + ")" : ""}</button>
         {cnpjs.length > 0
-          ? <><span>Carteira importada: <strong>{cnpjs.length}</strong> empresa(s){setores.length ? " (dentro dos setores marcados)" : ""}.</span>
+          ? <><span>Vê só estas <strong>{cnpjs.length}</strong> empresa(s){setores.length ? ", dentro dos setores marcados" : ""}.</span>
             <button type="button" className="btn-fantasma btn-sm" onClick={() => setCnpjs([])}>Tirar a carteira</button></>
-          : <span className="text-muted">Sem carteira individual. Para separar as empresas de cada pessoa, use "Importar carteiras".</span>}
+          : <span className="text-muted">Sem carteira individual: marque as empresas ou importe a planilha dele.</span>}
       </div>
+      {escolhendo && <EscolherEmpresas nome={nome} inicial={cnpjs} aoFechar={() => setEscolhendo(false)} aoConfirmar={(l) => { setCnpjs(l); setEscolhendo(false); }} />}
     </fieldset>
   );
 }
@@ -171,7 +261,7 @@ function FormUsuario({ editando, aoSalvar, aoFechar, aberta, servidor }) {
           })}
         </div>
       </fieldset>
-      {servidor && perfil !== "admin" && <CamposCarteira setores={setores} setSetores={setSetores} cnpjs={cnpjs} setCnpjs={setCnpjs} />}
+      {servidor && perfil !== "admin" && <CamposCarteira nome={nome} setores={setores} setSetores={setSetores} cnpjs={cnpjs} setCnpjs={setCnpjs} />}
       {!editando && <CamposSenha senha={senha} setSenha={setSenha} trocar={trocar} setTrocar={setTrocar} />}
       {editando && <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} /> Acesso ativo</label>}
       {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}

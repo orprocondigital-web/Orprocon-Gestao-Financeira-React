@@ -85,3 +85,21 @@ describe("importar a lista do Acessórias", () => {
     assert.deepEqual(r.semEmpresa, ["Empresa Que Não Existe [999|0001-00]"]);
   });
 });
+
+describe("planilha de um usuário só (dentro do cadastro dele)", () => {
+  test("lê as empresas sem precisar da coluna de responsável", () => {
+    const r = C.empresasDaPlanilha([{ nome: "x", rows: [["Empresa", "CNPJ"], ["Alfa", "11.222.333/0001-81"], ["Beta", "11444777000161"], ["Alfa de novo", "11.222.333/0001-81"]] }], empresas);
+    assert.deepEqual(r.cnpjs, ["11222333000181", "11444777000161"]);
+    assert.equal(r.linhas, 3);
+  });
+  test("lê a lista de entregas do Acessórias pelo [ID|final do CNPJ]", () => {
+    const r = C.empresasDaPlanilha([{ nome: "x", rows: [
+      ["Lista de Entregas"],
+      ["L Real - Preencher", "Alfa Comércio Ltda [023|0001-81]", "Departamento Contábil - Mario H. C. Bona"],
+      ["L Real - Preencher", "Gama Indústria SA [1069|0001-10]", "Departamento Contábil - Mario H. C. Bona"],
+      ["L Real - Preencher", "Não Existe [999|0001-00]", "Departamento Contábil - Mario H. C. Bona"]
+    ] }], empresas);
+    assert.deepEqual(r.cnpjs, ["11222333000181", "45723174000110"]);
+    assert.deepEqual(r.semEmpresa, ["Não Existe [999|0001-00]"]);
+  });
+});
