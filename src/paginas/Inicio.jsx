@@ -132,8 +132,11 @@ export default function Inicio() {
     if (alvo.tab === "fechamento") { navegar("/fechamento"); return; }
     if (alvo.tab === "encerramento") { navegar("/encerramento"); return; }
     if (alvo.tab === "reinf") { navegar("/reinf"); return; }
-    const dep = { "dep-empresas": "empresas", "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-certificados": "certificados", "dep-alvaras": "alvaras", "dep-faturamentos": "faturamentos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
+    const dep = { "dep-empresas": "empresas", "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-certificados": "certificados", "dep-alvaras": "alvaras", "dep-buscar": "empresas" }[alvo.tab];
     if (dep) { navegar("/departamento-cadastro/" + dep); return; }
+    // Faturamentos e Demonstrativos moram no Contábil (os nomes antigos dep-* continuam levando para lá)
+    const ctb = { "ctb-faturamentos": "faturamentos", "dep-faturamentos": "faturamentos", "ctb-demonstrativos": "demonstrativos", "dep-demonstrativos": "demonstrativos" }[alvo.tab];
+    if (ctb) { navegar("/contabil/" + ctb); return; }
     navegar(alvo.tab === "master" ? "/integracao" : alvo.tab === "conciliacao" ? "/conciliacao" : "/modulo/" + alvo.tab, { state: { prefs: alvo.prefs || null } });
   };
   const exemplos = () => {
@@ -144,7 +147,7 @@ export default function Inicio() {
     setMsg(feitos.length ? "Exemplos carregados em: " + feitos.join(", ") + "." : "Os módulos já tinham dados; nada foi alterado.");
   };
   if (!r) return <p className="text-muted">Não consegui montar o resumo. Abra as ferramentas pelo menu.</p>;
-  const setores = I.SETORES_CAPA.map((s) => Object.assign({}, s, { ferramentas: s.ferramentas.filter((f) => pode(f.area)) })).filter((s) => s.ferramentas.length);
+  const setores = I.SETORES_CAPA.map((s) => Object.assign({}, s, { ferramentas: s.ferramentas.filter((f) => [].concat(f.area).some((x) => pode(x))) })).filter((s) => s.ferramentas.length);
   const qtd = setores.reduce((n, s) => n + s.ferramentas.length, 0);
 
   return (

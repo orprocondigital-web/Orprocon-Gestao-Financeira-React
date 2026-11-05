@@ -585,3 +585,58 @@ describe("carteira do usuário nas telas", () => {
     assert.equal(svc.empresas().length, 2);
   });
 });
+
+describe("busca da aba Empresas (antigo Buscar empresa)", () => {
+  const lista = [
+    { id: "a", nome: "Alfa Comércio Ltda", documento: "11.111.111/0001-11", codigo: "15", cidade: "Tubarão" },
+    { id: "b", nome: "Beta Alfa Serviços", documento: "22.222.222/0001-22", codigo: "7", fantasia: "Loja Gama" },
+    { id: "c", nome: "Ômega Indústria", documento: "33.111.111/0001-33", codigo: "111", cidade: "Laguna" }
+  ];
+  const ids = (t) => D.ordenarPelaBusca(lista, t).map((c) => c.id);
+  test("CNPJ com ou sem pontos, inteiro ou parte; o exato vem primeiro", () => {
+    assert.deepEqual(ids("11.111.111/0001-11"), ["a"]);
+    assert.deepEqual(ids("11111111000111"), ["a"]);
+    assert.deepEqual(ids("111111"), ["a", "c"]);
+  });
+  test("código exato antes de parte do CNPJ; nome: começo antes do meio; fantasia e cidade", () => {
+    assert.deepEqual(ids("111"), ["c", "a"]);
+    assert.deepEqual(ids("alfa"), ["a", "b"]);
+    assert.deepEqual(ids("gama"), ["b"]);
+    assert.deepEqual(ids("lagu"), ["c"]);
+    assert.deepEqual(ids("xyz"), []);
+    assert.deepEqual(ids(""), ["a", "b", "c"], "sem busca: a lista como veio");
+  });
+});
+
+describe("Ler PDFs: o que cada PDF faz no cadastro", () => {
+  const base = () => amb({ "painelVencimentos:v1": JSON.stringify({
+    clientes: [{ id: "c1", nome: "Empresa Exemplo Ltda", documento: "11.111.111/0001-11" }],
+    documentos: [
+      { id: "m1", clienteId: "c1", tipo: "Alvará de funcionamento", vencimento: "2026-12-31", historico: [] },
+      { id: "s1", clienteId: "c1", tipo: "Alvará sanitário", vencimento: "", sitAlvara: "solicitado", historico: [] }
+    ] }) }).svc;
+  test("novo, renovação, mesmo vencimento e mais antigo", () => {
+    const svc = base();
+    const acao = (l) => svc.destinoDoPdf(Object.assign({ clienteId: "c1" }, l)).acao;
+    assert.equal(acao({ tipo: "Alvará de funcionamento", vencimento: "2027-12-31" }), "renovacao");
+    assert.equal(acao({ tipo: "Alvará de funcionamento", vencimento: "2026-12-31" }), "igual");
+    assert.equal(acao({ tipo: "Alvará de funcionamento", vencimento: "2025-12-31" }), "antigo");
+    assert.equal(acao({ tipo: "Alvará sanitário", vencimento: "2027-03-01" }), "igual", "estava sem data: completa");
+    assert.equal(acao({ tipo: "Alvará dos Bombeiros", vencimento: "2027-03-01" }), "novo");
+    assert.equal(acao({ tipo: "CND Federal", vencimento: "2027-03-01" }), "novo");
+    assert.equal(svc.destinoDoPdf({ tipo: "CND Federal" }).acao, "", "sem empresa");
+  });
+  test("gravar: renova com histórico, completa o sem data, não volta a data e cada um vai para a sua aba", () => {
+    const svc = base();
+    assert.equal(svc.gravarPdf({ clienteId: "c1", tipo: "Alvará de funcionamento", vencimento: "2027-12-31", numero: "123" }).doc.id, "m1");
+    assert.equal(svc.gravarPdf({ clienteId: "c1", tipo: "Alvará de funcionamento", vencimento: "2025-01-01" }).doc, null);
+    const sani = svc.gravarPdf({ clienteId: "c1", tipo: "Alvará sanitário", vencimento: "2027-03-01" }).doc;
+    assert.equal(sani.id, "s1"); assert.equal(sani.vencimento, "2027-03-01"); assert.equal(sani.sitAlvara, "");
+    const cnd = svc.gravarPdf({ clienteId: "c1", tipo: "CND Federal", vencimento: "2027-03-01" });
+    assert.equal(cnd.acao, "novo");
+    const m1 = svc.documentos("alvaras").find((d) => d.id === "m1");
+    assert.equal(m1.vencimento, "2027-12-31"); assert.equal(m1.historico[0].vencimentoAnterior, "2026-12-31"); assert.equal(m1.numero, "123");
+    assert.equal(svc.documentos("alvaras").length, 2, "nada duplicou");
+    assert.deepEqual(svc.documentos("certidoes").map((d) => d.tipo), ["CND Federal"]);
+  });
+});

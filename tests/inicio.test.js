@@ -147,7 +147,11 @@ describe("Início", () => {
   test("capa: só as ferramentas que a pessoa pode abrir, por setor", () => {
     const r = I.resumir({}, ctx());
     const tudo = I.capa(r);
-    assert.equal((tudo.match(/class="capa-card"/g) || []).length, 15);
+    assert.equal((tudo.match(/class="capa-card"/g) || []).length, 16);
+    const cad = I.SETORES_CAPA.find((x) => x.id === "cadastro").ferramentas.map((f) => f.nome);
+    assert.deepEqual(cad, ["Empresas", "Certidões", "Certificados digitais", "Alvarás"], "Cadastro enxuto: faturamento e demonstrativos estão no Contábil");
+    const ctb = I.capa(r, { pode: (a) => a === "mod-vencimentos" });
+    assert.match(ctb, /Faturamentos/, "quem tem só o Cadastro continua vendo Faturamentos (no Contábil)");
     assert.match(tudo, /Departamento Cadastro/);
     assert.ok(!/Painel de vencimentos/.test(tudo), "o painel saiu: os vencimentos ficam em Certidões e Alvarás");
     assert.match(tudo, /Departamento Pessoal/);

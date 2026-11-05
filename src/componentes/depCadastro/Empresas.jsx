@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { REGIMES, TIPOS_LUCRO_REAL, ativaNoMes, planilhaEmpresas } from "../../lib/depCadastro.mjs";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { REGIMES, TIPOS_LUCRO_REAL, ativaNoMes, ordenarPelaBusca, planilhaEmpresas } from "../../lib/depCadastro.mjs";
 import { carregarXlsx } from "../../lib/leitores.js";
 import { useDepCadastro } from "../../lib/useDepCadastro.js";
 import { useEmDia } from "../../lib/useEmDia.js";
@@ -169,7 +169,12 @@ export default function Empresas() {
   const [svc, versao] = useDepCadastro();
   const [emDia, versaoEmDia] = useEmDia();
   const { aviso, confirmar } = useAvisos();
-  const [busca, setBusca] = useState("");
+  // a busca fica no endereço (?q=): o Voltar da ficha volta para a lista com a mesma busca
+  const [params, setParams] = useSearchParams();
+  const navegar = useNavigate();
+  const busca = params.get("q") || "";
+  const setBusca = (v) => { const p = new URLSearchParams(params); if (v) p.set("q", v); else p.delete("q"); setParams(p, { replace: true }); };
+  const linkFicha = (c) => "/departamento-cadastro/empresas?" + (busca ? "q=" + encodeURIComponent(busca) + "&" : "") + "empresa=" + encodeURIComponent(c.id);
   const [regime, setRegime] = useState("");
   const [matrizes, setMatrizes] = useState(false);
   const [saidas, setSaidas] = useState(false);
@@ -183,13 +188,13 @@ export default function Empresas() {
   const nomes = {};
   lista.forEach((c) => { nomes[c.id] = c.nome; });
   const ativas = lista.filter((c) => ativaNoMes(c, mesAtual) || (c.inicio && c.inicio > mesAtual));
-  const visiveis = lista.filter((c) => {
+  // busca por CNPJ (com ou sem pontos, inteiro ou parte), código, nome, fantasia ou cidade: o que mais combina vem primeiro
+  const visiveis = ordenarPelaBusca(lista.filter((c) => {
     if (!saidas && ((c.saida && c.saida < mesAtual) || (c.baixa && c.baixa.slice(0, 7) < mesAtual))) return false;
     if (regime && (c.regime || "(sem)") !== regime) return false;
     if (matrizes && c.filial) return false;
-    const b = busca.trim().toLowerCase(), dig = busca.replace(/\D/g, "");
-    return !b || String(c.nome).toLowerCase().indexOf(b) > -1 || String(c.codigo || "").toLowerCase() === b || (dig.length >= 3 && String(c.documento || "").replace(/\D/g, "").indexOf(dig) > -1);
-  });
+    return true;
+  }), busca);
   const saiu = lista.length - ativas.length;
   const semRegime = ativas.filter((c) => !c.regime).length;
   const filiais = ativas.filter((c) => c.filial).length;
@@ -218,9 +223,11 @@ export default function Empresas() {
         {filiais > 0 && <span className="text-muted">{filiais} filial(is)</span>}
         {semRegime > 0 && <button type="button" className="text-warn font-semibold hover:underline" onClick={() => setRegime("(sem)")}>{semRegime} sem regime</button>}
         {saiu > 0 && <span className="text-muted">{saiu} já saíram</span>}
+        {busca.trim() && <span className="text-muted" aria-live="polite">{visiveis.length ? numero(visiveis.length) + " encontrada(s). Enter abre a primeira." : "Nenhuma encontrada."}</span>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nome, código ou CNPJ…" aria-label="Buscar empresa" className="max-w-[260px] h-9" />
+        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="CNPJ, código ou nome…" aria-label="Buscar empresa por CNPJ, código ou nome" className="w-full sm:max-w-[320px] h-9"
+          autoFocus autoComplete="off" onKeyDown={(e) => { if (e.key === "Enter" && busca.trim() && visiveis.length) navegar(linkFicha(visiveis[0])); }} />
         <select value={regime} onChange={(e) => setRegime(e.target.value)} aria-label="Regime" className="h-9 w-auto">
           <option value="">Todos os regimes</option>{REGIMES.map((x) => <option key={x} value={x}>{x}</option>)}<option value="(sem)">Sem regime</option>
         </select>
@@ -242,7 +249,8 @@ export default function Empresas() {
             </div>
           </div>
         ) : !visiveis.length ? (
-          <div className="p-10 text-center"><strong className="block text-[15px]">Nenhuma empresa com esse filtro</strong></div>
+          <div className="p-10 text-center"><strong className="block text-[15px]">{busca.trim() ? "Nenhuma empresa com \u201c" + busca.trim() + "\u201d" : "Nenhuma empresa com esse filtro"}</strong>
+            {busca.trim() && <span className="text-muted text-[13.5px]">Confira o CNPJ ou cadastre em Nova empresa (a Receita preenche pelo CNPJ).</span>}</div>
         ) : (
           <div className="overflow-x-auto relative">
             <table className="w-full text-[13.5px]">
@@ -264,7 +272,7 @@ export default function Empresas() {
                     <tr key={c.id} className={"hover:bg-surface-2 " + (saiuJa ? "opacity-60" : "")}>
                       <td className="px-3 py-1.5 tabular-nums text-muted">{c.codigo}</td>
                       <td className="px-3 py-1.5">
-                        <Link to={"/departamento-cadastro/buscar?empresa=" + c.id} className="block font-medium hover:text-brand hover:underline">{c.nome}</Link>
+                        <Link to={linkFicha(c)} className="block font-medium hover:text-brand hover:underline">{c.nome}</Link>
                         <span className="text-[12px] text-muted tabular-nums">{c.documento || "sem CNPJ/CPF"}</span>
                         {c.baixa && <span className="ml-1.5 align-middle"><Selo tipo="erro">Baixada em {c.baixa.split("-").reverse().join("/")}</Selo></span>}
                         {c.filial && <span className="ml-1.5 align-middle"><Selo tipo="neutro" title="Pelo CNPJ (não é 0001)">{c.matrizId ? "Filial de " + nomes[c.matrizId] : "Filial"}</Selo></span>}
