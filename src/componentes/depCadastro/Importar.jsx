@@ -2,19 +2,19 @@ import { useState } from "react";
 import { Core, Inicio } from "../../lib/legado.js";
 import { useAuth } from "../../lib/auth.jsx";
 import { DEMO_LIBERADA } from "../../lib/sincronizacao.js";
-import { TIPOS_ALVARAS, TIPOS_CERTIDOES, abaDoTipo, chaveNome, lerCertidao, lerPlanilhaCadastro, planilhaEmpresas, MESES } from "../../lib/depCadastro.mjs";
+import { lerPlanilhaCadastro, planilhaEmpresas, MESES } from "../../lib/depCadastro.mjs";
 import { useDepCadastro } from "../../lib/useDepCadastro.js";
 import { emDia } from "../../lib/useEmDia.js";
-import { carregarXlsx, lerPlanilha, textoDoPdf } from "../../lib/leitores.js";
-import { apagarTodos, guardarArquivo } from "../../lib/arquivos.js";
+import { carregarXlsx, lerPlanilha } from "../../lib/leitores.js";
+import { apagarTodos } from "../../lib/arquivos.js";
 import { useAvisos } from "../Avisos.jsx";
+import { SecaoPdfs } from "./LerPdfs.jsx";
 import { BotaoArquivo, Mensagem, numero } from "../contabil/ui.jsx";
 
 /*
  * Departamento Cadastro › Importar e demonstração: PDFs de certidões e alvarás (lê tipo, CNPJ, emissão,
  * validade e número para conferir antes de salvar), planilha do Excel e os dados de demonstração.
  */
-const TODOS_TIPOS = TIPOS_CERTIDOES.concat(TIPOS_ALVARAS);
 
 export { DEMO_LIBERADA };
 
@@ -22,103 +22,6 @@ export { DEMO_LIBERADA };
 export function carregarDemo(svc) {
   if (!DEMO_LIBERADA) return false;
   return svc.carregarDemonstracao(Inicio.vencimentosExemplo(svc.hoje()));
-}
-
-function Pdfs() {
-  const [svc] = useDepCadastro();
-  const { aviso } = useAvisos();
-  const [linhas, setLinhas] = useState([]);
-  const [status, setStatus] = useState("");
-  const empresas = svc.empresas();
-  const ler = async (files) => {
-    setStatus("Lendo " + files.length + " PDF(s)…"); setLinhas([]);
-    const lidos = [];
-    for (const f of files) {
-      try {
-        const texto = await textoDoPdf(f);
-        if (!texto.trim()) { lidos.push({ arquivo: f, erro: "PDF digitalizado (imagem): preencha à mão.", tipo: "", clienteId: "", vencimento: "", emissao: "", numero: "", documento: "", marcado: true }); continue; }
-        const r = lerCertidao(texto);
-        const emp = svc.empresaPorDocumento(r.documento) || (r.nome && svc.empresas().find((c) => chaveNome(c.nome) === chaveNome(r.nome))) || null;
-        lidos.push(Object.assign({ arquivo: f, clienteId: emp ? emp.id : "", marcado: true }, r));
-      } catch (e) { lidos.push({ arquivo: f, erro: "Não consegui ler: " + (e.message || e), tipo: "", clienteId: "", vencimento: "", emissao: "", numero: "", documento: "", marcado: false }); }
-    }
-    setLinhas(lidos); setStatus("");
-  };
-  const muda = (i, campo, v) => setLinhas((l) => l.map((x, k) => (k === i ? Object.assign({}, x, { [campo]: v }) : x)));
-  const escolherEmpresa = (i, v) => {
-    if (v !== "nova") { muda(i, "clienteId", v); return; }
-    const l = linhas[i];   // cadastra com o nome e o CNPJ lidos do PDF; as outras linhas com o mesmo CNPJ já ficam com ela
-    try {
-      const c = svc.salvarEmpresa({ nome: l.nome, documento: l.documento });
-      const dig = (x) => String(x || "").replace(/\D/g, "");
-      setLinhas((ls) => ls.map((x) => (x === l || (dig(x.documento) && dig(x.documento) === dig(l.documento) && !x.clienteId) ? Object.assign({}, x, { clienteId: c.id }) : x)));
-      aviso("Empresa cadastrada: " + c.nome);
-    } catch (e) { aviso(e.message); }
-  };
-  const salvar = async () => {
-    let ok = 0;
-    const erros = [];
-    for (const l of linhas.filter((x) => x.marcado)) {
-      try {
-        const d = svc.salvarDocumento({ clienteId: l.clienteId, tipo: l.tipo, vencimento: l.vencimento, emissao: l.emissao, numero: l.numero });
-        await guardarArquivo(d.id, l.arquivo);
-        svc.marcarAnexo(d.id, { nome: l.arquivo.name, tamanho: l.arquivo.size });
-        ok++;
-      } catch (e) { erros.push(l.arquivo.name + ": " + e.message); }
-    }
-    setLinhas((ls) => ls.filter((l) => !l.marcado || erros.some((e) => e.indexOf(l.arquivo.name + ":") === 0)));
-    setStatus(erros.length ? "Faltou corrigir: " + erros.join(" · ") : "");
-    if (ok) aviso(ok + " documento(s) salvos com o PDF anexado.");
-  };
-  const marcados = linhas.filter((l) => l.marcado).length;
-  return (
-    <section className="cartao p-4 sm:p-5 space-y-3">
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="flex-1 min-w-[240px]">
-          <h2 className="text-[16px] font-semibold">Certidões e alvarás em PDF</h2>
-          <p className="text-[13px] text-muted">Escolha um ou mais PDFs. O sistema lê o tipo, o CNPJ, a emissão, a validade e o número; você confere e salva. O PDF fica anexado ao documento.</p>
-        </div>
-        <BotaoArquivo className="btn-primario" aceita=".pdf" multiplo aoEscolher={ler}>Escolher PDFs</BotaoArquivo>
-      </div>
-      {status && <Mensagem texto={status} tipo={/Faltou/.test(status) ? "aviso" : "info"} />}
-      {linhas.length > 0 && (<>
-        <div className="overflow-x-auto relative border border-line rounded-lg">
-          <table className="w-full text-[13px]">
-            <thead className="bg-surface-2 text-left text-[12px] uppercase tracking-wide text-muted">
-              <tr><th className="px-2 py-2" /><th className="px-2 py-2 font-semibold">Arquivo</th><th className="px-2 py-2 font-semibold">Empresa</th><th className="px-2 py-2 font-semibold">Tipo</th>
-                <th className="px-2 py-2 font-semibold">Emissão</th><th className="px-2 py-2 font-semibold">Vencimento</th><th className="px-2 py-2 font-semibold">Número</th></tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {linhas.map((l, i) => (
-                <tr key={i} className="align-top">
-                  <td className="px-2 py-2"><input type="checkbox" checked={l.marcado} onChange={(e) => muda(i, "marcado", e.target.checked)} aria-label={"Importar " + l.arquivo.name} /></td>
-                  <td className="px-2 py-2 max-w-[180px] break-all">{l.arquivo.name}{l.erro && <span className="block text-[12px] text-warn">{l.erro}</span>}{l.documento && <span className="block text-[12px] text-muted">{l.documento}</span>}</td>
-                  <td className="px-2 py-1.5 min-w-[190px]">
-                    <select value={l.clienteId} onChange={(e) => escolherEmpresa(i, e.target.value)} className={"h-9 text-[13px] " + (l.clienteId ? "" : "border-warn")}>
-                      <option value="">{l.documento ? "CNPJ não cadastrado: escolha…" : "Escolha…"}</option>
-                      {!l.clienteId && l.nome && <option value="nova">+ Cadastrar {l.nome}</option>}
-                      {empresas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-2 py-1.5 min-w-[170px]"><input list="imp-tipos" value={l.tipo} onChange={(e) => muda(i, "tipo", e.target.value)} className={"h-9 text-[13px] " + (l.tipo ? "" : "border-warn")} />
-                    {l.tipo && <span className="block text-[11.5px] text-muted mt-0.5">vai para {{ alvaras: "Alvarás", certificados: "Certificados digitais", certidoes: "Certidões" }[abaDoTipo(l.tipo)]}</span>}</td>
-                  <td className="px-2 py-1.5"><input type="date" value={l.emissao} onChange={(e) => muda(i, "emissao", e.target.value)} className="h-9 text-[13px] w-[150px]" /></td>
-                  <td className="px-2 py-1.5"><input type="date" value={l.vencimento} onChange={(e) => muda(i, "vencimento", e.target.value)} className={"h-9 text-[13px] w-[150px] " + (l.vencimento ? "" : "border-warn")} /></td>
-                  <td className="px-2 py-1.5"><input value={l.numero} onChange={(e) => muda(i, "numero", e.target.value)} className="h-9 text-[13px] w-[160px]" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <datalist id="imp-tipos">{TODOS_TIPOS.map((t) => <option key={t} value={t} />)}</datalist>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[13px] text-muted flex-1">Campos em laranja precisam ser preenchidos. A empresa precisa estar cadastrada (botão Empresas nas telas, ou importe a planilha).</span>
-          <button type="button" className="btn-fantasma btn-sm" onClick={() => setLinhas([])}>Descartar</button>
-          <button type="button" className="btn-primario btn-sm" disabled={!marcados} onClick={salvar}>Salvar {marcados} documento(s)</button>
-        </div>
-      </>)}
-    </section>
-  );
 }
 
 function Planilha() {
@@ -246,7 +149,7 @@ function Dados() {
 export default function Importar() {
   return (
     <div className="space-y-4 max-w-[1200px]">
-      <Pdfs />
+      <SecaoPdfs />
       <Planilha />
       <Dados />
       <p className="text-[12.5px] text-muted">{DEMO_LIBERADA

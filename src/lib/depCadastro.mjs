@@ -93,6 +93,33 @@ export function limparSocios(lista) {
 
 /** Certidões ou alvarás, pelo tipo do documento. */
 export function grupoDoTipo(tipo) { return /^alvar/i.test(txt(tipo)) ? "alvaras" : "certidoes"; }
+/**
+ * Quanto a empresa combina com o que foi digitado (0 = não combina). CNPJ exato 100, código 90, parte do CNPJ 80,
+ * começo do nome 60, meio do nome 40, nome fantasia 35, cidade 20. CNPJ com ou sem pontos.
+ */
+export function notaDaBusca(c, texto) {
+  const t = txt(texto);
+  if (!t || !c) return 0;
+  const dig = t.replace(/\D/g, ""), n = chaveNome(t);
+  const soNumeros = /^[\d.\/\-\s]+$/.test(t);
+  const cd = txt(c.documento).replace(/\D/g, ""), cn = chaveNome(c.nome);
+  if (dig.length >= 3 && cd && cd === dig) return 100;
+  if (txt(c.codigo) && txt(c.codigo).toLowerCase() === t.toLowerCase()) return 90;
+  if (dig.length >= 3 && cd.indexOf(dig) > -1) return 80;
+  if (soNumeros || !n) return 0;
+  if (cn.indexOf(n) === 0) return 60;
+  if (n.length >= 2 && cn.indexOf(n) > -1) return 40;
+  if (n.length >= 2 && chaveNome(c.fantasia).indexOf(n) > -1) return 35;
+  if (n.length >= 2 && chaveNome(c.cidade).indexOf(n) === 0) return 20;
+  return 0;
+}
+/** As empresas que combinam com a busca, da que mais combina para a que menos (empate: nome). Sem busca: a lista como veio. */
+export function ordenarPelaBusca(lista, texto) {
+  if (!txt(texto)) return lista;
+  return lista.map((c) => ({ c, nota: notaDaBusca(c, texto) })).filter((x) => x.nota)
+    .sort((a, b) => b.nota - a.nota || txt(a.c.nome).localeCompare(txt(b.c.nome), "pt-BR")).map((x) => x.c);
+}
+
 /** Aba onde o documento aparece: "alvaras", "certificados" (certificado digital) ou "certidoes" (o resto). */
 export function abaDoTipo(tipo) { return grupoDoTipo(tipo) === "alvaras" ? "alvaras" : (txt(tipo) === CERTIFICADO || ehCertificado(tipo)) ? "certificados" : "certidoes"; }
 
@@ -797,24 +824,8 @@ export function criarDepCadastro(deps) {
    * O CNPJ exato vem primeiro, depois o começo do nome, depois o resto. Máximo de 30.
    */
   function buscarEmpresas(texto) {
-    const t = txt(texto);
-    if (!t) return [];
-    const dig = t.replace(/\D/g, ""), n = chaveNome(t);
-    const soNumeros = /^[\d.\/\-\s]+$/.test(t);
-    const achados = [];
-    empresas().forEach((c) => {
-      const cd = txt(c.documento).replace(/\D/g, ""), cn = chaveNome(c.nome);
-      let nota = 0;
-      if (dig.length >= 3 && cd && cd === dig) nota = 100;
-      else if (dig.length >= 3 && cd.indexOf(dig) > -1) nota = 80;
-      else if (txt(c.codigo) && txt(c.codigo) === t) nota = 90;
-      else if (!soNumeros && cn.indexOf(n) === 0) nota = 60;
-      else if (!soNumeros && n.length >= 2 && cn.indexOf(n) > -1) nota = 40;
-      else if (!soNumeros && n.length >= 2 && chaveNome(c.fantasia).indexOf(n) > -1) nota = 35;
-      else if (!soNumeros && n.length >= 2 && chaveNome(c.cidade).indexOf(n) === 0) nota = 20;
-      if (nota) achados.push({ nota, c });
-    });
-    return achados.sort((a, b) => b.nota - a.nota || txt(a.c.nome).localeCompare(txt(b.c.nome), "pt-BR")).slice(0, 30).map((x) => x.c);
+    if (!txt(texto)) return [];
+    return ordenarPelaBusca(empresas(), texto).slice(0, 30);
   }
 
   /**
@@ -1363,6 +1374,35 @@ export function criarDepCadastro(deps) {
     };
   }
   /** Anexo (PDF) guardado à parte: o documento só leva o nome e o tamanho. */
+  /**
+   * O que um PDF lido faz no cadastro, comparando com o documento do mesmo tipo da empresa (o de vencimento mais longe):
+   * "novo" (não tem), "renovacao" (vence depois: o anterior vai para o histórico), "igual" (mesmo vencimento ou sem
+   * data: só completa e anexa o PDF) ou "antigo" (vence antes do que já está cadastrado: não grava, para não voltar a data).
+   */
+  function destinoDoPdf(l) {
+    const tipo = normalizarTipo(l.tipo, "").tipo;
+    const clienteId = txt(l.clienteId);
+    if (!clienteId || !tipo) return { acao: "", atual: null };
+    const atual = docs().documentos.filter((x) => x.clienteId === clienteId && x.tipo === tipo)
+      .sort((a, b) => String(b.vencimento || "").localeCompare(String(a.vencimento || "")))[0] || null;
+    if (!atual) return { acao: "novo", atual: null };
+    const v = iso(l.vencimento) ? l.vencimento : "";
+    if (!v || !atual.vencimento) return { acao: "igual", atual };
+    return { acao: v > atual.vencimento ? "renovacao" : v === atual.vencimento ? "igual" : "antigo", atual };
+  }
+  /** Grava um PDF lido conforme destinoDoPdf. { acao, doc }: doc = o documento que recebe o PDF (null quando "antigo"). */
+  function gravarPdf(l) {
+    const { acao, atual } = destinoDoPdf(l);
+    if (acao === "antigo") return { acao, doc: null };
+    if (!acao || acao === "novo") return { acao: "novo", doc: salvarDocumento(l) };   // salvarDocumento explica o que falta
+    if (acao === "renovacao") return { acao, doc: renovar(atual.id, { vencimento: l.vencimento, emissao: l.emissao, numero: l.numero, obs: "Lido do PDF" }) };
+    const e = docs(), d = e.documentos.find((x) => x.id === atual.id);
+    if (iso(l.vencimento) && !d.vencimento) { d.vencimento = l.vencimento; d.sitAlvara = ""; }
+    if (iso(l.emissao) && !d.emissao) d.emissao = l.emissao;
+    if (txt(l.numero) && !d.numero) d.numero = txt(l.numero);
+    gravar(CHAVE_DOCS, e);
+    return { acao, doc: d };
+  }
   function marcarAnexo(id, anexo) {
     const e = docs();
     const d = e.documentos.find((x) => x.id === id);
@@ -1372,7 +1412,7 @@ export function criarDepCadastro(deps) {
   }
 
   return {
-    definirVisivel, filtrado, aplicarPlanilha, previaPlanilha, previaCertificados, gravarCertificados, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo,
+    definirVisivel, filtrado, aplicarPlanilha, previaPlanilha, previaCertificados, gravarCertificados, empresaPorDocumento, carregarDemonstracao, temDemonstracao, limpar, marcarAnexo, destinoDoPdf, gravarPdf,
     hoje, empresas, salvarEmpresa, excluirEmpresa, qtdDocumentos, documentos, certificados, avisos, gradeAlvaras, buscarEmpresas, fichaEmpresa, resumo, urgentes, conferencia, salvarDocumento, renovar, excluirDocumento,
     faturamentos, definirFaturamento, totalAno, ultimos12, limitesDoAno, demonstrativos, definirDemonstrativo, progressoDemonstrativos
   };

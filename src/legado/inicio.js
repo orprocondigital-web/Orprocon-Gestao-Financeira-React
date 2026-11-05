@@ -448,7 +448,11 @@
       { tab: "encerramento", area: "contabil-lucros", icone: "encerramento", nome: "Encerramento do exercício", resumo: "Estoque, compras, CMV e lucro bruto do ano, por empresa.",
         itens: ["Matriz e filiais com o consolidado", "CMV, lucro bruto e resultado do período calculados", "Sócios com o que foi distribuído no ano"] },
       { tab: "lucros", area: "contabil-lucros", icone: "lucros", nome: "Distribuição de lucros e REINF", resumo: "O que cada sócio recebeu, o IRRF e a REINF do mês.",
-        itens: ["Calcula base e IRRF de 10% e avisa quando o mês passa de R$ 50 mil", "Saldo de lucros aprovados em ata, sem IRRF", "REINF por competência: notas, distribuído e confirmação"] }
+        itens: ["Calcula base e IRRF de 10% e avisa quando o mês passa de R$ 50 mil", "Saldo de lucros aprovados em ata, sem IRRF", "REINF por competência: notas, distribuído e confirmação"] },
+      { tab: "ctb-faturamentos", area: ["contabil-lucros", "mod-vencimentos"], icone: "faturamento", nome: "Faturamentos", resumo: "O faturamento de cada empresa, mês a mês.",
+        itens: ["Digita direto na tabela, como numa planilha", "Total do ano e dos últimos 12 meses", "Total do escritório por mês"] },
+      { tab: "ctb-demonstrativos", area: ["contabil-lucros", "mod-vencimentos"], icone: "demonstrativo", nome: "Demonstrativos contábeis", resumo: "Balanço, DRE e balancete de cada empresa por exercício.",
+        itens: ["Situação: pendente, emitido ou entregue", "Progresso do exercício de todas as empresas", "Marca o que não se aplica à empresa"] }
     ] },
     { id: "fiscal", nome: "Fiscal", texto: "Prévia da apuração e conferência das notas antes do fechamento.", ferramentas: [
       { tab: "mod-icms", area: "mod-icms", icone: "icms", nome: "Apuração de ICMS", resumo: "Acompanha o ICMS do cliente durante o mês.",
@@ -462,17 +466,15 @@
       { tab: "mod-horas", area: "mod-horas", icone: "horas", nome: "Controle de horas", resumo: "Folhas de presença dos clientes que anotam o ponto à mão.",
         itens: ["Gera a planilha para o cliente preencher (uma aba por funcionário)", "Importa e calcula extras, noturno, atrasos e faltas", "Alertas de intervalo e interjornada, e fechamento do mês"] }
     ] },
-    { id: "cadastro", nome: "Departamento Cadastro", texto: "O cadastro das empresas, com documentos, faturamento e demonstrativos.", ferramentas: [
+    { id: "cadastro", nome: "Departamento Cadastro", texto: "O cadastro das empresas, com certidões, certificados e alvarás.", ferramentas: [
       { tab: "dep-empresas", area: "mod-vencimentos", icone: "empresa", nome: "Empresas", resumo: "O cadastro geral, usado por todo o sistema.",
         itens: ["CNPJ, código e regime de cada empresa", "Matriz e filial reconhecidas pelo CNPJ", "Responsável de cada setor num lugar só"] },
-      { tab: "dep-certidoes", area: "mod-vencimentos", icone: "certidao", nome: "Certidões", resumo: "CNDs, CRF FGTS, certificado digital, procurações e licenças, com vencimento.",
-        itens: ["O que venceu e o que vence em 7 e 30 dias", "Renovação com histórico do vencimento anterior", "Busca por empresa, tipo e responsável"] },
+      { tab: "dep-certidoes", area: "mod-vencimentos", icone: "certidao", nome: "Certidões", resumo: "CNDs, CRF FGTS, procurações e licenças, com vencimento.",
+        itens: ["O que venceu e o que vence em 7 e 30 dias", "Renovação com histórico do vencimento anterior", "Lê vários PDFs de uma vez e anexa cada um"] },
+      { tab: "dep-certificados", area: "mod-vencimentos", icone: "cadeado", nome: "Certificados digitais", resumo: "e-CNPJ e e-CPF, A1 e A3, com vencimento.",
+        itens: ["Avisa com 30 dias, por causa do agendamento", "Lê o arquivo do certificado A1 com a senha", "Separado por vencido, a vencer e em dia"] },
       { tab: "dep-alvaras", area: "mod-vencimentos", icone: "alvara", nome: "Alvarás", resumo: "Alvarás de funcionamento, sanitário, Bombeiros e ambiental.",
-        itens: ["Vencimento de cada alvará por empresa", "Renovação com histórico", "Link para o arquivo do documento"] },
-      { tab: "dep-faturamentos", area: "mod-vencimentos", icone: "faturamento", nome: "Faturamentos", resumo: "O faturamento de cada empresa, mês a mês.",
-        itens: ["Digita direto na tabela, como numa planilha", "Total do ano e dos últimos 12 meses", "Total do escritório por mês"] },
-      { tab: "dep-demonstrativos", area: "mod-vencimentos", icone: "demonstrativo", nome: "Demonstrativos contábeis", resumo: "Balanço, DRE e balancete de cada empresa por exercício.",
-        itens: ["Situação: pendente, emitido ou entregue", "Progresso do exercício de todas as empresas", "Marca o que não se aplica à empresa"] }
+        itens: ["Municipal, sanitário e Bombeiros de cada empresa numa grade", "Renovação com histórico", "Lê vários PDFs de uma vez e anexa cada um"] }
     ] },
     { id: "escritorio", nome: "Escritório", texto: "O andamento da equipe e o fechamento de cada cliente.", ferramentas: [
       { tab: "mod-em-dia", area: "mod-em-dia", icone: "emdia", nome: "Em Dia", resumo: "O que cada um faz no mês, numa grade simples.",
@@ -500,7 +502,7 @@
     opcoes = opcoes || {};
     var pode = opcoes.pode || function () { return true; };
     var setores = SETORES_CAPA.map(function (s) {
-      var fs = s.ferramentas.filter(function (f) { return pode(f.area); });
+      var fs = s.ferramentas.filter(function (f) { return [].concat(f.area).some(function (x) { return pode(x); }); });
       if (!fs.length) return "";
       return '<section class="capa-setor setor-' + s.id + '"><div class="capa-setor-cab"><h3>' + esc(s.nome) + "</h3><p>" + esc(s.texto) + "</p></div>" +
         '<div class="capa-grade">' + fs.map(function (f) {
@@ -511,7 +513,7 @@
             '<button type="button" class="btn btn-outline btn-sm capa-abrir" data-ir="' + esc(f.tab) + '">Abrir ' + esc(f.nome) + "</button></article>";
         }).join("") + "</div></section>";
     }).join("");
-    var qtd = SETORES_CAPA.reduce(function (n, s) { return n + s.ferramentas.filter(function (f) { return pode(f.area); }).length; }, 0);
+    var qtd = SETORES_CAPA.reduce(function (n, s) { return n + s.ferramentas.filter(function (f) { return [].concat(f.area).some(function (x) { return pode(x); }); }).length; }, 0);
     return '<div class="capa">' +
       '<header class="capa-hero"><div class="capa-hero-texto"><span class="capa-data">' + esc(r.data) + "</span>" +
       "<h2>" + esc(r.saudacao) + (r.nome ? ", " + esc(r.nome) : "") + "</h2>" +
