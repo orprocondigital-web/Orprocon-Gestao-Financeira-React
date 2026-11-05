@@ -37,7 +37,8 @@ function SoAdmin({ children }) {
 /** Só quem tem a área (ex.: integracao) entra; os outros voltam ao Início. */
 function SoArea({ area, children }) {
   const { pode } = useAuth();
-  return pode(area) ? children : <Navigate to="/" replace />;
+  const areas = Array.isArray(area) ? area : [area];   // qualquer uma das áreas libera
+  return areas.some((a) => pode(a)) ? children : <Navigate to="/" replace />;
 }
 
 export default function App() {
@@ -56,6 +57,9 @@ export default function App() {
             <Route path="conta/:id" element={<SoArea area="integracao"><Conta /></SoArea>} />
             <Route path="cadastro/:id" element={<SoArea area="integracao"><Cadastro /></SoArea>} />
             <Route path="departamento-cadastro/:secao" element={<SoArea area="mod-vencimentos"><DepCadastro /></SoArea>} />
+            {/* Faturamentos e Demonstrativos também no Contábil: mesmos dados do Departamento Cadastro */}
+            <Route path="contabil/faturamentos" element={<SoArea area={["contabil-lucros", "mod-vencimentos"]}><DepCadastro secao="faturamentos" /></SoArea>} />
+            <Route path="contabil/demonstrativos" element={<SoArea area={["contabil-lucros", "mod-vencimentos"]}><DepCadastro secao="demonstrativos" /></SoArea>} />
             <Route path="em-dia" element={<SoArea area="mod-em-dia"><EmDia /></SoArea>} />
             <Route path="lucros" element={<SoArea area="contabil-lucros"><Lucros secao="distribuicoes" /></SoArea>} />
             <Route path="reinf" element={<SoArea area="contabil-lucros"><Lucros secao="reinf" /></SoArea>} />

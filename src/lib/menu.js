@@ -35,7 +35,9 @@ export function montarMenu(pode, ehAdmin) {
     });
   }
   if (pode("conciliacao")) contabil.push({ id: "conciliacao", label: "Conciliação", para: "/conciliacao", icone: "conciliacao" });
-  if (pode("contabil-lucros")) contabil.push({ id: "fechamento", label: "Fechamento contábil", para: "/fechamento", icone: "fechamento" }, { id: "encerramento", label: "Encerramento do exercício", para: "/encerramento", icone: "encerramento" }, { id: "lucros", label: "Distribuição de lucros", para: "/lucros", icone: "lucros" }, { id: "reinf", label: "REINF", para: "/reinf", icone: "reinf" });
+  if (pode("contabil-lucros")) contabil.push({ id: "fechamento", label: "Fechamento contábil", para: "/fechamento", icone: "fechamento" }, { id: "encerramento", label: "Encerramento do exercício", para: "/encerramento", icone: "encerramento" }, { id: "lucros", label: "Distribuição de lucros", para: "/lucros", icone: "lucros" }, { id: "reinf", label: "REINF", para: "/reinf", icone: "reinf" },
+    // os mesmos dados do Departamento Cadastro (quem preenche é o Contábil)
+    { id: "ctb-faturamentos", label: "Faturamentos", para: "/contabil/faturamentos", icone: "faturamento" }, { id: "ctb-demonstrativos", label: "Demonstrativos contábeis", para: "/contabil/demonstrativos", icone: "demonstrativo" });
   const certUrgentes = (svc) => svc.certificados().lista.filter((d) => d.situacao.status === "vencido" || d.situacao.status === "7").length;
   const secoes = [
     { titulo: "Contábil", itens: contabil },
