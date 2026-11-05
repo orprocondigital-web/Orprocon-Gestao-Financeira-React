@@ -21,14 +21,18 @@ const painelAntigo = () => JSON.stringify({
 });
 
 describe("certidões e alvarás", () => {
-  test("lê o que já estava no Painel de vencimentos e separa por grupo", () => {
+  test("lê o que já estava no Painel de vencimentos e separa por aba (o certificado digital tem a sua)", () => {
     const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
-    assert.deepEqual(svc.documentos("certidoes").map((d) => d.id), ["d1", "d3"]);
+    assert.deepEqual(svc.documentos("certidoes").map((d) => d.id), ["d1"]);
+    assert.deepEqual(svc.documentos("certificados").map((d) => d.id), ["d3"]);
     assert.deepEqual(svc.documentos("alvaras").map((d) => d.id), ["d2"]);
-    const [d1, d3] = svc.documentos("certidoes");
+    const [d1] = svc.documentos("certidoes"), [d3] = svc.documentos("certificados");
     assert.equal(d1.situacao.status, "vencido"); assert.equal(D.textoSituacao(d1.situacao), "Venceu há 2 dias");
     assert.equal(d3.situacao.status, "7"); assert.equal(d1.empresa, "Empresa Exemplo Ltda");
-    assert.equal(svc.urgentes("certidoes"), 2);
+    assert.equal(svc.urgentes("certidoes"), 1, "o certificado não conta em Certidões");
+    assert.deepEqual(svc.resumo("certidoes"), { total: 1, vencido: 1, "7": 0, "30": 0, ok: 0 });
+    assert.deepEqual(svc.certificados().lista.map((d) => d.id), ["d3"]);
+    assert.deepEqual(svc.avisos().lista.map((d) => [d.id, d.grupo]), [["d1", "certidoes"], ["d3", "certificados"]]);
     assert.deepEqual(svc.resumo("alvaras"), { total: 1, vencido: 0, "7": 0, "30": 0, ok: 1 });
   });
   test("novo documento valida e grava no formato do painel, sem perder os outros campos", () => {
@@ -50,14 +54,15 @@ describe("certidões e alvarás", () => {
   });
   test("excluir tem desfazer", () => {
     const { svc } = amb({ "painelVencimentos:v1": painelAntigo() });
-    const desfazer = svc.excluirDocumento("d3");
-    assert.equal(svc.documentos("certidoes").length, 1);
+    const desfazer = svc.excluirDocumento("d1");
+    assert.equal(svc.documentos("certidoes").length, 0);
     desfazer();
-    assert.equal(svc.documentos("certidoes").length, 2);
+    assert.equal(svc.documentos("certidoes").length, 1);
   });
   test("grupo pelo tipo", () => {
     assert.equal(D.grupoDoTipo("Alvará sanitário"), "alvaras");
     assert.equal(D.grupoDoTipo("alvara"), "alvaras");
+    assert.deepEqual(["CND Federal", "Certificado Digital", "e-CNPJ A3", "CRF FGTS", "Alvará sanitário"].map(D.abaDoTipo), ["certidoes", "certificados", "certificados", "certidoes", "alvaras"]);
     assert.equal(D.grupoDoTipo("Procuração"), "certidoes");
   });
 });
@@ -346,7 +351,7 @@ describe("certificado digital (A1/A3)", () => {
   });
   test("o que estava como Certificado A1 é lido como Certificado Digital A1 e grava assim na próxima mudança", () => {
     const { svc, ls } = amb({ "painelVencimentos:v1": painelAntigo() });
-    const d3 = svc.documentos("certidoes").find((d) => d.id === "d3");
+    const d3 = svc.documentos("certificados").find((d) => d.id === "d3");
     assert.equal(d3.tipo, "Certificado Digital"); assert.equal(d3.modelo, "A1"); assert.equal(d3.cnpj, "11.111.111/0001-11");
     svc.salvarDocumento({ clienteId: "c1", tipo: "CRF FGTS", vencimento: "2026-12-01" });
     const salvo = JSON.parse(ls["painelVencimentos:v1"]).documentos.find((d) => d.id === "d3");

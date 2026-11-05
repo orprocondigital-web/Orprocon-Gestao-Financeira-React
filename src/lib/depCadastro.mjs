@@ -93,6 +93,8 @@ export function limparSocios(lista) {
 
 /** Certidões ou alvarás, pelo tipo do documento. */
 export function grupoDoTipo(tipo) { return /^alvar/i.test(txt(tipo)) ? "alvaras" : "certidoes"; }
+/** Aba onde o documento aparece: "alvaras", "certificados" (certificado digital) ou "certidoes" (o resto). */
+export function abaDoTipo(tipo) { return grupoDoTipo(tipo) === "alvaras" ? "alvaras" : (txt(tipo) === CERTIFICADO || ehCertificado(tipo)) ? "certificados" : "certidoes"; }
 
 /** Certificado digital (e-CNPJ/e-CPF)? O CRF do FGTS também se chama "certificado", mas não é. */
 export function ehCertificado(tipo) {
@@ -742,12 +744,15 @@ export function criarDepCadastro(deps) {
   }
 
   // ------------------------------------------------------------ certidões e alvarás
-  /** Documentos de um grupo, com empresa e situação, vencidos primeiro. */
+  /**
+   * Documentos de uma aba ("certidoes", "certificados" ou "alvaras"), com empresa e situação, vencidos primeiro.
+   * Os certificados digitais têm aba própria: não aparecem (nem contam) em Certidões.
+   */
   function documentos(grupo) {
     const e = docs(), h = hoje();
     const porId = {};
     e.clientes.forEach((c) => { porId[c.id] = c; });
-    return e.documentos.filter((d) => grupoDoTipo(d.tipo) === grupo && vis(porId[d.clienteId]))
+    return e.documentos.filter((d) => abaDoTipo(d.tipo) === grupo && vis(porId[d.clienteId]))
       .map((d) => { const c = porId[d.clienteId]; return Object.assign({}, d, { empresa: c ? c.nome : "(empresa excluída)", cnpj: c ? txt(c.documento) : "",
         contato: c ? { nome: txt(c.contato), email: txt(c.email), telefone: txt(c.telefone) } : { nome: "", email: "", telefone: "" },
         situacao: grupo === "alvaras" ? situacaoAlvara(d, h) : situacao(d.vencimento, h) }); })
@@ -844,7 +849,7 @@ export function criarDepCadastro(deps) {
       matriz: c.matrizId ? lista.find((x) => x.id === c.matrizId) || null : null,
       filiais: lista.filter((x) => x.matrizId === id),
       alvaras: alvGrade, outrosAlvaras, responsavelAlvaras: linha ? linha.responsavel : "",
-      certidoes: certidoes.filter((d) => d.tipo !== CERTIFICADO), certificados: certidoes.filter((d) => d.tipo === CERTIFICADO),
+      certidoes, certificados: daEmpresa("certificados"),
       faturamento: { meses, total: meses.reduce((t, x) => t + (x.valor || 0), 0), comValor: meses.filter((x) => x.valor !== null).length },
       demonstrativos: { exercicio, itens: DEMONSTRATIVOS.map((t) => ({ tipo: t, status: (dem[t] || {}).status || "" })) }
     };
@@ -852,7 +857,7 @@ export function criarDepCadastro(deps) {
 
   /** Só os certificados digitais, com os grupos do painel: vencidos, vencem em até 30 dias, em dia e sem data. */
   function certificados() {
-    const lista = documentos("certidoes").filter((d) => d.tipo === CERTIFICADO);
+    const lista = documentos("certificados");
     const g = { lista, vencidos: [], ate30: [], emDia: [], semData: [], A1: 0, A3: 0, semModelo: 0 };
     lista.forEach((d) => {
       const s = d.situacao.status;
@@ -868,9 +873,9 @@ export function criarDepCadastro(deps) {
    */
   function avisos() {
     const lista = [];
-    ["certidoes", "alvaras"].forEach((grupo) => documentos(grupo).forEach((d) => {
-      const cert = d.tipo === CERTIFICADO, s = d.situacao.status;
-      if (s === "vencido" || s === "7" || (cert && s === "30")) lista.push(Object.assign({}, d, { grupo: cert ? "certificados" : grupo }));
+    ["certidoes", "certificados", "alvaras"].forEach((grupo) => documentos(grupo).forEach((d) => {
+      const cert = grupo === "certificados", s = d.situacao.status;
+      if (s === "vencido" || s === "7" || (cert && s === "30")) lista.push(Object.assign({}, d, { grupo }));
     }));
     const dias = (d) => (d.situacao.dias === null ? -100000 : d.situacao.dias);   // vencido sem data vem primeiro
     lista.sort((a, b) => dias(a) - dias(b) || a.empresa.localeCompare(b.empresa, "pt-BR"));
