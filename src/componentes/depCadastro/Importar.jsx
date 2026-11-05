@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Core, Inicio } from "../../lib/legado.js";
 import { useAuth } from "../../lib/auth.jsx";
 import { DEMO_LIBERADA } from "../../lib/sincronizacao.js";
-import { TIPOS_ALVARAS, TIPOS_CERTIDOES, chaveNome, grupoDoTipo, lerCertidao, lerPlanilhaCadastro, planilhaEmpresas, MESES } from "../../lib/depCadastro.mjs";
+import { TIPOS_ALVARAS, TIPOS_CERTIDOES, abaDoTipo, chaveNome, lerCertidao, lerPlanilhaCadastro, planilhaEmpresas, MESES } from "../../lib/depCadastro.mjs";
 import { useDepCadastro } from "../../lib/useDepCadastro.js";
 import { emDia } from "../../lib/useEmDia.js";
 import { carregarXlsx, lerPlanilha, textoDoPdf } from "../../lib/leitores.js";
@@ -101,7 +101,7 @@ function Pdfs() {
                     </select>
                   </td>
                   <td className="px-2 py-1.5 min-w-[170px]"><input list="imp-tipos" value={l.tipo} onChange={(e) => muda(i, "tipo", e.target.value)} className={"h-9 text-[13px] " + (l.tipo ? "" : "border-warn")} />
-                    {l.tipo && <span className="block text-[11.5px] text-muted mt-0.5">vai para {grupoDoTipo(l.tipo) === "alvaras" ? "Alvarás" : "Certidões"}</span>}</td>
+                    {l.tipo && <span className="block text-[11.5px] text-muted mt-0.5">vai para {{ alvaras: "Alvarás", certificados: "Certificados digitais", certidoes: "Certidões" }[abaDoTipo(l.tipo)]}</span>}</td>
                   <td className="px-2 py-1.5"><input type="date" value={l.emissao} onChange={(e) => muda(i, "emissao", e.target.value)} className="h-9 text-[13px] w-[150px]" /></td>
                   <td className="px-2 py-1.5"><input type="date" value={l.vencimento} onChange={(e) => muda(i, "vencimento", e.target.value)} className={"h-9 text-[13px] w-[150px] " + (l.vencimento ? "" : "border-warn")} /></td>
                   <td className="px-2 py-1.5"><input value={l.numero} onChange={(e) => muda(i, "numero", e.target.value)} className="h-9 text-[13px] w-[160px]" /></td>
