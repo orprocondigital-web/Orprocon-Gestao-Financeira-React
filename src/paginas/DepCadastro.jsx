@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Core } from "../lib/legado.js";
-import { ALVARAS_GRADE, CERTIFICADO, DEMONSTRATIVOS, MESES, MODELOS_CERTIFICADO, NOME_CURTO_ALVARA, SITUACOES_ALVARA, STATUS_DEMO, TIPOS_ALVARAS, TIPOS_CERTIDOES, ehCertificado, grupoDoTipo, lerCertidao, linhasCertificados, nomeDoTipo, textoSituacao } from "../lib/depCadastro.mjs";
+import { ALVARAS_GRADE, CERTIFICADO, DEMONSTRATIVOS, MESES, MODELOS_CERTIFICADO, NOME_CURTO_ALVARA, SITUACOES_ALVARA, STATUS_DEMO, TIPOS_ALVARAS, TIPOS_CERTIDOES, abaDoTipo, ehCertificado, grupoDoTipo, lerCertidao, linhasCertificados, nomeDoTipo, textoSituacao } from "../lib/depCadastro.mjs";
 import { carregarForge, carregarXlsx, lerBuffer } from "../lib/leitores.js";
 import { formatarDocumento, lerCertificado, senhasDoNome, unicosPorDocumento } from "../lib/certificado.mjs";
 import { abrirArquivo, apagarArquivo, guardarArquivo } from "../lib/arquivos.js";
@@ -65,7 +65,9 @@ function FormDocumento({ grupo, editando, aoFechar, tipoInicial, inicial }) {
     try {
       const d = svc.salvarDocumento(f, editando && editando.id);
       if (pdf) { await guardarArquivo(d.id, pdf); svc.marcarAnexo(d.id, { nome: pdf.name, tamanho: pdf.size }); }
-      aviso(editando ? "Documento atualizado." : "Documento cadastrado."); aoFechar();
+      // certificado cadastrado pela aba Certidões (ou o contrário): avisa para onde foi
+      const foiPara = abaDoTipo(d.tipo) === "certificados" && grupo !== "certificados" && !tipoInicial ? " Está na aba Certificados digitais." : "";
+      aviso((editando ? "Documento atualizado." : "Documento cadastrado.") + foiPara); aoFechar();
     } catch (e) { setErro(e.message); }
   };
   const empresas = svc.empresas();
