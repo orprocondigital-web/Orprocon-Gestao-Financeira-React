@@ -163,6 +163,20 @@ function fabrica(R) {
   }
 
   /**
+   * Nome do funcionário da folha. O lugar certo é o campo amarelo (B3), mas o cliente às vezes escreve ao lado
+   * (C3 a J3, por cima da dica), na frente do rótulo (A3) ou só renomeia a aba: aceita esses também.
+   */
+  function nomeDaFolha(rows, aba) {
+    var l3 = rows[2] || [], txt = function (v) { return String(v === null || v === undefined ? "" : v).replace(/\s+/g, " ").trim(); };
+    for (var c = 1; c <= 9; c++) { var v = txt(l3[c]); if (v && v.charAt(0) !== "\u2190") return v; }   // B3 … J3 (sem a dica "← escreva…")
+    var a3 = txt(l3[0]).replace(/^funcion[aá]rio\s*:?\s*/i, "");
+    if (a3) return a3;
+    var daAba = txt(aba).replace(/^\d+\s*[-–.]?\s*/, "");
+    if (daAba && !/^(funcion[aá]rio|func|planilha|sheet|plan)\s*\(?\d*\)?$/i.test(daAba)) return daAba;
+    return "";
+  }
+
+  /**
    * Lê a planilha preenchida (workbook do SheetJS). Devolve
    * {empresa, cnpj, mes, folhas:[{aba, id, nome, funcao, quadro, dias:{n:{e1,s1,e2,s2,oc,obs}}, avisos:[]}], avisos:[]}.
    */
@@ -180,7 +194,7 @@ function fabrica(R) {
       var rows = XLSX.utils.sheet_to_json(wb.Sheets[aba], { header: 1, raw: true, defval: null });
       var cab = (rows[L0 - 2] || []).map(function (x) { return R.normalizarNome(x); });
       if (cab[2] !== "ENTRADA" || cab[5] !== "SAIDA") { out.avisos.push("Aba \"" + aba + "\" ignorada: não está no formato da folha de presença."); return; }
-      var nome = String((rows[2] || [])[1] || "").trim();
+      var nome = nomeDaFolha(rows, aba);
       var idCel = String((rows[0] || [])[10] || "");
       var f = { aba: aba, id: idCel.indexOf("id:") === 0 ? idCel.slice(3) : "", nome: nome, funcao: String((rows[3] || [])[1] || "").trim(),
         quadro: String((rows[4] || [])[1] || "").trim(), dias: {}, avisos: [] };
@@ -196,7 +210,7 @@ function fabrica(R) {
         if (!vazio) { f.dias[n] = d; algum = true; }
       }
       if (!nome && !algum) return;   // aba sobrando, em branco
-      if (!nome) f.avisos.push("Aba sem o nome do funcionário.");
+      if (!nome) f.avisos.push("Aba sem o nome do funcionário: escreva o nome no campo amarelo Funcionário (célula B3).");
       out.folhas.push(f);
     });
     if (!out.folhas.length) out.avisos.push("Nenhuma folha preenchida encontrada na planilha.");
