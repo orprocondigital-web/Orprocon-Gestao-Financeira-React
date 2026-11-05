@@ -10,6 +10,7 @@ import Importar, { carregarDemo, DEMO_LIBERADA } from "../componentes/depCadastr
 import Empresas, { FormEmpresa } from "../componentes/depCadastro/Empresas.jsx";
 import Mensagem from "../componentes/depCadastro/Mensagem.jsx";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
+import { useAuth } from "../lib/auth.jsx";
 import { cnpjValido, completarComReceita, consultarCnpj, situacaoPedeAtencao } from "../lib/receita.mjs";
 import { useEmDia } from "../lib/useEmDia.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
@@ -731,6 +732,7 @@ function CelulaValor({ valor, aoMudar, rotulo }) {
 
 function Faturamentos() {
   const [svc, versao] = useDepCadastro();
+  const cad = useAuth().pode("mod-vencimentos");   // aberto pelo Contábil, sem acesso ao Departamento Cadastro
   const atual = new Date().getFullYear();
   const [ano, setAno] = useState(String(atual));
   const lista = svc.empresas();
@@ -743,7 +745,7 @@ function Faturamentos() {
         <Segmentado pequeno rotulo="Ano" valor={ano} aoMudar={setAno} opcoes={anos.map((a) => [a, a])} />
         <p className="text-[13px] text-muted">Clique no mês e digite o valor faturado. Grava sozinho ao sair do campo.</p>
         <div className="flex-1" />
-        <Link to="/departamento-cadastro/empresas" className="btn-contorno btn-sm">Empresas</Link>
+        {cad && <Link to="/departamento-cadastro/empresas" className="btn-contorno btn-sm">Empresas</Link>}
       </div>
       {lista.length > 0 && <LimitesDoAno ano={ano} />}
       <div className="cartao overflow-hidden">
@@ -818,7 +820,7 @@ function LimitesDoAno({ ano }) {
         : <ul className="divide-y divide-line">{alertas.map((x) => (
           <li key={x.empresa.id} className="py-3 grid md:grid-cols-[minmax(0,240px)_1fr] gap-x-6 gap-y-2">
             <div>
-              <Link className="font-semibold text-brand hover:underline" to={"/departamento-cadastro/buscar?empresa=" + x.empresa.id}>{x.empresa.nome}</Link>
+              {cad ? <Link className="font-semibold text-brand hover:underline" to={"/departamento-cadastro/buscar?empresa=" + x.empresa.id}>{x.empresa.nome}</Link> : <span className="font-semibold">{x.empresa.nome}</span>}
               <span className="block text-[12.5px] text-muted">{x.empresa.regime}{x.filiais.length ? " · com " + x.filiais.length + " filial(is)" : ""}</span>
             </div>
             <div className="space-y-3">{x.situacoes.filter((s) => s.nivel !== "ok").map((s) => <BarraLimite key={s.tipo} s={s} />)}</div>
@@ -833,6 +835,7 @@ function LimitesDoAno({ ano }) {
 const COR_DEMO = { "": "border-warn/40 bg-warn-soft text-warn", emitido: "border-info/40 bg-info-soft text-info", entregue: "border-credit/40 bg-ok-soft text-credit", nao_se_aplica: "border-line bg-surface-2 text-muted" };
 function Demonstrativos() {
   const [svc, versao] = useDepCadastro();
+  const cad = useAuth().pode("mod-vencimentos");
   const atual = new Date().getFullYear();
   const [ano, setAno] = useState(String(atual - 1));
   const lista = svc.empresas();
@@ -845,7 +848,7 @@ function Demonstrativos() {
         <Segmentado pequeno rotulo="Exercício" valor={ano} aoMudar={setAno} opcoes={anos.map((a) => [a, a])} />
         {p.total > 0 && <span className="text-[13px] text-muted">Exercício {ano}: <strong className="text-credit">{p.entregues}</strong> entregues, <strong className="text-info">{p.emitidos}</strong> emitidos, <strong className="text-warn">{p.pendentes}</strong> pendentes</span>}
         <div className="flex-1" />
-        <Link to="/departamento-cadastro/empresas" className="btn-contorno btn-sm">Empresas</Link>
+        {cad && <Link to="/departamento-cadastro/empresas" className="btn-contorno btn-sm">Empresas</Link>}
       </div>
       <div className="cartao overflow-hidden">
         {!lista.length ? <Vazio titulo="Nenhuma empresa cadastrada" texto="Cadastre as empresas (em Empresas) ou carregue a demonstração para ver como fica." /> : (
@@ -943,8 +946,9 @@ function Conferencia() {
   );
 }
 
-export default function DepCadastro() {
-  const { secao } = useParams();
+export default function DepCadastro(props) {
+  const params = useParams();
+  const secao = props.secao || params.secao;   // Faturamentos e Demonstrativos também abrem pelo Contábil
   if (secao === "empresas") return <Empresas />;
   if (secao === "buscar") return <Buscar />;
   if (secao === "certidoes") return <Documentos grupo="certidoes" />;
