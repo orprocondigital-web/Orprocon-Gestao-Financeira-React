@@ -190,7 +190,7 @@ function TelaMes({ emp, mes, abrir, irPara }) {
       if (jaTem && !(await confirmar({ titulo: "Substituir folhas?", texto: jaTem + " funcionário(s) já têm folha em " + R.rotuloMes(mes) + ". A importação substitui essas folhas.", botao: "Substituir" }))) return;
       const res = svc.mudar((s) => H.aplicarImportacao(s, emp.id, mes, lido, { arquivo: arquivo.name, quem: usuario ? usuario.nome : "" }));
       aviso(res.importadas + " folha(s) importada(s)." + (res.criados.length ? " Novo(s) funcionário(s) com a carga padrão: " + res.criados.join(", ") + " (confira a carga)." : "") +
-        (res.ignoradas.length ? " Abas ignoradas (sem nome): " + res.ignoradas.join(", ") + "." : "") + (res.emBranco.length ? " Em branco (não mexi): " + res.emBranco.join(", ") + "." : "") +
+        (res.ignoradas.length ? " Não importei " + res.ignoradas.join(", ") + ": a aba tem horários, mas não tem o nome do funcionário. Escreva o nome no campo amarelo Funcionário (célula B3) e importe de novo." : "") + (res.emBranco.length ? " Em branco (não mexi): " + res.emBranco.join(", ") + "." : "") +
         (res.avisos.length ? " Avisos: " + res.avisos.join(" · ") : ""));
     } catch (err) { aviso("Não consegui ler a planilha: " + (err.message || err)); }
   }
