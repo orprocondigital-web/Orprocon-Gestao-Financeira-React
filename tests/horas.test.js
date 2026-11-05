@@ -189,6 +189,18 @@ describe("planilha do cliente", { skip: !(ExcelJS && XLSX) && "exceljs/xlsx não
     const wb2 = P.gerar(ExcelJS, { nome: "X" }, [{ id: "f1", nome: "Maria Exemplo" }], "2026-09", { emBranco: 2 });
     assert.deepEqual(wb2.worksheets.map((w) => w.name).slice(2), ["01 Maria Exemplo", "02 Funcionário", "03 Funcionário"]);
   });
+  test("nome fora do campo amarelo: ao lado (J3), no rótulo, ou só no nome da aba; sem nome nenhum, avisa onde escrever", async () => {
+    const wb = P.gerar(ExcelJS, { nome: "Cliente Exemplo Ltda" }, [], "2026-09", { emBranco: 5 });
+    const dia = (ws) => { ws.getCell("C8").value = "08:00"; ws.getCell("F8").value = "17:00"; };
+    const w1 = wb.getWorksheet("01 Funcionário"); w1.getCell("J3").value = "Ana Exemplo"; dia(w1);
+    const w2 = wb.getWorksheet("02 Funcionário"); w2.name = "Bruno Exemplo"; dia(w2);
+    const w3 = wb.getWorksheet("03 Funcionário"); w3.getCell("A3").value = "Funcionário: Carla Exemplo"; dia(w3);
+    const w4 = wb.getWorksheet("04 Funcionário"); w4.name = "04 Funcionário (2)"; dia(w4);
+    dia(wb.getWorksheet("05 Funcionário"));
+    const lido = P.ler(XLSX, XLSX.read(await wb.xlsx.writeBuffer(), { type: "buffer" }));
+    assert.deepEqual(lido.folhas.map((f) => f.nome), ["Ana Exemplo", "Bruno Exemplo", "Carla Exemplo", "", ""]);
+    assert.match(lido.folhas[4].avisos[0], /campo amarelo Funcionário \(célula B3\)/);
+  });
   test("nome de aba: até 31 caracteres, sem repetir", () => {
     const usados = {};
     assert.equal(P.nomeAba("Maria", usados, 1), "01 Maria");
