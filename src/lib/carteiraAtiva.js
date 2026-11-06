@@ -7,13 +7,30 @@ import { depCadastro } from "./useDepCadastro.js";
 
 let filtro = null;
 
-/** Chamado no login (auth.jsx): usuario com setores e carteira vindos do servidor. */
-export function aplicarCarteira(usuario) {
+function ligar(usuario) {
   filtro = criarFiltro(usuario, (doc) => {
     const c = depCadastro.empresaPorDocumento(doc);
     return c && Array.isArray(c.departamentos) ? c.departamentos : [];
   });
   depCadastro.definirVisivel(filtro);
+}
+
+let pedido = 0;
+
+/**
+ * Chamado no login (auth.jsx): usuario com setores e carteira vindos do servidor.
+ * Carteira automática pelo Acessórias: liga primeiro com o que já se sabe e, quando a lista de empresas em que ele é o
+ * responsável chega do servidor, liga de novo com ela. Sem resposta, fica só com o que foi escolhido à mão.
+ */
+export function aplicarCarteira(usuario) {
+  ligar(usuario);
+  const meu = ++pedido;
+  if (usuario && usuario.carteiraAcessorias && usuario.perfil !== "admin") {
+    import("./acessoriasServidor.js").then((m) => m.minhaCarteiraAcessorias())
+      .then((cnpjs) => { if (meu === pedido) ligar(Object.assign({}, usuario, { carteiraResponsavel: Array.isArray(cnpjs) ? cnpjs : [] })); })
+      .catch(() => { /* sem conexão: fica com a carteira manual */ });
+  }
+  if (usuario) import("./acessoriasServidor.js").then((m) => m.acompanharAcessorias(usuario)).catch(() => {});
 }
 
 /** A pessoa vê esta empresa? empresa: { documento | cnpj, departamentos? }. Sem carteira: sempre. */
