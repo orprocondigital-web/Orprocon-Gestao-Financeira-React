@@ -39,7 +39,7 @@ describe("conferência", () => {
     const t = A.csv(itens());
     assert.ok(t.startsWith("﻿Documento;Item"));
     assert.equal(t.split("\r\n").length, 4);
-    assert.match(t, /"Erro";"[^"]*CBS divergente[^"]*"$/);
+    assert.match(t, /"Erro";.*"CBS: valor R\$ 20,00, correto R\$ 18,00";.*;0,9;18;""$/);
   });
 });
 
@@ -67,7 +67,45 @@ describe("tabela de referência", () => {
     assert.match(c.msgs.map((m) => m.texto).join(), /Diferente da tabela.*cClassTrib — \(esperado 200001\)/);
     const x = A.itemManual({ desc: "Y", bc: "100", pCbs: "0,9", cst: "000", cClassTrib: "200001" }, 1);
     assert.match(A.conferir(x).msgs.map((m) => m.texto).join(), /não pertence ao CST 000/);
-    assert.match(A.csv([x]), /Motivo/);
+    assert.match(A.csv([x]), /Erro cClassTrib/);
+  });
+});
+
+describe("conferência separada por campo (CST, cClassTrib, alíquotas)", () => {
+  const [[n1, nfe]] = A.xmlsDeExemplo();
+  const itens = () => A.lerXml(nfe, n1).itens;
+  const ref = A.lerReferencia([["NCM", "CST", "cClassTrib", "Redução (%)"], ["84713012", "000", "000001", 0], ["30049099", "200", "200001", 60], ["94036000", "200", "200001", 60]]).itens;
+  test("sem tabela: o que falta e o valor correto de cada tributo", () => {
+    const [a, b, c] = itens().map((x) => A.conferir(x).campos);
+    assert.deepEqual([a.cst.erro, a.cClassTrib.erro, a.aliquotas.erro], ["", "", ""]);
+    assert.equal(b.aliquotas.erro, "", "redução informada e valores certos");
+    assert.equal(b.aliquotas.tributos.CBS.efetivaCorreta.toFixed(2), "0.36");
+    assert.equal(c.cClassTrib.erro, "cClassTrib ausente");
+    assert.equal(c.aliquotas.erro, "CBS: valor R$ 20,00, correto R$ 18,00");
+    assert.equal(c.aliquotas.tributos.CBS.valorCorreto, 18);
+  });
+  test("com tabela: CST e cClassTrib corretos, redução e valores que a tabela pede", () => {
+    const c = A.conferir(itens()[2], ref).campos;
+    assert.equal(c.cst.erro, "Informado 000, a tabela pede 200 (NCM 94036000)"); assert.equal(c.cst.correto, "200");
+    assert.equal(c.cClassTrib.correto, "200001");
+    assert.match(c.aliquotas.erro, /IBS-UF: redução 0,00%, a tabela pede 60,00% \(efetiva correta 0,04%\); valor R\$ 2,00, correto R\$ 0,80/);
+    assert.match(c.aliquotas.erro, /CBS: .*correto R\$ 7,20/);
+    assert.doesNotMatch(c.aliquotas.erro, /Município/, "IBS-Município é 0%: a redução não muda nada");
+    const x = A.itemManual({ desc: "Y", bc: "100", pCbs: "0,9", cst: "000", cClassTrib: "200001" }, 1);
+    assert.match(A.conferir(x).campos.cClassTrib.erro, /Não pertence ao CST 000/);
+  });
+  test("Excel: uma coluna de erro e o correto para cada campo, no lugar do Motivo único", () => {
+    const campos = (l) => l.match(/("([^"]|"")*"|[^;]*)(;|$)/g).filter((x, i, a) => i < a.length - 1 || x !== "").map((x) => x.replace(/;$/, ""));
+    const linhas = A.csv(itens(), ref).replace(/^\uFEFF/, "").split("\r\n").map(campos);
+    const cab = linhas[0], col = (nome) => cab.indexOf(nome);
+    assert.equal(col("Motivo"), -1);
+    for (const nome of ["Erro CST", "CST correto", "Erro cClassTrib", "cClassTrib correto", "Erro alíquotas/valores", "Valor correto CBS", "Outros avisos"]) assert.ok(col(nome) > -1, nome);
+    assert.ok(linhas.every((l) => l.length === cab.length), "todas as linhas com as mesmas colunas");
+    const item3 = linhas[3];
+    assert.equal(item3[col("CST correto")], '"200"');
+    assert.equal(item3[col("cClassTrib correto")], '"200001"');
+    assert.equal(item3[col("Valor correto CBS")], "7,2");
+    assert.equal(linhas[1][col("Erro CST")], '""', "item certo fica em branco");
   });
 });
 
