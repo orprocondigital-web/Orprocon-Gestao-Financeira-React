@@ -247,6 +247,24 @@ export function criarEmDia(deps) {
     gravarResp(d, setorId, empresaId, nome, desde);
     gravar(d);
   }
+  /**
+   * Vários de uma vez (vindos do Acessórias): [{ setorId, empresaId, nome }]. Só grava o que mudou; quem troca entra no
+   * histórico a partir do mês de trabalho. Devolve quantos mudaram.
+   */
+  function definirResponsaveis(lista) {
+    const d = dados();
+    const setoresOk = new Set(d.setores.map((x) => x.id));
+    let n = 0;
+    (lista || []).forEach((x) => {
+      const nome = txt(x && x.nome);
+      if (!x || !nome || !setoresOk.has(x.setorId) || !x.empresaId) return;
+      if ((((d.responsaveis[x.setorId] || {})[x.empresaId]) || "") === nome) return;
+      gravarResp(d, x.setorId, x.empresaId, nome);
+      n++;
+    });
+    if (n) gravar(d);
+    return n;
+  }
   /** Quem foi responsável e desde quando, mais antigo primeiro. */
   function historicoResponsavel(setorId, empresaId) {
     const d = dados();
@@ -622,7 +640,7 @@ export function criarEmDia(deps) {
   }
 
   return {
-    hoje, mesPadrao, setores, salvarObrigacoes, empresas, empresaPara, ocultar, responsavel, todosResponsaveis, definirResponsavel, historicoResponsavel, importarHistorico,
+    hoje, mesPadrao, setores, salvarObrigacoes, empresas, empresaPara, ocultar, responsavel, todosResponsaveis, definirResponsavel, definirResponsaveis, historicoResponsavel, importarHistorico,
     definirStatus, definirObs, grade, anual, pessoas, resumo, marcarFechado, fechamento, resumoFechamento, passarBastao, devolverBastao, historicoBastao,
     anotar, excluirAnotacao, diario, lerEntregas, lerControle, aplicarImportacao, carregarDemonstracao, limpar
   };

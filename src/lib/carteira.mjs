@@ -36,9 +36,13 @@ export function contarPorSetor(empresas) {
   return n;
 }
 
-/** O usuário tem alguma limitação? (admin e quem não tem setor nem carteira veem tudo) */
+/**
+ * O usuário tem alguma limitação? (admin e quem não tem setor nem carteira veem tudo)
+ * Carteira automática pelo Acessórias: conta só depois que a lista dele chegou do servidor (carteiraResponsavel).
+ */
 export function temCarteira(usuario) {
-  return !!usuario && usuario.perfil !== "admin" && ((usuario.setores || []).length > 0 || (usuario.carteira || []).length > 0);
+  return !!usuario && usuario.perfil !== "admin" && ((usuario.setores || []).length > 0 || (usuario.carteira || []).length > 0
+    || (!!usuario.carteiraAcessorias && Array.isArray(usuario.carteiraResponsavel)));
 }
 
 /**
@@ -49,11 +53,13 @@ export function temCarteira(usuario) {
 export function criarFiltro(usuario, departamentosDe = () => []) {
   if (!temCarteira(usuario)) return null;
   const setores = (usuario.setores || []).map(chaveSetor).filter(Boolean);
-  const carteira = new Set((usuario.carteira || []).map(digitos).filter(Boolean));
+  // carteira = as escolhidas à mão; com a automática do Acessórias, somam as empresas em que ele é o responsável
+  const automatica = !!usuario.carteiraAcessorias && Array.isArray(usuario.carteiraResponsavel);
+  const carteira = new Set((usuario.carteira || []).concat(automatica ? usuario.carteiraResponsavel : []).map(digitos).filter(Boolean));
   return (emp) => {
     if (!emp) return false;
     const d = digitos(emp.documento != null && emp.documento !== "" ? emp.documento : emp.cnpj);
-    if (carteira.size && !carteira.has(d)) return false;
+    if ((carteira.size || automatica) && !carteira.has(d)) return false;
     if (!setores.length) return true;
     const deps = Array.isArray(emp.departamentos) ? emp.departamentos : (d ? departamentosDe(d) || [] : []);
     return deps.some((x) => setores.includes(chaveSetor(x)));

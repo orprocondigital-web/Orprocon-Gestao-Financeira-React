@@ -7,6 +7,7 @@ import { useDepCadastro } from "../lib/useDepCadastro.js";
 import { chaveSetor, contarPorSetor, empresasDaPlanilha, lerPlanilhaCarteira, setoresDasEmpresas } from "../lib/carteira.mjs";
 import { lerPlanilha } from "../lib/leitores.js";
 import { BotaoArquivo } from "../componentes/contabil/ui.jsx";
+import { PainelAcessorias, useResponsaveis } from "../componentes/acessorias/Acessorias.jsx";
 
 /*
  * Usuários (só administradores): criar, editar, áreas de acesso, nova senha provisória, desativar,
@@ -164,9 +165,11 @@ function EscolherEmpresas({ nome, inicial, aoConfirmar, aoFechar }) {
  * Empresas que a pessoa vê: por setor (departamentos do Acessórias que vieram na importação das empresas) e/ou a
  * carteira importada (CNPJs). Nada marcado = todas.
  */
-function CamposCarteira({ nome, setores, setSetores, cnpjs, setCnpjs }) {
+function CamposCarteira({ nome, email, setores, setSetores, cnpjs, setCnpjs, acessorias, setAcessorias }) {
   const [svc, v] = useDepCadastro();
   const [escolhendo, setEscolhendo] = useState(false);
+  const resp = useResponsaveis();
+  const minhas = resp && resp[String(email || "").trim().toLowerCase()];
   const empresas = useMemo(() => svc.empresas(), [svc, v]);   // eslint-disable-line
   const lista = useMemo(() => setoresDasEmpresas(empresas), [empresas]);
   const n = useMemo(() => contarPorSetor(empresas), [empresas]);
@@ -178,6 +181,12 @@ function CamposCarteira({ nome, setores, setSetores, cnpjs, setCnpjs }) {
       <legend className="rotulo mb-1">Empresas que vê</legend>
       <p className="text-[12.5px] text-muted">Nada marcado: vê todas as empresas. Marcando setores, vê só as empresas que têm esse departamento no Acessórias
         (Departamento Cadastro, Controle de horas e ISS).</p>
+      <label className={"flex gap-2.5 items-start rounded-lg border px-2.5 py-2 cursor-pointer text-[13.5px] " + (acessorias ? "border-brand bg-brand-soft" : "border-line")}>
+        <input type="checkbox" className="mt-1" checked={!!acessorias} onChange={(e) => setAcessorias(e.target.checked)} />
+        <span><strong className="block font-semibold">Automática pelo Acessórias</strong>
+          <span className="block text-[12.5px] text-muted">Vê as empresas em que {email ? <b>{email}</b> : "o e-mail dele"} é o responsável de algum departamento no Acessórias.
+            Mudou lá, muda aqui na próxima sincronização.{resp === null ? "" : minhas ? " Hoje: " + minhas.cnpjs.size + " empresa(s)." : " Hoje: nenhuma empresa com esse e-mail (confira se é o mesmo do Acessórias)."}</span></span>
+      </label>
       {lista.length === 0 && extras.length === 0 ? (
         <p className="text-[12.5px] text-muted">Os setores aparecem aqui depois de importar as empresas do Acessórias (Departamento Cadastro › Importar).</p>
       ) : (
@@ -191,35 +200,38 @@ function CamposCarteira({ nome, setores, setSetores, cnpjs, setCnpjs }) {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2 text-[13px]">
-        <button type="button" className="btn-contorno btn-sm" onClick={() => setEscolhendo(true)}>Escolher empresas{cnpjs.length ? " (" + cnpjs.length + ")" : ""}</button>
-        {cnpjs.length > 0
-          ? <><span>Vê só estas <strong>{cnpjs.length}</strong> empresa(s){setores.length ? ", dentro dos setores marcados" : ""}.</span>
-            <button type="button" className="btn-fantasma btn-sm" onClick={() => setCnpjs([])}>Tirar a carteira</button></>
-          : <span className="text-muted">Sem carteira individual: marque as empresas ou importe a planilha dele.</span>}
+        <button type="button" className="btn-contorno btn-sm" onClick={() => setEscolhendo(true)}>{acessorias ? "Empresas a mais" : "Escolher empresas"}{cnpjs.length ? " (" + cnpjs.length + ")" : ""}</button>
+        {acessorias
+          ? <span className="text-muted">{cnpjs.length ? "Mais " + cnpjs.length + " empresa(s) além das do Acessórias (ex.: cobertura de férias)." : "Exceções: empresas que ele vê além das do Acessórias."}</span>
+          : cnpjs.length > 0
+            ? <><span>Vê só estas <strong>{cnpjs.length}</strong> empresa(s){setores.length ? ", dentro dos setores marcados" : ""}.</span>
+              <button type="button" className="btn-fantasma btn-sm" onClick={() => setCnpjs([])}>Tirar a carteira</button></>
+            : <span className="text-muted">Sem carteira individual: marque as empresas ou importe a planilha dele.</span>}
+        {acessorias && cnpjs.length > 0 && <button type="button" className="btn-fantasma btn-sm" onClick={() => setCnpjs([])}>Tirar as exceções</button>}
       </div>
       {escolhendo && <EscolherEmpresas nome={nome} inicial={cnpjs} aoFechar={() => setEscolhendo(false)} aoConfirmar={(l) => { setCnpjs(l); setEscolhendo(false); }} />}
     </fieldset>
   );
 }
 
-function FormUsuario({ editando, aoSalvar, aoFechar, aberta, servidor }) {
+function FormUsuario({ editando, inicial, aoSalvar, aoFechar, aberta, servidor }) {
   const [nome, setNome] = useState(""), [email, setEmail] = useState(""), [perfil, setPerfil] = useState("usuario");
   const [areas, setAreas] = useState([]), [ativo, setAtivo] = useState(true), [erro, setErro] = useState(""), [ocupado, setOcupado] = useState(false);
   const [senha, setSenha] = useState(""), [trocar, setTrocar] = useState(true);
-  const [setores, setSetores] = useState([]), [cnpjs, setCnpjs] = useState([]);
+  const [setores, setSetores] = useState([]), [cnpjs, setCnpjs] = useState([]), [acessorias, setAcessorias] = useState(false);
   useEffect(() => {
     if (!aberta) return;
     const u = editando;
-    setSetores(u ? (u.setores || []).slice() : []); setCnpjs(u ? (u.carteira || []).slice() : []);
-    setNome(u ? u.nome : ""); setEmail(u ? u.email : ""); setPerfil(u ? u.perfil : "usuario");
+    setSetores(u ? (u.setores || []).slice() : []); setCnpjs(u ? (u.carteira || []).slice() : []); setAcessorias(u ? !!u.carteiraAcessorias : !!(inicial && inicial.email));
+    setNome(u ? u.nome : (inicial && inicial.nome) || ""); setEmail(u ? u.email : (inicial && inicial.email) || ""); setPerfil(u ? u.perfil : "usuario");
     setAreas(u ? (u.perfil === "admin" ? AuthCore.AREAS.map((a) => a.id) : u.areas.slice()) : []);
     setAtivo(u ? u.ativo : true); setErro(""); setOcupado(false); setSenha(""); setTrocar(true);
-  }, [aberta, editando]);
+  }, [aberta, editando, inicial]);
   const alternar = (id) => setAreas((l) => (l.indexOf(id) > -1 ? l.filter((x) => x !== id) : l.concat(id)));
   const salvar = () => {
     setErro(""); setOcupado(true);
     const dados = { nome, email, perfil, areas: perfil === "admin" ? [] : areas, ativo };
-    if (servidor) dados.carteira = perfil === "admin" ? { setores: [], cnpjs: [] } : { setores, cnpjs };
+    if (servidor) dados.carteira = perfil === "admin" ? { setores: [], cnpjs: [], acessorias: false } : { setores, cnpjs, acessorias };
     if (!editando) Object.assign(dados, { senhaInicial: senha, trocarSenha: trocar });
     aoSalvar(dados)
       .catch((e) => setErro(e.message)).finally(() => setOcupado(false));
@@ -261,7 +273,7 @@ function FormUsuario({ editando, aoSalvar, aoFechar, aberta, servidor }) {
           })}
         </div>
       </fieldset>
-      {servidor && perfil !== "admin" && <CamposCarteira nome={nome} setores={setores} setSetores={setSetores} cnpjs={cnpjs} setCnpjs={setCnpjs} />}
+      {servidor && perfil !== "admin" && <CamposCarteira nome={nome} email={email} setores={setores} setSetores={setSetores} cnpjs={cnpjs} setCnpjs={setCnpjs} acessorias={acessorias} setAcessorias={setAcessorias} />}
       {!editando && <CamposSenha senha={senha} setSenha={setSenha} trocar={trocar} setTrocar={setTrocar} />}
       {editando && <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} /> Acesso ativo</label>}
       {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
@@ -351,7 +363,8 @@ export default function Usuarios() {
   const carregar = useCallback(() => auth.listarUsuarios().then(setLista).catch((e) => setErro(e.message)), [auth]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const mudouCarteira = (u, c) => !!c && (JSON.stringify((u && u.setores) || []) !== JSON.stringify(c.setores) || JSON.stringify((u && u.carteira) || []) !== JSON.stringify(c.cnpjs));
+  const mudouCarteira = (u, c) => !!c && (JSON.stringify((u && u.setores) || []) !== JSON.stringify(c.setores) || JSON.stringify((u && u.carteira) || []) !== JSON.stringify(c.cnpjs)
+    || !!(u && u.carteiraAcessorias) !== !!c.acessorias);
   const salvar = (dadosForm) => {
     const { carteira, ...dados } = dadosForm;
     if (form.editando) {
@@ -361,7 +374,7 @@ export default function Usuarios() {
         if (eu(ed)) return auth.usuarioAtual().then((u) => u && definirUsuario(u));
       }).then(carregar);
     }
-    return auth.criarUsuario(dados).then((r) => (carteira && carteira.setores.length ? auth.definirCarteira(r.usuario.id, carteira).then(() => r) : r)).then((r) => {
+    return auth.criarUsuario(dados).then((r) => (carteira && (carteira.setores.length || carteira.cnpjs.length || carteira.acessorias) ? auth.definirCarteira(r.usuario.id, carteira).then(() => r) : r)).then((r) => {
       setForm({ aberta: false, editando: null });
       setAcesso({ usuario: r.usuario, senha: r.senhaProvisoria, trocar: r.trocarSenha, titulo: "Acesso criado" });
     }).then(carregar);
@@ -427,6 +440,7 @@ export default function Usuarios() {
 
   return (
     <div className="max-w-[1180px] flex flex-col gap-4">
+      {servidor && <PainelAcessorias criarAcesso={(nome, email) => setForm({ aberta: true, editando: null, inicial: { nome, email } })} />}
       <section className="cartao">
         <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 pb-3">
           <div className="max-w-[640px]">
@@ -489,7 +503,7 @@ export default function Usuarios() {
           </>
         )}
       </section>
-      <FormUsuario aberta={form.aberta} editando={form.editando} servidor={servidor} aoSalvar={salvar} aoFechar={() => setForm({ aberta: false, editando: null })} />
+      <FormUsuario aberta={form.aberta} editando={form.editando} inicial={form.inicial} servidor={servidor} aoSalvar={salvar} aoFechar={() => setForm({ aberta: false, editando: null })} />
       {importando && lista && <ImportarCarteiras usuarios={lista} aoFechar={() => setImportando(false)}
         aoGravar={(linhas) => auth.importarCarteiras(linhas).then(() => { setImportando(false); aviso(linhas.length + " carteira(s) gravada(s)."); carregar(); })} />}
       <JanelaNovaSenha alvo={novaPara} aoGerar={gerarSenha} aoFechar={() => setNovaPara(null)} />

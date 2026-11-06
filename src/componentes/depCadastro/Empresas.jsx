@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { SeloAcessorias } from "../acessorias/Acessorias.jsx";
 import { REGIMES, TIPOS_LUCRO_REAL, ativaNoMes, ordenarPelaBusca, planilhaEmpresas } from "../../lib/depCadastro.mjs";
 import { carregarXlsx } from "../../lib/leitores.js";
 import { useDepCadastro } from "../../lib/useDepCadastro.js";
@@ -224,6 +225,7 @@ export default function Empresas() {
         {semRegime > 0 && <button type="button" className="text-warn font-semibold hover:underline" onClick={() => setRegime("(sem)")}>{semRegime} sem regime</button>}
         {saiu > 0 && <span className="text-muted">{saiu} já saíram</span>}
         {busca.trim() && <span className="text-muted" aria-live="polite">{visiveis.length ? numero(visiveis.length) + " encontrada(s). Enter abre a primeira." : "Nenhuma encontrada."}</span>}
+        <span className="sm:ml-auto"><SeloAcessorias /></span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="CNPJ, código ou nome…" aria-label="Buscar empresa por CNPJ, código ou nome" className="w-full sm:max-w-[320px] h-9"
