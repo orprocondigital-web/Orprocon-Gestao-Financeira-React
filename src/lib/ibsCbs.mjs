@@ -177,7 +177,53 @@ export function conferir(row, ref) {
     }
   }
   if (!msgs.length) add("ok", "Valores e alíquotas consistentes para os campos informados.");
-  return { nivel: msgs.some((m) => m.nivel === "erro") ? "erro" : msgs.some((m) => m.nivel === "atencao") ? "atencao" : "ok", msgs };
+  return { nivel: msgs.some((m) => m.nivel === "erro") ? "erro" : msgs.some((m) => m.nivel === "atencao") ? "atencao" : "ok", msgs, campos: camposDoItem(row, ref) };
+}
+
+/**
+ * A conferência separada por campo, para colunas próprias (tela e Excel): CST, cClassTrib e alíquotas/valores,
+ * cada um com { erro: texto (vazio = confere), correto: o valor certo quando dá para saber }.
+ * O "correto" do CST e do cClassTrib vem da tabela de referência; sem ela, só dá para apontar o que falta ou
+ * não combina. Alíquota efetiva correta = nominal × (1 − redução); a redução vem da tabela quando o NCM está nela.
+ * Valor correto = BC × alíquota efetiva correta.
+ */
+export function camposDoItem(row, ref) {
+  const vazio = { erro: "", correto: "" };
+  if (!row || !row.found) return { cst: vazio, cClassTrib: vazio, aliquotas: { erro: "Grupo IBS/CBS não encontrado", tributos: {} }, outros: "" };
+  const r = ref && Object.keys(ref).length ? referenciaDoNcm(ref, row.ncm) : null;
+  const cstInf = soDig(row.cst) ? soDig(row.cst).padStart(3, "0") : "", ctInf = soDig(row.cClassTrib) ? soDig(row.cClassTrib).padStart(6, "0") : "";
+  // CST
+  const cst = { erro: "", correto: r ? r.cst : "" };
+  if (!cstInf) cst.erro = "CST ausente";
+  else if (r && cstInf !== r.cst) cst.erro = "Informado " + cstInf + ", a tabela pede " + r.cst + " (NCM " + r.ncm + ")";
+  // cClassTrib
+  const ct = { erro: "", correto: r ? r.cClassTrib : "" };
+  if (!ctInf) ct.erro = "cClassTrib ausente";
+  else if (r && ctInf !== r.cClassTrib) ct.erro = "Informado " + ctInf + ", a tabela pede " + r.cClassTrib + " (NCM " + r.ncm + ")";
+  else if (cstInf && ctInf.slice(0, 3) !== cstInf) ct.erro = "Não pertence ao CST " + cstInf + " (os 3 primeiros dígitos têm que ser o CST)";
+  // alíquotas e valores, tributo por tributo
+  const tributos = {}, erros = [];
+  [["IBS-UF", "Uf", "vIbsUf", "pIbsUf"], ["IBS-Município", "Mun", "vIbsMun", "pIbsMun"], ["CBS", "Cbs", "vCbs", "pCbs"]].forEach(([nome, suf, kv, kp]) => {
+    const nominal = row[kp], valor = row[kv], redInf = row["pRedAliq" + suf], efInf = row["pAliqEfet" + suf];
+    if (nominal === null && valor === null) return;
+    const red = r ? (r.reducao || 0) : (redInf || 0);
+    const efCorreta = nominal !== null ? nominal * (1 - red / 100) : efInf;
+    const vCorreto = row.bc !== null && efCorreta !== null && efCorreta !== undefined ? row.bc * efCorreta / 100 : null;
+    const t = { nominal, reducao: red, efetivaCorreta: efCorreta, valorInformado: valor, valorCorreto: vCorreto, erro: "" };
+    const problemas = [];
+    // redução diferente da tabela só importa onde há alíquota (o IBS-Município de 2026 é 0%)
+    if (r && nominal && Math.abs((redInf || 0) - red) > 0.001) problemas.push("redução " + pct(redInf || 0) + ", a tabela pede " + pct(red) + " (efetiva correta " + pct(efCorreta) + ")");
+    if (valor !== null && vCorreto !== null && Math.abs(valor - vCorreto) > TOLERANCIA) problemas.push("valor R$ " + brl(valor) + ", correto R$ " + brl(vCorreto));
+    if (problemas.length) { t.erro = problemas.join("; "); erros.push(nome + ": " + t.erro); }
+    tributos[nome] = t;
+  });
+  if (row.vIbsUf !== null && row.vIbsMun !== null && row.vIbs !== null && Math.abs(row.vIbsUf + row.vIbsMun - row.vIbs) > TOLERANCIA)
+    erros.push("Total do IBS: R$ " + brl(row.vIbs) + ", correto R$ " + brl(row.vIbsUf + row.vIbsMun) + " (UF + Município)");
+  // o que não é de nenhum dos três
+  const outros = [];
+  if (row.bc === null) outros.push("Base de cálculo (vBC) não informada");
+  if (r === null && ref && Object.keys(ref).length) outros.push(row.ncm ? "NCM " + row.ncm + " não está na tabela de referência" : "Item sem NCM: sem comparação com a tabela");
+  return { cst, cClassTrib: ct, aliquotas: { erro: erros.join(" | "), tributos }, outros: outros.join(" | ") };
 }
 
 /** Item digitado à mão (sem XML). c = textos do formulário. Os valores que faltarem são calculados. */
@@ -214,20 +260,32 @@ export function calcular(c) {
   return { ibsUf, ibsMun, ibs, cbs, total, msgs };
 }
 
+/** As colunas da conferência separada por campo (mesma ordem do cabeçalho do CSV). */
+function colunasSeparadas(c, n, q) {
+  const t = (nome) => c.aliquotas.tributos[nome] || {};
+  const dec = (v, casas) => (v === null || v === undefined || isNaN(v) ? "" : n(Number(v.toFixed(casas))));
+  return [q(c.cst.erro), q(c.cst.erro ? c.cst.correto : ""), q(c.cClassTrib.erro), q(c.cClassTrib.erro ? c.cClassTrib.correto : ""), q(c.aliquotas.erro),
+    ...["IBS-UF", "IBS-Município", "CBS"].flatMap((k) => (t(k).erro ? [dec(t(k).efetivaCorreta, 4), dec(t(k).valorCorreto, 2)] : ["", ""])),
+    q(c.outros)];
+}
+
 /** CSV para o Excel (separador ;, vírgula decimal, BOM para os acentos). */
 export function csv(rows, ref) {
   const n = (v) => (v === null || v === undefined || v === "" ? "" : String(v).replace(".", ","));
   const q = (v) => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
   const cab = ["Documento", "Item", "Descrição do produto", "Código", "NCM", "CFOP", "Quantidade", "Valor Unitário", "Valor Produto", "CST IBS", "cClassTrib", "BC IBS/CBS",
     "Alíquota Nominal IBS-UF (%)", "Redução IBS-UF (%)", "Alíquota Efetiva IBS-UF (%)", "Valor IBS-UF", "Alíquota Nominal IBS-Mun (%)", "Redução IBS-Mun (%)", "Alíquota Efetiva IBS-Mun (%)", "Valor IBS-Mun",
-    "Valor IBS - Total", "CST CBS", "Alíquota Nominal CBS (%)", "Redução CBS (%)", "Alíquota Efetiva CBS (%)", "Valor CBS", "Valor Total (IBS + CBS)", "Situação", "Motivo"];
+    "Valor IBS - Total", "CST CBS", "Alíquota Nominal CBS (%)", "Redução CBS (%)", "Alíquota Efetiva CBS (%)", "Valor CBS", "Valor Total (IBS + CBS)", "Situação",
+    "Erro CST", "CST correto", "Erro cClassTrib", "cClassTrib correto", "Erro alíquotas/valores",
+    "Alíquota efetiva correta IBS-UF (%)", "Valor correto IBS-UF", "Alíquota efetiva correta IBS-Mun (%)", "Valor correto IBS-Mun", "Alíquota efetiva correta CBS (%)", "Valor correto CBS", "Outros avisos"];
   const linhas = [cab.join(";")];
   rows.forEach((r) => {
     const v = conferir(r, ref);
     const tot = r.vIbs !== null || r.vCbs !== null ? (r.vIbs || 0) + (r.vCbs || 0) : null;
     linhas.push([q(r.doc), r.nItem, q(r.desc || ""), q(r.cProd || ""), q(r.ncm || ""), q(r.cfop || ""), n(r.qCom), n(r.vUnCom), n(r.vProd), q(r.cst || ""), q(r.cClassTrib || ""), n(r.bc),
       n(r.pIbsUf), n(r.pRedAliqUf), n(r.pAliqEfetUf ?? r.pIbsUf), n(r.vIbsUf), n(r.pIbsMun), n(r.pRedAliqMun), n(r.pAliqEfetMun ?? r.pIbsMun), n(r.vIbsMun), n(r.vIbs),
-      q(r.cst || ""), n(r.pCbs), n(r.pRedAliqCbs), n(r.pAliqEfetCbs ?? r.pCbs), n(r.vCbs), n(tot), q(v.nivel === "ok" ? "OK" : v.nivel === "atencao" ? "Atenção" : "Erro"), q(v.msgs.filter((m) => m.nivel !== "ok").map((m) => m.texto).join(" | "))].join(";"));
+      q(r.cst || ""), n(r.pCbs), n(r.pRedAliqCbs), n(r.pAliqEfetCbs ?? r.pCbs), n(r.vCbs), n(tot), q(v.nivel === "ok" ? "OK" : v.nivel === "atencao" ? "Atenção" : "Erro"),
+      ...colunasSeparadas(v.campos, n, q)].join(";"));
   });
   return "﻿" + linhas.join("\r\n");
 }
