@@ -177,19 +177,21 @@ function Conferencia() {
                     <td className="px-2 py-1.5">{r.desc}{r.cProd && <span className="block text-[11px] text-muted">Cód. {r.cProd}</span>}</td>
                     <td className="px-2 py-1.5">{r.ncm || "—"}</td><td className="px-2 py-1.5">{r.cfop || "—"}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{brl(r.vProd)}</td>
-                    <td className="px-2 py-1.5">{r.cst || "—"}</td><td className="px-2 py-1.5">{r.cClassTrib || "—"}</td>
+                    <Celula valor={r.cst || "—"} campo={c.campos.cst} />
+                    <Celula valor={r.cClassTrib || "—"} campo={c.campos.cClassTrib} />
                     <td className="px-2 py-1.5 text-right tabular-nums">{brl(r.bc)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap">{pct(r.pIbsUf)} / {pct(r.pIbsMun)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap">{pct(r.pAliqEfetUf ?? r.pIbsUf)} / {pct(r.pAliqEfetMun ?? r.pIbsMun)}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{brl(r.vIbs)}</td>
+                    <Celula valor={brl(r.vIbs)} direita campo={erroDeValor(c.campos, ["IBS-UF", "IBS-Município"])} />
                     <td className="px-2 py-1.5 text-right tabular-nums">{pct(r.pCbs)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{pct(r.pAliqEfetCbs ?? r.pCbs)}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{brl(r.vCbs)}</td>
+                    <Celula valor={brl(r.vCbs)} direita campo={erroDeValor(c.campos, ["CBS"])} />
                     <td className="px-2 py-1.5"><Selo tipo={NIVEL[c.nivel][0]}>{NIVEL[c.nivel][1]}</Selo></td>
                   </tr>,
                   abertos[i] && (
                     <tr key={"d" + i} className="bg-surface-2/60"><td />
                       <td colSpan={14} className="px-2 py-2">
+                        <PorCampo campos={c.campos} />
                         <ul className="space-y-0.5 text-[12.5px]">
                           {c.msgs.map((x, k) => <li key={k} className={x.nivel === "erro" ? "text-debit" : x.nivel === "atencao" ? "text-warn" : "text-credit"}>{x.nivel === "erro" ? "✕ " : x.nivel === "atencao" ? "! " : "✓ "}{x.texto}</li>)}
                           <li className="text-muted">Documento de origem: <b className="text-ink">{r.doc}</b>{r.cClassTrib ? " · cClassTrib " + r.cClassTrib : ""}</li>
@@ -200,10 +202,50 @@ function Conferencia() {
               </tbody>
             </table>
           </div>
-          <p className="px-4 py-3 text-[12.5px] text-muted">Clique na linha para ver o motivo. Tolerância de R$ 0,03 por valor. Com redução (gRed), a conta usa a alíquota efetiva.</p>
+          <p className="px-4 py-3 text-[12.5px] text-muted">Em vermelho, com o correto embaixo: o campo que não confere. Clique na linha para ver campo por campo. Tolerância de R$ 0,03 por valor. Com redução (gRed), a conta usa a alíquota efetiva. O Excel traz uma coluna de erro e o valor correto para CST, cClassTrib e alíquotas.</p>
         </section>
       )}
     </div>
+  );
+}
+
+/** Célula da tabela: em vermelho, com o valor correto embaixo, quando o campo não confere. */
+function Celula({ valor, campo, direita }) {
+  const erro = campo && campo.erro;
+  return (
+    <td className={"px-2 py-1.5 " + (direita ? "text-right tabular-nums " : "") + (erro ? "text-debit font-semibold" : "")} title={erro || undefined}>
+      {valor}
+      {erro && <span className="block text-[11px] font-normal whitespace-nowrap">{campo.correto ? "correto: " + campo.correto : "confira"}</span>}
+    </td>
+  );
+}
+/** Erro de valor de um ou mais tributos, no formato da Celula (correto = soma dos valores corretos). */
+function erroDeValor(campos, nomes) {
+  const ts = nomes.map((n) => campos.aliquotas.tributos[n]).filter(Boolean);
+  const comErro = ts.filter((t) => t.erro);
+  if (!comErro.length) return null;
+  const ok = ts.every((t) => t.valorCorreto !== null);
+  return { erro: comErro.map((t) => t.erro).join("; "), correto: ok ? "R$ " + brl(ts.reduce((a, t) => a + t.valorCorreto, 0)) : "" };
+}
+/** Quadro campo por campo (CST, cClassTrib, cada tributo): o que veio, o correto e o erro. */
+function PorCampo({ campos }) {
+  const linhas = [["CST", campos.cst], ["cClassTrib", campos.cClassTrib]];
+  const tributos = Object.entries(campos.aliquotas.tributos);
+  return (
+    <table className="mb-2 text-[12.5px] border border-line rounded-md bg-surface">
+      <thead className="text-[11px] uppercase tracking-wide text-muted"><tr><th className="px-2 py-1 text-left font-semibold">Campo</th><th className="px-2 py-1 text-left font-semibold">Correto</th><th className="px-2 py-1 text-left font-semibold">Conferência</th></tr></thead>
+      <tbody className="divide-y divide-line">
+        {linhas.map(([n, c]) => (
+          <tr key={n}><td className="px-2 py-1 font-medium">{n}</td><td className="px-2 py-1 tabular-nums">{c.correto || "—"}</td>
+            <td className={"px-2 py-1 " + (c.erro ? "text-debit" : "text-credit")}>{c.erro || "confere"}</td></tr>
+        ))}
+        {tributos.map(([n, t]) => (
+          <tr key={n}><td className="px-2 py-1 font-medium">{n}</td>
+            <td className="px-2 py-1 tabular-nums whitespace-nowrap">{pct(t.efetivaCorreta)} · R$ {brl(t.valorCorreto)}</td>
+            <td className={"px-2 py-1 " + (t.erro ? "text-debit" : "text-credit")}>{t.erro || "confere"}</td></tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
