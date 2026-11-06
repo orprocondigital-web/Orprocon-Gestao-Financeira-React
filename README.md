@@ -75,7 +75,9 @@ Esta é a versão em **React + Tailwind**, que substitui a versão anterior em H
 - **Certidões** e **certificados digitais (A1/A3)** com vencimento, renovação com histórico, PDF anexado e leitura automática do PDF.
 - **Importação pelo CNPJ** da planilha de renovação de alvarás e de listas de empresas, com prévia antes de gravar e sem duplicar.
 - **Mensagem pronta** para cobrar a renovação do cliente por e-mail ou WhatsApp.
-- Faturamentos mensais e demonstrativos contábeis por empresa.
+- **Ler PDFs** de alvarás e certidões em lote, direto nas abas: lê empresa, tipo e vencimento, renova sem duplicar.
+- **Acessórias pela API:** as empresas, os departamentos e os responsáveis entram sozinhos quando o servidor sincroniza (o token fica só no servidor). Os responsáveis de Contábil, Fiscal e Pessoal vão para a grade do Em Dia.
+- **Carteira automática:** cada usuário vê as empresas em que é responsável no Acessórias (pelo e-mail), mais as exceções escolhidas à mão.
 
 ### 5. 📊 Contábil: fechamento, encerramento, lucros e REINF (`/fechamento`, `/encerramento`, `/lucros`, `/reinf`)
 - **Fechamento contábil** do mês por empresa e por responsável.
@@ -231,7 +233,10 @@ Não use "Clear site data": isso apaga também os dados e os acessos.
 - [x] Departamento Cadastro completo (alvarás, certidões, certificados, busca por CNPJ)
 - [x] Auditor IBS/CBS com a tabela da LC 214/2025
 - [x] Rateio por faturamento no encerramento
-- [ ] Backend **Spring Boot + PostgreSQL** ligado: dados compartilhados por toda a equipe
+- [x] Backend **Spring Boot + PostgreSQL** ligado: dados compartilhados por toda a equipe
+- [x] Acessórias pela API: empresas, departamentos e carteira automática
+- [ ] Painel "Meus vencimentos" com as entregas do Acessórias
+- [ ] Conciliação bancária da Fan Metal (por empresa e mês, no servidor)
 - [ ] Versão **1.0.0** e arquivamento da versão HTML
 
 ---
