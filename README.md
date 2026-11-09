@@ -77,7 +77,7 @@ Esta é a versão em **React + Tailwind**, que substitui a versão anterior em H
 - **Mensagem pronta** para cobrar a renovação do cliente por e-mail ou WhatsApp.
 - **Ler PDFs** de alvarás e certidões em lote, direto nas abas: lê empresa, tipo e vencimento, renova sem duplicar.
 - **Acessórias pela API:** as empresas, os departamentos e os responsáveis entram sozinhos quando o servidor sincroniza (o token fica só no servidor). Os responsáveis de Contábil, Fiscal e Pessoal vão para a grade do Em Dia.
-- **Carteira automática:** cada usuário vê as empresas em que é responsável no Acessórias (pelo e-mail), mais as exceções escolhidas à mão.
+- **Carteira automática:** cada usuário vê as empresas em que é responsável no Acessórias (pelo e-mail), mais as exceções escolhidas à mão. Com setores marcados, conta só os departamentos em que ele é o responsável.
 
 ### 5. 📊 Contábil: fechamento, encerramento, lucros e REINF (`/fechamento`, `/encerramento`, `/lucros`, `/reinf`)
 - **Fechamento contábil** do mês por empresa e por responsável.
