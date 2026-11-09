@@ -449,9 +449,9 @@
         itens: ["Matriz e filiais com o consolidado", "CMV, lucro bruto e resultado do período calculados", "Sócios com o que foi distribuído no ano"] },
       { tab: "lucros", area: "contabil-lucros", icone: "lucros", nome: "Distribuição de lucros e REINF", resumo: "O que cada sócio recebeu, o IRRF e a REINF do mês.",
         itens: ["Calcula base e IRRF de 10% e avisa quando o mês passa de R$ 50 mil", "Saldo de lucros aprovados em ata, sem IRRF", "REINF por competência: notas, distribuído e confirmação"] },
-      { tab: "ctb-faturamentos", area: ["contabil-lucros", "mod-vencimentos"], icone: "faturamento", nome: "Faturamentos", resumo: "O faturamento de cada empresa, mês a mês.",
+      { tab: "ctb-faturamentos", area: "contabil-lucros", icone: "faturamento", nome: "Faturamentos", resumo: "O faturamento de cada empresa, mês a mês.",
         itens: ["Digita direto na tabela, como numa planilha", "Total do ano e dos últimos 12 meses", "Total do escritório por mês"] },
-      { tab: "ctb-demonstrativos", area: ["contabil-lucros", "mod-vencimentos"], icone: "demonstrativo", nome: "Demonstrativos contábeis", resumo: "Balanço, DRE e balancete de cada empresa por exercício.",
+      { tab: "ctb-demonstrativos", area: "contabil-lucros", icone: "demonstrativo", nome: "Demonstrativos contábeis", resumo: "Balanço, DRE e balancete de cada empresa por exercício.",
         itens: ["Situação: pendente, emitido ou entregue", "Progresso do exercício de todas as empresas", "Marca o que não se aplica à empresa"] }
     ] },
     { id: "fiscal", nome: "Fiscal", texto: "Prévia da apuração e conferência das notas antes do fechamento.", ferramentas: [

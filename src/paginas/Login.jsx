@@ -7,7 +7,7 @@ import { lerLocal, gravarLocal } from "../lib/tema.js";
 const RECURSOS = [
   "Integração contábil com o SCI Único e conciliação bancária",
   "Distribuição de lucros, IRRF e REINF",
-  "Departamento Cadastro: empresas, certidões, alvarás e faturamento",
+  "Departamento Cadastro: empresas, certidões, certificados e alvarás",
   "Em Dia: o que cada setor fez no mês",
   "Apuração de ICMS, auditor IBS/CBS e ISS de Tubarão",
   "Controle de horas do Departamento Pessoal"

@@ -70,7 +70,7 @@ Esta é a versão em **React + Tailwind**, que substitui a versão anterior em H
 - **Tabela de referência da LC 214/2025 incluída:** 445 NCMs dos anexos de mercadorias, já com as alterações da LC 227/2026, comparados automaticamente com cada item.
 
 ### 4. 🗂️ Departamento Cadastro (`/departamento-cadastro/...`)
-- **Busca por CNPJ** (inteiro ou parte) e **ficha da empresa**: dados, matriz e filiais, alvarás, certidões, certificado digital, responsáveis, sócios e faturamento de 12 meses numa tela só.
+- **Busca por CNPJ** (inteiro ou parte) e **ficha da empresa**: dados, matriz e filiais, alvarás, certidões, certificado digital, responsáveis, sócios numa tela só (o faturamento de 12 meses e os demonstrativos aparecem para quem tem o Contábil).
 - **Alvarás em grade** (Municipal, Sanitário e Bombeiros) com situação e cores: em dia, vencendo, vencido, não se aplica e falta informar.
 - **Certidões** e **certificados digitais (A1/A3)** com vencimento, renovação com histórico, PDF anexado e leitura automática do PDF.
 - **Importação pelo CNPJ** da planilha de renovação de alvarás e de listas de empresas, com prévia antes de gravar e sem duplicar.

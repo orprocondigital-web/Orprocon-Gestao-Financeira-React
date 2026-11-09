@@ -150,8 +150,12 @@ describe("Início", () => {
     assert.equal((tudo.match(/class="capa-card"/g) || []).length, 16);
     const cad = I.SETORES_CAPA.find((x) => x.id === "cadastro").ferramentas.map((f) => f.nome);
     assert.deepEqual(cad, ["Empresas", "Certidões", "Certificados digitais", "Alvarás"], "Cadastro enxuto: faturamento e demonstrativos estão no Contábil");
-    const ctb = I.capa(r, { pode: (a) => a === "mod-vencimentos" });
-    assert.match(ctb, /Faturamentos/, "quem tem só o Cadastro continua vendo Faturamentos (no Contábil)");
+    const soCadastro = I.capa(r, { pode: (a) => a === "mod-vencimentos" });
+    assert.ok(!/Faturamentos|Demonstrativos/.test(soCadastro), "quem tem só o Cadastro não vê Faturamentos nem Demonstrativos");
+    assert.ok(!/Contábil<\/h3>/.test(soCadastro), "nem o setor Contábil aparece para quem tem só o Cadastro");
+    const ctb = I.capa(r, { pode: (a) => a === "contabil-lucros" });
+    assert.match(ctb, /Faturamentos/);
+    assert.match(ctb, /Demonstrativos contábeis/);
     assert.match(tudo, /Departamento Cadastro/);
     assert.ok(!/Painel de vencimentos/.test(tudo), "o painel saiu: os vencimentos ficam em Certidões e Alvarás");
     assert.match(tudo, /Departamento Pessoal/);
