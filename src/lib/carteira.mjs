@@ -3,6 +3,9 @@
  *   setores  = departamentos do Acessórias ("Departamento Pessoal"...): vê as empresas que têm um deles;
  *   carteira = CNPJs/CPFs das empresas que a pessoa cuida (importados da lista do Acessórias).
  * Os dois juntos: vê as empresas do setor que estão na carteira. Nenhum: vê todas. O admin vê todas.
+ * Carteira automática (Acessórias): as empresas em que a pessoa é a responsável. Com setores marcados, só conta onde
+ * ela é a responsável de um desses departamentos (no Acessórias toda empresa tem todos os departamentos, então o
+ * departamento da empresa não separa nada; o que separa é de qual departamento ela é a responsável).
  * O filtro é só de tela (os dados de cada módulo continuam num bloco único no servidor).
  * Sem tela: testado em tests/carteira.test.js.
  */
@@ -50,15 +53,35 @@ export function temCarteira(usuario) {
  * empresa: { documento | cnpj, departamentos? }. departamentosDe(doc): para empresas de outros módulos (Controle de
  * horas, ISS), que não guardam os departamentos: busca no cadastro do Departamento Cadastro pelo CNPJ.
  */
+/**
+ * Lista da carteira automática (GET /api/acessorias/minha-carteira) → { porDepartamento, semDepartamento }:
+ *   [{ cnpj, departamentos }]: entra se não há setor marcado ou se ela é responsável de um departamento marcado;
+ *   "cnpj" solto (servidor antigo): não se sabe o departamento, passa pelo filtro de setor de sempre.
+ */
+export function separarAutomatica(lista, setores) {
+  const porDepartamento = new Set(), semDepartamento = new Set();
+  (Array.isArray(lista) ? lista : []).forEach((x) => {
+    if (typeof x === "string") { const d = digitos(x); if (d) semDepartamento.add(d); return; }
+    const d = digitos(x && (x.cnpj || x.documento));
+    if (!d) return;
+    const deps = Array.isArray(x.departamentos) ? x.departamentos : null;
+    if (!deps) semDepartamento.add(d);
+    else if (!setores.length || deps.some((y) => setores.includes(chaveSetor(y)))) porDepartamento.add(d);
+  });
+  return { porDepartamento, semDepartamento };
+}
+
 export function criarFiltro(usuario, departamentosDe = () => []) {
   if (!temCarteira(usuario)) return null;
   const setores = (usuario.setores || []).map(chaveSetor).filter(Boolean);
   // carteira = as escolhidas à mão; com a automática do Acessórias, somam as empresas em que ele é o responsável
   const automatica = !!usuario.carteiraAcessorias && Array.isArray(usuario.carteiraResponsavel);
-  const carteira = new Set((usuario.carteira || []).concat(automatica ? usuario.carteiraResponsavel : []).map(digitos).filter(Boolean));
+  const auto = separarAutomatica(automatica ? usuario.carteiraResponsavel : [], setores);
+  const carteira = new Set((usuario.carteira || []).map(digitos).filter(Boolean).concat(Array.from(auto.semDepartamento)));
   return (emp) => {
     if (!emp) return false;
     const d = digitos(emp.documento != null && emp.documento !== "" ? emp.documento : emp.cnpj);
+    if (auto.porDepartamento.has(d)) return true;   // responsável de um departamento marcado (ou de qualquer um, sem setor)
     if ((carteira.size || automatica) && !carteira.has(d)) return false;
     if (!setores.length) return true;
     const deps = Array.isArray(emp.departamentos) ? emp.departamentos : (d ? departamentosDe(d) || [] : []);

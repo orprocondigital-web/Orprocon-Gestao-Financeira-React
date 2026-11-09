@@ -8,6 +8,7 @@ import { chaveSetor, contarPorSetor, empresasDaPlanilha, lerPlanilhaCarteira, se
 import { lerPlanilha } from "../lib/leitores.js";
 import { BotaoArquivo } from "../componentes/contabil/ui.jsx";
 import { PainelAcessorias, useResponsaveis } from "../componentes/acessorias/Acessorias.jsx";
+import { contarAutomatica } from "../lib/acessorias.mjs";
 
 /*
  * Usuários (só administradores): criar, editar, áreas de acesso, nova senha provisória, desativar,
@@ -179,13 +180,16 @@ function CamposCarteira({ nome, email, setores, setSetores, cnpjs, setCnpjs, ace
   return (
     <fieldset className="space-y-2">
       <legend className="rotulo mb-1">Empresas que vê</legend>
-      <p className="text-[12.5px] text-muted">Nada marcado: vê todas as empresas. Marcando setores, vê só as empresas que têm esse departamento no Acessórias
-        (Departamento Cadastro, Controle de horas e ISS).</p>
+      <p className="text-[12.5px] text-muted">Nada marcado: vê todas as empresas. Marcando setores, vê só as empresas desses setores
+        (Departamento Cadastro, Controle de horas e ISS). Com a automática, os setores marcados dizem de qual departamento ele é o responsável.</p>
       <label className={"flex gap-2.5 items-start rounded-lg border px-2.5 py-2 cursor-pointer text-[13.5px] " + (acessorias ? "border-brand bg-brand-soft" : "border-line")}>
         <input type="checkbox" className="mt-1" checked={!!acessorias} onChange={(e) => setAcessorias(e.target.checked)} />
         <span><strong className="block font-semibold">Automática pelo Acessórias</strong>
-          <span className="block text-[12.5px] text-muted">Vê as empresas em que {email ? <b>{email}</b> : "o e-mail dele"} é o responsável de algum departamento no Acessórias.
-            Mudou lá, muda aqui na próxima sincronização.{resp === null ? "" : minhas ? " Hoje: " + minhas.cnpjs.size + " empresa(s)." : " Hoje: nenhuma empresa com esse e-mail (confira se é o mesmo do Acessórias)."}</span></span>
+          <span className="block text-[12.5px] text-muted">Vê as empresas em que {email ? <b>{email}</b> : "o e-mail dele"} é o responsável no Acessórias
+            {setores.length ? <> dos setores marcados abaixo</> : <> de qualquer departamento (marque os setores dele para contar só esses)</>}.
+            Mudou lá, muda aqui na próxima sincronização.{resp === null ? "" : !minhas ? " Hoje: nenhuma empresa com esse e-mail (confira se é o mesmo do Acessórias)."
+              : setores.length ? " Hoje: " + contarAutomatica(minhas, setores) + " empresa(s) nos setores marcados (" + minhas.cnpjs.size + " em todos os departamentos)."
+                : " Hoje: " + minhas.cnpjs.size + " empresa(s)."}</span></span>
       </label>
       {lista.length === 0 && extras.length === 0 ? (
         <p className="text-[12.5px] text-muted">Os setores aparecem aqui depois de importar as empresas do Acessórias (Departamento Cadastro › Importar).</p>
@@ -194,7 +198,10 @@ function CamposCarteira({ nome, email, setores, setSetores, cnpjs, setCnpjs, ace
           {lista.concat(extras).map((s) => (
             <label key={s} className={"flex gap-2.5 items-center rounded-lg border px-2.5 py-2 cursor-pointer text-[13.5px] " + (marcado(s) ? "border-brand bg-brand-soft" : "border-line")}>
               <input type="checkbox" checked={marcado(s)} onChange={() => alternar(s)} />
-              <span className="flex-1">{s}</span><span className="text-[12px] text-muted tabular-nums">{n[chaveSetor(s)] || 0}</span>
+              <span className="flex-1">{s}</span>
+              {acessorias && minhas
+                ? <span className="text-[12px] text-muted tabular-nums" title="Empresas em que ele é o responsável deste setor no Acessórias">{(minhas.porSetor[chaveSetor(s)] || new Set()).size}</span>
+                : <span className="text-[12px] text-muted tabular-nums" title="Empresas com este setor">{n[chaveSetor(s)] || 0}</span>}
             </label>
           ))}
         </div>

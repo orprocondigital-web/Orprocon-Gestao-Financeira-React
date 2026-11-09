@@ -9,6 +9,7 @@
  * Testado em tests/acessorias.test.js.
  */
 import { CAB_ACESSORIAS, CAB_CENTRAL } from "./depCadastro.mjs";
+import { chaveSetor } from "./carteira.mjs";
 
 const txt = (v) => (v === null || v === undefined ? "" : String(v).trim());
 const norm = (v) => txt(v).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[.:]/g, "").replace(/\s+/g, " ").trim();
@@ -89,16 +90,35 @@ export function responsaveisPorSetor(empresas) {
   return r;
 }
 
-/** E-mail (minúsculo) → { nome, cnpjs: Set } de quem é responsável por algum departamento. */
+/** Nome do departamento como aparece nos setores do usuário ("Pessoal" → "Departamento Pessoal"). */
+export const nomeDoSetor = (nome) => colunaDoDepartamento(nome) || txt(nome);
+
+/**
+ * E-mail (minúsculo) → { nome, cnpjs: Set, porSetor: { chaveSetor: Set } } de quem é responsável por algum
+ * departamento (porSetor: em quais empresas ela é a responsável de cada departamento).
+ */
 export function responsaveis(empresas) {
   const m = {};
   (empresas || []).forEach((e) => (e.departamentos || []).forEach((d) => {
     const em = txt(d && d.respEmail).toLowerCase();
     if (!em) return;
-    if (!m[em]) m[em] = { nome: txt(d.respNome), cnpjs: new Set() };
-    m[em].cnpjs.add(txt(e.cnpj).replace(/\D/g, ""));
+    if (!m[em]) m[em] = { nome: txt(d.respNome), cnpjs: new Set(), porSetor: {} };
+    const cnpj = txt(e.cnpj).replace(/\D/g, "");
+    m[em].cnpjs.add(cnpj);
+    const k = chaveSetor(nomeDoSetor(d.nome));
+    if (k) (m[em].porSetor[k] = m[em].porSetor[k] || new Set()).add(cnpj);
   }));
   return m;
+}
+
+/** Quantas empresas a carteira automática dá: só nos setores marcados (ou todas em que é responsável, sem setor). */
+export function contarAutomatica(resp, setores) {
+  if (!resp) return 0;
+  const ks = (setores || []).map(chaveSetor).filter(Boolean);
+  if (!ks.length) return resp.cnpjs.size;
+  const s = new Set();
+  ks.forEach((k) => (resp.porSetor[k] || []).forEach((c) => s.add(c)));
+  return s.size;
 }
 
 /** "agora há pouco", "há 12 min", "há 3 h", "há 2 dias" (vazio sem data). */
