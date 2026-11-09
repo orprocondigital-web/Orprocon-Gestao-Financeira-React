@@ -36,9 +36,8 @@ export function montarMenu(pode, ehAdmin) {
   }
   if (pode("conciliacao")) contabil.push({ id: "conciliacao", label: "Conciliação", para: "/conciliacao", icone: "conciliacao" });
   if (pode("contabil-lucros")) contabil.push({ id: "fechamento", label: "Fechamento contábil", para: "/fechamento", icone: "fechamento" }, { id: "encerramento", label: "Encerramento do exercício", para: "/encerramento", icone: "encerramento" }, { id: "lucros", label: "Distribuição de lucros", para: "/lucros", icone: "lucros" }, { id: "reinf", label: "REINF", para: "/reinf", icone: "reinf" });
-  // Faturamentos e Demonstrativos: saíram do Departamento Cadastro e ficam só aqui (quem preenche é o Contábil;
-  // quem tinha só o Cadastro continua vendo, aqui)
-  if (pode("contabil-lucros") || pode("mod-vencimentos")) contabil.push({ id: "ctb-faturamentos", label: "Faturamentos", para: "/contabil/faturamentos", icone: "faturamento" }, { id: "ctb-demonstrativos", label: "Demonstrativos contábeis", para: "/contabil/demonstrativos", icone: "demonstrativo" });
+  // Faturamentos e Demonstrativos: só do Contábil (quem tem só o Departamento Cadastro não vê)
+  if (pode("contabil-lucros")) contabil.push({ id: "ctb-faturamentos", label: "Faturamentos", para: "/contabil/faturamentos", icone: "faturamento" }, { id: "ctb-demonstrativos", label: "Demonstrativos contábeis", para: "/contabil/demonstrativos", icone: "demonstrativo" });
   const certUrgentes = (svc) => svc.certificados().lista.filter((d) => d.situacao.status === "vencido" || d.situacao.status === "7").length;
   const secoes = [
     { titulo: "Contábil", itens: contabil },

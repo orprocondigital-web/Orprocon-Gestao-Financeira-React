@@ -384,6 +384,7 @@ function Ficha({ id, aoVoltar }) {
   const [mensagem, setMensagem] = useState(null);
   const [receita, setReceita] = useState({ ocupado: false, texto: "" });
   const { aviso } = useAvisos();
+  const contabil = useAuth().pode("contabil-lucros");   // faturamento e demonstrativos: só para o Contábil
   if (!f) return <div className="cartao p-8 text-center"><strong>Empresa não encontrada.</strong> <button type="button" className="btn-fantasma btn-sm" onClick={aoVoltar}>Voltar para Empresas</button></div>;
   const c = f.empresa;
   const setores = emDia.setores();
@@ -485,7 +486,7 @@ function Ficha({ id, aoVoltar }) {
           </div>
         </Bloco>
 
-        <Bloco titulo={"Faturamento: últimos 12 meses"} className="lg:col-span-2" acao={<Link to="/contabil/faturamentos" className="btn-fantasma btn-sm">Abrir faturamentos</Link>}>
+        {contabil && <Bloco titulo={"Faturamento: últimos 12 meses"} className="lg:col-span-2" acao={<Link to="/contabil/faturamentos" className="btn-fantasma btn-sm">Abrir faturamentos</Link>}>
           {!f.faturamento.comValor ? <p className="text-[13px] text-muted">Sem faturamento lançado nos últimos 12 meses.</p> : (<>
             <div className="flex items-end gap-1.5 h-[120px]" role="img" aria-label={"Faturamento dos últimos 12 meses, total " + Core.formatBR(f.faturamento.total)}>
               {f.faturamento.meses.map((x) => (
@@ -503,7 +504,7 @@ function Ficha({ id, aoVoltar }) {
           </div>}
           <p className="text-[13px] mt-3 pt-3 border-t border-line"><span className="text-muted">Demonstrativos de {f.demonstrativos.exercicio}: </span>
             {f.demonstrativos.itens.map((x, i) => <span key={x.tipo}>{i ? " · " : ""}{x.tipo}: <strong className={x.status === "entregue" ? "text-credit" : x.status ? "" : "text-warn"}>{NOME_DEMO[x.status] || "pendente"}</strong></span>)}</p>
-        </Bloco>
+        </Bloco>}
       </div>
       {editar && <FormEmpresa editando={c} aoFechar={() => setEditar(false)} />}
       {form && <FormDocumento grupo={form.grupo} editando={form.editando} inicial={form.inicial} aoFechar={() => setForm(null)} />}

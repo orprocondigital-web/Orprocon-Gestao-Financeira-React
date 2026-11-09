@@ -57,9 +57,9 @@ export default function App() {
             <Route path="conta/:id" element={<SoArea area="integracao"><Conta /></SoArea>} />
             <Route path="cadastro/:id" element={<SoArea area="integracao"><Cadastro /></SoArea>} />
             <Route path="departamento-cadastro/:secao" element={<SoArea area="mod-vencimentos"><DepCadastro /></SoArea>} />
-            {/* Faturamentos e Demonstrativos também no Contábil: mesmos dados do Departamento Cadastro */}
-            <Route path="contabil/faturamentos" element={<SoArea area={["contabil-lucros", "mod-vencimentos"]}><DepCadastro secao="faturamentos" /></SoArea>} />
-            <Route path="contabil/demonstrativos" element={<SoArea area={["contabil-lucros", "mod-vencimentos"]}><DepCadastro secao="demonstrativos" /></SoArea>} />
+            {/* Faturamentos e Demonstrativos: só do Contábil (os dados ficam junto do Departamento Cadastro) */}
+            <Route path="contabil/faturamentos" element={<SoArea area="contabil-lucros"><DepCadastro secao="faturamentos" /></SoArea>} />
+            <Route path="contabil/demonstrativos" element={<SoArea area="contabil-lucros"><DepCadastro secao="demonstrativos" /></SoArea>} />
             <Route path="em-dia" element={<SoArea area="mod-em-dia"><EmDia /></SoArea>} />
             <Route path="lucros" element={<SoArea area="contabil-lucros"><Lucros secao="distribuicoes" /></SoArea>} />
             <Route path="reinf" element={<SoArea area="contabil-lucros"><Lucros secao="reinf" /></SoArea>} />
