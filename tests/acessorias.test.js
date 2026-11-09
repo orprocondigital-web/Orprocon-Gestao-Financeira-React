@@ -102,6 +102,51 @@ describe("carteira automática pelo Acessórias", () => {
   });
 });
 
+describe("carteira automática pelos departamentos marcados", () => {
+  // como vem do Acessórias: toda empresa tem todos os departamentos; o que muda é quem é o responsável de cada um
+  const todos = ["Departamento Contábil", "Departamento Fiscal", "Departamento Pessoal", "Cadastros"];
+  const sandro = { perfil: "usuario", setores: ["Cadastros"], carteira: [], carteiraAcessorias: true };
+  const lista = [
+    { cnpj: "11222333000181", departamentos: ["Cadastros", "Departamento Fiscal"] },
+    { cnpj: "44555666000177", departamentos: ["Departamento Fiscal"] },
+    { cnpj: "77888999000155", departamentos: ["Departamento Contábil"] }
+  ];
+  test("com setor marcado: só onde ele é o responsável desse setor", () => {
+    const f = C.criarFiltro(Object.assign({}, sandro, { carteiraResponsavel: lista }));
+    assert.equal(f({ documento: "11.222.333/0001-81", departamentos: todos }), true);
+    assert.equal(f({ documento: "44555666000177", departamentos: todos }), false, "responsável só do Fiscal");
+    assert.equal(f({ documento: "77888999000155", departamentos: todos }), false);
+    assert.equal(f({ documento: "99000111000122", departamentos: todos }), false, "não é responsável");
+    const fiscal = C.criarFiltro(Object.assign({}, sandro, { setores: ["Departamento Fiscal"], carteiraResponsavel: lista }));
+    assert.deepEqual(["11222333000181", "44555666000177", "77888999000155"].map((d) => fiscal({ documento: d, departamentos: todos })), [true, true, false]);
+  });
+  test("sem setor marcado: qualquer departamento; exceções à mão continuam valendo", () => {
+    const f = C.criarFiltro(Object.assign({}, sandro, { setores: [], carteira: ["99000111000122"], carteiraResponsavel: lista }));
+    assert.deepEqual(["11222333000181", "44555666000177", "77888999000155", "99000111000122", "55666777000188"].map((d) => f({ documento: d, departamentos: todos })),
+      [true, true, true, true, false]);
+    const g = C.criarFiltro(Object.assign({}, sandro, { carteira: ["99000111000122"], carteiraResponsavel: lista }));
+    assert.equal(g({ documento: "99000111000122", departamentos: todos }), true, "exceção dentro do setor");
+  });
+  test("servidor antigo (só CNPJs) continua funcionando", () => {
+    const f = C.criarFiltro(Object.assign({}, sandro, { setores: [], carteiraResponsavel: ["11222333000181"] }));
+    assert.equal(f({ documento: "11222333000181" }), true);
+    assert.equal(f({ documento: "44555666000177" }), false);
+  });
+  test("contagem do formulário por setor e nomes curtos do Acessórias", () => {
+    const empresas = [
+      { cnpj: "11222333000181", departamentos: [{ nome: "Cadastros", respEmail: "sandro@exemplo.com" }, { nome: "Pessoal", respEmail: "sandro@exemplo.com" }] },
+      { cnpj: "44555666000177", departamentos: [{ nome: "Pessoal", respEmail: "sandro@exemplo.com" }] }
+    ];
+    const r = A.responsaveis(empresas)["sandro@exemplo.com"];
+    assert.equal(r.cnpjs.size, 2);
+    assert.equal(r.porSetor[C.chaveSetor("Departamento Pessoal")].size, 2, "Pessoal = Departamento Pessoal");
+    assert.equal(A.contarAutomatica(r, ["Cadastros"]), 1);
+    assert.equal(A.contarAutomatica(r, ["Cadastros", "Departamento Pessoal"]), 2);
+    assert.equal(A.contarAutomatica(r, []), 2);
+    assert.equal(A.nomeDoSetor("DP"), "Departamento Pessoal");
+  });
+});
+
 describe("responsáveis do Acessórias na grade do Em Dia", () => {
   test("Contábil, Fiscal e Pessoal; só grava o que mudou e guarda o histórico", async () => {
     const E = await import("../src/lib/emDia.mjs");

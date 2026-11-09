@@ -3,6 +3,7 @@
  * Departamento Cadastro filtra no próprio serviço; Controle de horas e ISS perguntam a empresaVisivel().
  */
 import { criarFiltro } from "./carteira.mjs";
+import { nomeDoSetor } from "./acessorias.mjs";
 import { depCadastro } from "./useDepCadastro.js";
 
 let filtro = null;
@@ -27,7 +28,13 @@ export function aplicarCarteira(usuario) {
   const meu = ++pedido;
   if (usuario && usuario.carteiraAcessorias && usuario.perfil !== "admin") {
     import("./acessoriasServidor.js").then((m) => m.minhaCarteiraAcessorias())
-      .then((cnpjs) => { if (meu === pedido) ligar(Object.assign({}, usuario, { carteiraResponsavel: Array.isArray(cnpjs) ? cnpjs : [] })); })
+      .then((lista) => {
+        if (meu !== pedido) return;
+        // [{ cnpj, departamentos }] (ou só CNPJs, servidor antigo); os nomes dos departamentos iguais aos dos setores
+        const l = (Array.isArray(lista) ? lista : []).map((x) => (x && typeof x === "object" && Array.isArray(x.departamentos)
+          ? Object.assign({}, x, { departamentos: x.departamentos.map(nomeDoSetor) }) : x));
+        ligar(Object.assign({}, usuario, { carteiraResponsavel: l }));
+      })
       .catch(() => { /* sem conexão: fica com a carteira manual */ });
   }
   if (usuario) import("./acessoriasServidor.js").then((m) => m.acompanharAcessorias(usuario)).catch(() => {});
