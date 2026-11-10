@@ -1,6 +1,8 @@
 /*
- * O que aparece no menu (igual à versão anterior): setores, módulos e, dentro da Integração contábil,
- * as contas bancárias, unidades, outras movimentações e cadastros da planilha do mês.
+ * O que aparece no menu: setores, módulos e uma seção para cada cliente que tem ferramenta feita para o jeito
+ * dele. Celesp: a Integração contábil (a planilha de movimento dela, com as contas bancárias, unidades, outras
+ * movimentações e cadastros do mês) e a conciliação dessas contas. A Conciliação bancária do Contábil é a de todo
+ * mundo (extrato × planilha de pagamentos ou recebimentos).
  */
 import { Modulos } from "./legado.js";
 import { contabil as dados } from "./useContabil.js";
@@ -21,10 +23,11 @@ export function montarMenu(pode, ehAdmin) {
     .map((m) => ({ id: m.id, label: m.label, para: ROTA_REACT[m.id] || "/modulo/" + m.id, icone: ICONE_MODULO[m.id] || "cadastro", descricao: m.descricao }));
   const integracao = pode("integracao");
   const contabil = [];
+  const celesp = [];
   if (integracao) {
     const bancos = dados.bancos();
     const unidades = dados.unidades();
-    contabil.push({
+    celesp.push({
       id: "master", label: "Integração contábil", para: "/integracao", icone: "master",
       partes: [
         { titulo: "Bancos", itens: bancos.map((b) => ({ id: b.id, label: b.label, grupo: b.bank || "", para: "/conta/" + b.id, icone: "banco", title: nomeDaFonte(b) })), vazio: "Nenhuma conta cadastrada" },
@@ -33,14 +36,17 @@ export function montarMenu(pode, ehAdmin) {
         { titulo: "Cadastros", itens: CADASTROS.map((c) => ({ id: c.id, label: c.label, para: "/cadastro/" + c.id, icone: "cadastro" })) }
       ]
     });
+    celesp.push({ id: "celesp-conciliacao", label: "Conciliação das contas", para: "/celesp/conciliacao", icone: "conciliacao" });
   }
-  if (pode("conciliacao")) contabil.push({ id: "conciliacao", label: "Conciliação", para: "/conciliacao", icone: "conciliacao" });
+  if (pode("conciliacao")) contabil.push({ id: "conciliacao", label: "Conciliação bancária", para: "/conciliacao", icone: "conciliacao" });
   if (pode("contabil-lucros")) contabil.push({ id: "fechamento", label: "Fechamento contábil", para: "/fechamento", icone: "fechamento" }, { id: "encerramento", label: "Encerramento do exercício", para: "/encerramento", icone: "encerramento" }, { id: "lucros", label: "Distribuição de lucros", para: "/lucros", icone: "lucros" }, { id: "reinf", label: "REINF", para: "/reinf", icone: "reinf" });
   // Faturamentos e Demonstrativos: só do Contábil (quem tem só o Departamento Cadastro não vê)
   if (pode("contabil-lucros")) contabil.push({ id: "ctb-faturamentos", label: "Faturamentos", para: "/contabil/faturamentos", icone: "faturamento" }, { id: "ctb-demonstrativos", label: "Demonstrativos contábeis", para: "/contabil/demonstrativos", icone: "demonstrativo" });
   const certUrgentes = (svc) => svc.certificados().lista.filter((d) => d.situacao.status === "vencido" || d.situacao.status === "7").length;
   const secoes = [
     { titulo: "Contábil", itens: contabil },
+    // ferramentas feitas para um cliente só: cada um na sua seção (depois: Fan Metal, Camilo e Ghisi)
+    { titulo: "Celesp", itens: celesp },
     { titulo: "Fiscal", itens: modulos("Fiscal") },
     { titulo: "Departamento Pessoal", itens: modulos("Departamento Pessoal") },
     // Departamento Cadastro: o número ao lado é o que venceu ou vence em até 7 dias

@@ -6,19 +6,19 @@ import { calcular, gruposConferidos, gruposDaConta, grupoManual, mesesDoExtrato,
 import { useContabil } from "../lib/useContabil.js";
 import { baixarArquivos, lerArquivoExtrato } from "../lib/leitores.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
-import { BotaoArquivo, Campo, Mensagem, Segmentado } from "../componentes/contabil/ui.jsx";
+import { BotaoArquivo, Campo, Mensagem } from "../componentes/contabil/ui.jsx";
 import { BarraSelecao, JanelaObs, Resumo, Tabela } from "../componentes/conciliacao/Resultado.jsx";
 import ConciliacaoAvulsa from "../componentes/conciliacao/Avulsa.jsx";
 
 /*
- * Conciliação. Por conta: o extrato do banco contra os lançamentos da conta no sistema, pelo valor,
- * pelo sinal (C/D) e pela data (com tolerância). O que a regra não casa sozinha a pessoa junta à mão
- * ou marca como conferido; isso fica guardado por conta e vale nas próximas vezes.
- * Extrato × planilha (avulsa): componentes/conciliacao/Avulsa.jsx.
+ * Conciliação bancária (/conciliacao): a de todo mundo, extrato × planilha (componentes/conciliacao/Avulsa.jsx).
+ * Celesp (/celesp/conciliacao): o extrato do banco contra os lançamentos da conta na Integração contábil, pelo
+ * valor, pelo sinal (C/D) e pela data (com tolerância). O que a regra não casa sozinha a pessoa junta à mão ou
+ * marca como conferido; isso fica guardado por conta e vale nas próximas vezes.
  */
 const POR_PAGINA = 400;
 // o extrato lido fica na memória enquanto o sistema está aberto: sair da tela e voltar não perde nada
-const memoria = { contaId: "", lido: null, tolerancia: 3, modo: "conta" };
+const memoria = { contaId: "", lido: null, tolerancia: 3 };
 
 function ConciliacaoPorConta() {
   const [svc, versao] = useContabil();
@@ -114,9 +114,9 @@ function ConciliacaoPorConta() {
             <div className="flex items-center gap-2"><input id="conc-tol" type="number" min="0" max="15" value={tolerancia} onChange={(e) => setTol(e.target.value)} className="w-20" /><span className="text-[13px] text-muted">dias</span></div>
           </Campo>
         </div>
-        {!contas.length && <p className="text-[13px] text-warn">Nenhuma conta cadastrada. Cadastre em <Link to="/integracao" className="underline font-semibold">Integração contábil</Link>.</p>}
+        {!contas.length && <p className="text-[13px] text-warn">Nenhuma conta cadastrada. Cadastre em <Link to="/integracao" className="underline font-semibold">Celesp · Integração contábil</Link>.</p>}
         {lido && <p className="text-[13px] text-muted">Extrato: <strong className="text-ink-2">{lido.arquivo}</strong>{meses.length ? " · " + meses.map((m) => m.slice(5) + "/" + m.slice(0, 4)).join(", ") : ""}
-          {conta && !sistema.length && <span className="text-warn"> · a conta não tem lançamentos nesse período: importe o extrato ou a planilha na Integração contábil primeiro.</span>}</p>}
+          {conta && !sistema.length && <span className="text-warn"> · a conta não tem lançamentos nesse período: importe o extrato ou a planilha na Celesp · Integração contábil primeiro.</span>}</p>}
       </section>
       <Mensagem texto={msg.texto} tipo={msg.tipo} aoFechar={() => setMsg({ texto: "" })} />
 
@@ -138,15 +138,22 @@ function ConciliacaoPorConta() {
   );
 }
 
+/** Conciliação bancária de todo mundo: extrato × planilha de pagamentos ou recebimentos (salva no servidor). */
 export default function Conciliacao() {
-  const [modo, setModo] = useState(memoria.modo);
   return (
     <div className="space-y-4 max-w-[1400px]">
-      <div className="max-w-[460px]">
-        <Segmentado rotulo="Tipo de conciliação" valor={modo} aoMudar={(m) => { memoria.modo = m; setModo(m); }}
-          opcoes={[["conta", "Conta do sistema"], ["avulsa", "Extrato × planilha"]]} />
-      </div>
-      {modo === "conta" ? <ConciliacaoPorConta /> : <ConciliacaoAvulsa />}
+      <ConciliacaoAvulsa />
+    </div>
+  );
+}
+
+/** Celesp: as contas bancárias da Integração contábil × o extrato (o que foi classificado na planilha do mês). */
+export function ConciliacaoCelesp() {
+  return (
+    <div className="space-y-4 max-w-[1400px]">
+      <p className="text-[13.5px] text-muted max-w-[760px]">Confere o extrato de cada conta bancária com os lançamentos da planilha de movimento da Celesp,
+        importada na <Link to="/integracao" className="underline font-semibold">Celesp · Integração contábil</Link>.</p>
+      <ConciliacaoPorConta />
     </div>
   );
 }
