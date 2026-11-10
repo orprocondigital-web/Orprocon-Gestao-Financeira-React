@@ -130,7 +130,7 @@ export const PREFIXO_SALVA = "conciliacao-salva:";
 /** Estado vazio da conciliação avulsa. */
 export function avulsaVazia(tolerancia = 3) {
   return { extrato: null, formato: "", conferencia: "", extratoNome: "", rows: null, nfe: null, planilhaNome: "",
-    tipo: "pagamentos", tolerancia, manuais: [], salvaId: null, salvaNome: "" };
+    tipo: "pagamentos", tolerancia, manuais: [], salvaId: null, salvaNome: "", empresaCnpj: "", empresaNome: "", competencia: "" };
 }
 
 /** Vários extratos lidos (lerArquivoExtrato) → um só: { itens, formato, conferencia, erros }. */
@@ -175,4 +175,71 @@ export function salvarAvulsa(Store, av, nome, agora = new Date(), novoId = () =>
   const e = Object.assign({}, av, { salvaId: id, salvaNome: nome, em: agora.toISOString(), salvoEm: agora.toISOString() });
   Store.set(PREFIXO_SALVA + id, e);
   return e;
+}
+
+/*
+ * Conciliação avulsa no servidor (/api/conciliacoes, conciliacaoServidor.js). O estado guardado é o mesmo de
+ * sempre (extrato e planilha já lidos, o que foi feito à mão), mais a empresa e a competência. av.servidor guarda
+ * { id, versao, base } da conciliação aberta: base = o estado que está no servidor, para saber se mudou algo.
+ */
+const CAMPOS_FORA = ["servidor", "salvaId", "salvaNome", "em", "salvoEm"];
+
+/** Mês (AAAA-MM) com mais movimentações no extrato, ou "". */
+export function competenciaProvavel(av) {
+  const meses = {};
+  ((av && av.extrato) || []).forEach((x) => { const m = String(x.data || "").slice(0, 7); if (/^\d{4}-\d{2}$/.test(m)) meses[m] = (meses[m] || 0) + 1; });
+  return Object.keys(meses).sort((a, b) => meses[b] - meses[a] || b.localeCompare(a))[0] || "";
+}
+
+/** O estado que vai para o servidor (sem o que é só da tela), em texto. */
+export function estadoParaServidor(av) {
+  const e = {};
+  Object.keys(av || {}).forEach((k) => { if (CAMPOS_FORA.indexOf(k) === -1) e[k] = av[k]; });
+  return JSON.stringify(e);
+}
+
+/** Resumo para a lista: { ok, soExtrato, soPlanilha, conferidos } a partir do resultado de calcular(). */
+export function resumoParaServidor(r) {
+  const s = (r && r.resumo) || {};
+  return { ok: (s.ok || 0) + (s.data_diferente || 0) + (s.manual || 0), soExtrato: s.so_extrato || 0, soPlanilha: s.so_sistema || 0, conferidos: s.justificado || 0 };
+}
+
+/** Corpo do POST/PUT. */
+export function pedidoParaServidor(av, r, nome) {
+  return Object.assign({ nome: String(nome || "").trim(), empresaCnpj: String((av && av.empresaCnpj) || "").replace(/\D/g, ""),
+    empresaNome: (av && av.empresaNome) || "", competencia: (av && av.competencia) || "", tipo: (av && av.tipo) || "pagamentos" },
+  resumoParaServidor(r), { estado: estadoParaServidor(av) });
+}
+
+/** Conciliação aberta do servidor (GET /api/conciliacoes/{id}) → estado da tela. */
+export function avulsaDoServidor(dto) {
+  const e = (dto && dto.estado) || {};
+  const av = Object.assign(avulsaVazia(), e, { manuais: e.manuais || [], salvaId: null, salvaNome: dto.nome || "" });
+  av.empresaCnpj = dto.empresaCnpj || e.empresaCnpj || "";
+  av.empresaNome = dto.empresaNome || e.empresaNome || "";
+  av.competencia = dto.competencia || e.competencia || "";
+  av.servidor = { id: dto.id, versao: dto.versao, base: estadoParaServidor(av), atualizadoEm: dto.atualizadoEm || "", atualizadoPorNome: dto.atualizadoPorNome || dto.atualizadoPor || "" };
+  return av;
+}
+
+/** Depois de salvar no servidor: a mesma tela, com a versão e a base novas. */
+export function depoisDeSalvar(av, dto) {
+  return Object.assign({}, av, { salvaNome: dto.nome, servidor: { id: dto.id, versao: dto.versao, base: estadoParaServidor(av),
+    atualizadoEm: dto.atualizadoEm || "", atualizadoPorNome: dto.atualizadoPorNome || dto.atualizadoPor || "" } });
+}
+
+/** A conciliação aberta do servidor tem mudança que ainda não subiu? */
+export function mudouDesdeOServidor(av) {
+  return !!(av && av.servidor && av.servidor.id) && estadoParaServidor(av) !== av.servidor.base;
+}
+
+/** "Comercial Exemplo – Out/2026 · 12 ok, 3 pendências · Bia, 09/11 14:30" para a lista. */
+export function rotuloDaConciliacao(c) {
+  const comp = /^\d{4}-\d{2}$/.test(c.competencia || "") ? c.competencia.slice(5) + "/" + c.competencia.slice(0, 4) : "";
+  const pend = (c.soExtrato || 0) + (c.soPlanilha || 0);
+  const quando = c.atualizadoEm ? new Date(c.atualizadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : "";
+  const quem = c.atualizadoPorNome || c.atualizadoPor || "";
+  // o nome já diz o ano (ex.: "… – Outubro de 2026"): não repete a competência
+  return [c.nome, comp && !String(c.nome).includes(c.competencia.slice(0, 4)) ? comp : "", pend ? pend + (pend === 1 ? " pendência" : " pendências") : "fechada",
+    [quem.split(" ")[0], quando].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
 }

@@ -37,11 +37,11 @@ describe("Início", () => {
     fontes.contas = [{ id: "b1", nome: "Banco Exemplo 1", lancamentos: 0 }, { id: "b2", nome: "Banco Exemplo 2", lancamentos: 3 }];
     const r = I.resumir(fontes, ctx());
     const origens = new Set(r.pendencias.map((p) => p.origem));
-    for (const o of ["Em Dia", "Vencimentos", "ISS", "Controle de horas", "Contábil"]) assert.ok(origens.has(o), o);
+    for (const o of ["Em Dia", "Vencimentos", "ISS", "Controle de horas", "Celesp"]) assert.ok(origens.has(o), o);
     const pesos = { alta: 0, media: 1, baixa: 2, info: 3 };
     for (let i = 1; i < r.pendencias.length; i++) assert.ok(pesos[r.pendencias[i - 1].nivel] <= pesos[r.pendencias[i].nivel]);
     assert.equal(r.pendencias[0].origem, "Vencimentos", "documento vencido vem primeiro");
-    const contas = r.pendencias.find((p) => p.origem === "Contábil");
+    const contas = r.pendencias.find((p) => p.origem === "Celesp");
     assert.match(contas.titulo, /1 conta sem extrato em setembro\/2026/);
     assert.equal(contas.detalhe, "Banco Exemplo 1");
     assert.ok(r.pendencias.every((p) => p.acao && (p.acao.tab || p.acao.acaoApp)));

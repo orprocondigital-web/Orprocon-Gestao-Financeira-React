@@ -118,7 +118,7 @@ function Dados() {
     if (!(await confirmar({ titulo: "Apagar tudo do Departamento Cadastro?", perigo: true, botao: "Apagar tudo",
       texto: comServidor
         ? "Empresas, certidões, alvarás, faturamentos e demonstrativos saem do servidor, para TODOS os usuários.\n\nDá para desfazer nos próximos segundos."
-        : "Empresas, certidões, alvarás, faturamentos, demonstrativos e os PDFs anexados saem deste navegador.\n\nDá para desfazer nos próximos segundos (os PDFs, não). Se quiser guardar, baixe o backup na Integração contábil antes." }))) return;
+        : "Empresas, certidões, alvarás, faturamentos, demonstrativos e os PDFs anexados saem deste navegador.\n\nDá para desfazer nos próximos segundos (os PDFs, não). Se quiser guardar, baixe o backup na Celesp · Integração contábil antes." }))) return;
     const d = svc.limpar(false);
     apagarTodos();
     aviso("Departamento Cadastro apagado.", { desfazer: d });

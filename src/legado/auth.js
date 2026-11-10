@@ -28,8 +28,8 @@
 
   /** Áreas do sistema que um usuário pode acessar (o admin acessa todas). */
   var AREAS = [
-    { id: "integracao", nome: "Integração contábil", detalhe: "Bancos, unidades, movimentos, cadastros e TXTs do Único" },
-    { id: "conciliacao", nome: "Conciliação", detalhe: "Extrato × sistema e extrato × planilha" },
+    { id: "integracao", nome: "Celesp · Integração contábil", detalhe: "Planilha de movimento da Celesp: bancos, unidades, cadastros, TXTs do Único e a conciliação das contas" },
+    { id: "conciliacao", nome: "Conciliação bancária", detalhe: "Extrato × planilha de pagamentos ou recebimentos, salva no servidor" },
     { id: "contabil-lucros", nome: "Contábil: fechamento, encerramento, lucros e REINF", detalhe: "Fechamento do mês, encerramento do exercício, sócios, IRRF, saldo de ata, REINF, faturamentos e demonstrativos" },
     { id: "mod-icms", nome: "Apuração de ICMS", detalhe: "" },
     { id: "mod-ibs-cbs", nome: "Auditor IBS/CBS", detalhe: "" },
