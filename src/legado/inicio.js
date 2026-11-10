@@ -254,7 +254,7 @@
     var sem = (contas || []).filter(function (c) { return !c.lancamentos; });
     out.semExtrato = sem.length;
     if (!sem.length) return out;
-    out.pendencias.push({ id: "contas-" + competencia, origem: "Contábil", area: "integracao", nivel: "baixa", ordem: competencia,
+    out.pendencias.push({ id: "contas-" + competencia, origem: "Celesp", area: "integracao", nivel: "baixa", ordem: competencia,
       titulo: plural(sem.length, "conta sem extrato", "contas sem extrato") + " em " + rotuloMes(competencia),
       detalhe: lista(sem.map(function (c) { return c.nome; }), 3), selo: "Importar",
       acao: { rotulo: "Importar extrato", acaoApp: "extratos" }, icone: "banco" });
@@ -438,11 +438,9 @@
 
   /** As ferramentas, por setor, com o que cada uma faz (o texto da capa). */
   var SETORES_CAPA = [
-    { id: "contabil", nome: "Contábil", texto: "Do extrato do banco ao lançamento no Único.", ferramentas: [
-      { tab: "master", area: "integracao", icone: "master", nome: "Integração contábil", resumo: "Os lançamentos do mês classificados e prontos para o SCI Único.",
-        itens: ["Importa a planilha do mês e os extratos (PDF, OFX, TXT, CSV)", "Classifica por categoria, unidade e natureza, com sugestões", "Distribui por unidade e gera os TXTs do Único"] },
-      { tab: "conciliacao", area: "conciliacao", icone: "conciliacao", nome: "Conciliação", resumo: "Confere o extrato do banco com o que foi lançado.",
-        itens: ["Cruza cada movimento por valor, sinal e data", "Extrato × planilha de clientes e fornecedores ou XML de NF-e", "Concilia à mão, marca conferido e exporta o resultado"] },
+    { id: "contabil", nome: "Contábil", texto: "Do extrato do banco ao fechamento de cada empresa.", ferramentas: [
+      { tab: "conciliacao", area: "conciliacao", icone: "conciliacao", nome: "Conciliação bancária", resumo: "Confere o extrato do banco com a planilha de pagamentos ou recebimentos.",
+        itens: ["Cruza cada movimento por valor, sinal e data", "Fica salva no servidor, por empresa e competência", "Concilia à mão, marca conferido e exporta o resultado"] },
       { tab: "fechamento", area: "contabil-lucros", icone: "fechamento", nome: "Fechamento contábil", resumo: "Qual empresa já teve o mês fechado, por responsável.",
         itens: ["Um visto por empresa e mês, a filial segue a matriz", "Progresso por pessoa e da equipe no ano", "Exporta a grade para Excel"] },
       { tab: "encerramento", area: "contabil-lucros", icone: "encerramento", nome: "Encerramento do exercício", resumo: "Estoque, compras, CMV e lucro bruto do ano, por empresa.",
@@ -453,6 +451,10 @@
         itens: ["Digita direto na tabela, como numa planilha", "Total do ano e dos últimos 12 meses", "Total do escritório por mês"] },
       { tab: "ctb-demonstrativos", area: "contabil-lucros", icone: "demonstrativo", nome: "Demonstrativos contábeis", resumo: "Balanço, DRE e balancete de cada empresa por exercício.",
         itens: ["Situação: pendente, emitido ou entregue", "Progresso do exercício de todas as empresas", "Marca o que não se aplica à empresa"] }
+    ] },
+    { id: "clientes", nome: "Clientes", texto: "Ferramentas feitas para o jeito de um cliente.", ferramentas: [
+      { tab: "master", area: "integracao", icone: "master", nome: "Celesp · Integração contábil", resumo: "A planilha de movimento da Celesp classificada e pronta para o SCI Único.",
+        itens: ["Importa a planilha do mês e os extratos (PDF, OFX, TXT, CSV)", "Classifica por categoria, unidade e natureza e gera os TXTs do Único", "Concilia cada conta bancária com o extrato"] }
     ] },
     { id: "fiscal", nome: "Fiscal", texto: "Prévia da apuração e conferência das notas antes do fechamento.", ferramentas: [
       { tab: "mod-icms", area: "mod-icms", icone: "icms", nome: "Apuração de ICMS", resumo: "Acompanha o ICMS do cliente durante o mês.",

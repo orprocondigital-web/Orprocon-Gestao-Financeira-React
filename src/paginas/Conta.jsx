@@ -63,7 +63,7 @@ export default function Conta() {
   }, [lista, busca, filtro]);
 
   if (!conta || conta.tipo === "cadastro") {
-    return <div className="cartao p-8 text-center"><p className="text-muted">Esta conta não existe mais.</p><Link to="/integracao" className="btn-contorno mt-4">Voltar para a Integração contábil</Link></div>;
+    return <div className="cartao p-8 text-center"><p className="text-muted">Esta conta não existe mais.</p><Link to="/integracao" className="btn-contorno mt-4">Voltar para a Celesp · Integração contábil</Link></div>;
   }
   const unidade = conta.tipo === "unidade";
   const temContabil = conta.tipo === "banco" || conta.entraNaIntegracao;
@@ -168,7 +168,7 @@ export default function Conta() {
         {lista.length === 0 ? (
           <div className="p-10 text-center">
             <strong className="block text-[15px]">{unidade ? "Nada distribuído para esta unidade" : "Nenhum lançamento nesta conta neste mês"}</strong>
-            <span className="text-muted text-[13.5px]">{unidade ? "Classifique os lançamentos nas contas bancárias e use Distribuir por unidade na Integração contábil."
+            <span className="text-muted text-[13.5px]">{unidade ? "Classifique os lançamentos nas contas bancárias e use Distribuir por unidade na Celesp · Integração contábil."
               : "Adicione em Novo lançamento, importe o extrato do banco ou a aba da planilha. Confira também o mês escolhido no topo."}</span>
           </div>
         ) : visiveis.length === 0 ? (

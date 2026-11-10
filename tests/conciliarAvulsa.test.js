@@ -64,3 +64,50 @@ describe("conciliação avulsa", () => {
     assert.equal(C.trabalhoNaoSalvo(S, s3), false);
   });
 });
+
+describe("conciliação avulsa no servidor", () => {
+  const av = () => Object.assign(C.avulsaVazia(), {
+    extrato: [E("2026-10-02", 100, "D", "PIX"), E("2026-10-20", 50, "D", "TED"), E("2026-09-30", 10, "D", "TARIFA")],
+    rows: planilha, planilhaNome: "Contas pagas.xlsx", empresaCnpj: "11222333000181", empresaNome: "Comercial Exemplo Ltda",
+    competencia: "2026-10", manuais: [{ ext: ["a"], sis: [], tipo: "justificado", obs: "tarifa" }], salvaId: "av1", salvaNome: "Velha"
+  });
+  test("competência pelo mês com mais movimentos do extrato", () => {
+    assert.equal(C.competenciaProvavel(av()), "2026-10");
+    assert.equal(C.competenciaProvavel(C.avulsaVazia()), "");
+  });
+  test("pedido: estado sem o que é só da tela e resumo da lista", () => {
+    const r = { resumo: { ok: 4, data_diferente: 1, manual: 2, justificado: 3, so_extrato: 2, so_sistema: 1 } };
+    const p = C.pedidoParaServidor(Object.assign(av(), { servidor: { id: "x", versao: 3, base: "" }, empresaCnpj: "11.222.333/0001-81" }), r, " Comercial – Out ");
+    assert.equal(p.nome, "Comercial – Out");
+    assert.equal(p.empresaCnpj, "11222333000181");
+    assert.deepEqual([p.ok, p.soExtrato, p.soPlanilha, p.conferidos], [7, 2, 1, 3]);
+    const e = JSON.parse(p.estado);
+    assert.equal(e.servidor, undefined);
+    assert.equal(e.salvaId, undefined);
+    assert.equal(e.extrato.length, 3);
+    assert.equal(e.competencia, "2026-10");
+    assert.deepEqual([C.pedidoParaServidor(C.avulsaVazia(), null, "X").ok, C.pedidoParaServidor(C.avulsaVazia(), null, "X").tipo], [0, "pagamentos"]);
+  });
+  test("abrir do servidor, mexer e saber se falta subir", () => {
+    const p = C.pedidoParaServidor(av(), null, "Comercial – Out");
+    const dto = { id: "c1", versao: 2, nome: "Comercial – Out", empresaCnpj: "11222333000181", empresaNome: "Comercial Exemplo Ltda", competencia: "2026-10",
+      atualizadoEm: "2026-11-09T17:30:00Z", atualizadoPorNome: "Bia Exemplo", estado: JSON.parse(p.estado) };
+    const a = C.avulsaDoServidor(dto);
+    assert.equal(a.salvaNome, "Comercial – Out");
+    assert.equal(a.salvaId, null, "não confunde com as salvas do navegador");
+    assert.deepEqual([a.servidor.id, a.servidor.versao], ["c1", 2]);
+    assert.equal(C.mudouDesdeOServidor(a), false);
+    const b = Object.assign({}, a, { manuais: a.manuais.concat({ ext: ["b"], sis: [], tipo: "justificado", obs: "" }) });
+    assert.equal(C.mudouDesdeOServidor(b), true);
+    const depois = C.depoisDeSalvar(b, Object.assign({}, dto, { versao: 3 }));
+    assert.equal(depois.servidor.versao, 3);
+    assert.equal(C.mudouDesdeOServidor(depois), false);
+    assert.equal(C.mudouDesdeOServidor(av()), false, "sem servidor, nunca");
+  });
+  test("rótulo da lista", () => {
+    const base = { nome: "Comercial Exemplo", competencia: "2026-10", soExtrato: 2, soPlanilha: 1, atualizadoPorNome: "Bia Exemplo", atualizadoEm: "2026-11-09T17:30:00Z" };
+    assert.equal(C.rotuloDaConciliacao(base), "Comercial Exemplo · 10/2026 · 3 pendências · Bia, 09/11, 14:30");
+    assert.equal(C.rotuloDaConciliacao(Object.assign({}, base, { soExtrato: 0, soPlanilha: 0, competencia: "", atualizadoEm: "" })), "Comercial Exemplo · fechada · Bia");
+    assert.equal(C.rotuloDaConciliacao(Object.assign({}, base, { nome: "Comercial – Outubro de 2026" })), "Comercial – Outubro de 2026 · 3 pendências · Bia, 09/11, 14:30");
+  });
+});

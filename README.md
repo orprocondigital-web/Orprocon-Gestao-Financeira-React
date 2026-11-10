@@ -55,13 +55,15 @@ Esta é a versão em **React + Tailwind**, que substitui a versão anterior em H
 
 ## ⚡ Funcionalidades
 
-### 1. 🔄 Integração contábil (`/integracao`)
+### 1. 🔄 Celesp: Integração contábil (`/integracao`) e Conciliação das contas (`/celesp/conciliacao`)
+- Fica na seção **Celesp** do menu: é feita para a planilha de movimento desse cliente. Cada cliente com ferramenta própria ganha a sua seção.
 - Importa **extratos bancários** em OFX, PDF (Itaú, Santander, Sicoob, Sicredi, Caixa, BB, Nubank, Inter, C6, Unicred, Banrisul…) e Excel.
 - Classifica os lançamentos por regras e gera o **arquivo de importação para o ERP** (SCI Único), por conta e unidade.
 - Cadastros de contas bancárias, unidades, fornecedores e outras movimentações; backup em arquivo.
 
 ### 2. ⚖️ Conciliação bancária (`/conciliacao`)
-- Confere o **extrato × a planilha de lançamentos** por data e valor: o que bateu, o que está só no extrato e o que está só na planilha.
+- A de todo mundo, no Contábil. A conciliação das contas da Integração (extrato × lançamentos classificados) fica na seção Celesp.
+- **Extrato × planilha de clientes/fornecedores salva no servidor**, por empresa e competência: cada mudança é salva sozinha, e outra pessoa abre em outro computador e continua. Se duas pessoas mexerem ao mesmo tempo, quem salvou depois recebe o aviso, e nada é sobrescrito.
 
 ### 3. 🧾 Fiscal: ICMS, ISS e Auditor IBS/CBS (`/icms`, `/iss`, `/ibs-cbs`)
 - **Apuração de ICMS** com regras e ajustes por empresa.
@@ -235,8 +237,9 @@ Não use "Clear site data": isso apaga também os dados e os acessos.
 - [x] Rateio por faturamento no encerramento
 - [x] Backend **Spring Boot + PostgreSQL** ligado: dados compartilhados por toda a equipe
 - [x] Acessórias pela API: empresas, departamentos e carteira automática
-- [ ] Painel "Meus vencimentos" com as entregas do Acessórias
-- [ ] Conciliação bancária da Fan Metal (por empresa e mês, no servidor)
+- [x] Conciliação extrato × planilha salva no servidor, por empresa e competência
+- [ ] Regras de conciliação da Fan Metal
+- [ ] Integração contábil como ferramenta da Celesp
 - [ ] Versão **1.0.0** e arquivamento da versão HTML
 
 ---
