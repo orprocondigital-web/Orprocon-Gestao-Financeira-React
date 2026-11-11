@@ -61,6 +61,12 @@ Esta é a versão em **React + Tailwind**, que substitui a versão anterior em H
 - Classifica os lançamentos por regras e gera o **arquivo de importação para o ERP** (SCI Único), por conta e unidade.
 - Cadastros de contas bancárias, unidades, fornecedores e outras movimentações; backup em arquivo.
 
+### 1b. 🏭 Fan Metal: Conciliação bancária (`/fan/conciliacao`)
+- Seção **Fan Metal** do menu (área `fan-metal`): o trabalho da planilha FAM_Reconciliacao v5 dentro do sistema.
+- Extratos de todos os bancos do mês (Sicredi, BB, Caixa, Daycoval, Sicoob) → cada linha com categoria (fornecedor, folha, FGTS, recebimento, consórcio, empréstimo, transferência, conta fixa), participante e contas, nas regras da v5; o que sobra a pessoa decide na linha ou transforma em regra.
+- Comprovantes de pagamento em PDF resolvem o fornecedor pela data e pelo valor; listas de fornecedores, funcionários e cheques importadas da v5 e aprendidas no uso.
+- Gera o **TXT do SCI Único** e confere o mês com o **balancete de fornecedores** do Único (PDF). O mês fica salvo no servidor, com versão.
+
 ### 2. ⚖️ Conciliação bancária (`/conciliacao`)
 - A de todo mundo, no Contábil. A conciliação das contas da Integração (extrato × lançamentos classificados) fica na seção Celesp.
 - **Extrato × planilha de clientes/fornecedores salva no servidor**, por empresa e competência: cada mudança é salva sozinha, e outra pessoa abre em outro computador e continua. Se duas pessoas mexerem ao mesmo tempo, quem salvou depois recebe o aviso, e nada é sobrescrito.

@@ -2,7 +2,8 @@
  * O que aparece no menu: setores, módulos e uma seção para cada cliente que tem ferramenta feita para o jeito
  * dele. Celesp: a Integração contábil (a planilha de movimento dela, com as contas bancárias, unidades, outras
  * movimentações e cadastros do mês) e a conciliação dessas contas. A Conciliação bancária do Contábil é a de todo
- * mundo (extrato × planilha de pagamentos ou recebimentos).
+ * mundo (extrato × planilha de pagamentos ou recebimentos). Fan Metal: a conciliação bancária dela (os extratos de
+ * todos os bancos → TXT do Único, com as regras da planilha FAM_Reconciliacao v5).
  */
 import { Modulos } from "./legado.js";
 import { contabil as dados } from "./useContabil.js";
@@ -38,6 +39,7 @@ export function montarMenu(pode, ehAdmin) {
     });
     celesp.push({ id: "celesp-conciliacao", label: "Conciliação das contas", para: "/celesp/conciliacao", icone: "conciliacao" });
   }
+  const fanMetal = pode("fan-metal") ? [{ id: "fan-conciliacao", label: "Conciliação bancária", para: "/fan/conciliacao", icone: "conciliacao" }] : [];
   if (pode("conciliacao")) contabil.push({ id: "conciliacao", label: "Conciliação bancária", para: "/conciliacao", icone: "conciliacao" });
   if (pode("contabil-lucros")) contabil.push({ id: "fechamento", label: "Fechamento contábil", para: "/fechamento", icone: "fechamento" }, { id: "encerramento", label: "Encerramento do exercício", para: "/encerramento", icone: "encerramento" }, { id: "lucros", label: "Distribuição de lucros", para: "/lucros", icone: "lucros" }, { id: "reinf", label: "REINF", para: "/reinf", icone: "reinf" });
   // Faturamentos e Demonstrativos: só do Contábil (quem tem só o Departamento Cadastro não vê)
@@ -45,8 +47,9 @@ export function montarMenu(pode, ehAdmin) {
   const certUrgentes = (svc) => svc.certificados().lista.filter((d) => d.situacao.status === "vencido" || d.situacao.status === "7").length;
   const secoes = [
     { titulo: "Contábil", itens: contabil },
-    // ferramentas feitas para um cliente só: cada um na sua seção (depois: Fan Metal, Camilo e Ghisi)
+    // ferramentas feitas para um cliente só: cada um na sua seção
     { titulo: "Celesp", itens: celesp },
+    { titulo: "Fan Metal", itens: fanMetal },
     { titulo: "Fiscal", itens: modulos("Fiscal") },
     { titulo: "Departamento Pessoal", itens: modulos("Departamento Pessoal") },
     // Departamento Cadastro: o número ao lado é o que venceu ou vence em até 7 dias
