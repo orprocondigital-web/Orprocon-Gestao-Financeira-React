@@ -14,7 +14,7 @@
  */
 
 /** Começo das chaves que ficam no servidor (iguais às da API). */
-export const PREFIXOS = ["emDia:", "painelVencimentos:", "depCadastro:", "lucros:", "encerramento:", "iss:", "horas:", "icms.", "ibscbs:"];
+export const PREFIXOS = ["emDia:", "painelVencimentos:", "depCadastro:", "lucros:", "encerramento:", "iss:", "horas:", "icms.", "ibscbs:", "fan:"];
 /** Onde o navegador guarda a versão de cada chave que veio do servidor. */
 export const CHAVE_VERSOES = "gf.sinc.versoes";
 

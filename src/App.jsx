@@ -9,6 +9,7 @@ import Integracao from "./paginas/Integracao.jsx";
 import Conta from "./paginas/Conta.jsx";
 import Cadastro from "./paginas/Cadastro.jsx";
 import Conciliacao, { ConciliacaoCelesp } from "./paginas/Conciliacao.jsx";
+import FanMetal from "./paginas/FanMetal.jsx";
 import DepCadastro from "./paginas/DepCadastro.jsx";
 import EmDia from "./paginas/EmDia.jsx";
 import Lucros from "./paginas/Lucros.jsx";
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="integracao" element={<SoArea area="integracao"><Integracao /></SoArea>} />
             <Route path="conciliacao" element={<SoArea area="conciliacao"><Conciliacao /></SoArea>} />
             <Route path="celesp/conciliacao" element={<SoArea area="integracao"><ConciliacaoCelesp /></SoArea>} />
+            <Route path="fan/conciliacao" element={<SoArea area="fan-metal"><FanMetal /></SoArea>} />
             <Route path="conta/:id" element={<SoArea area="integracao"><Conta /></SoArea>} />
             <Route path="cadastro/:id" element={<SoArea area="integracao"><Cadastro /></SoArea>} />
             <Route path="departamento-cadastro/:secao" element={<SoArea area="mod-vencimentos"><DepCadastro /></SoArea>} />
