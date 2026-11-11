@@ -132,6 +132,7 @@ export default function Inicio() {
     if (alvo.tab === "fechamento") { navegar("/fechamento"); return; }
     if (alvo.tab === "encerramento") { navegar("/encerramento"); return; }
     if (alvo.tab === "reinf") { navegar("/reinf"); return; }
+    if (alvo.tab === "fan-conciliacao") { navegar("/fan/conciliacao"); return; }
     const dep = { "dep-empresas": "empresas", "mod-vencimentos": "certidoes", "dep-certidoes": "certidoes", "dep-certificados": "certificados", "dep-alvaras": "alvaras", "dep-buscar": "empresas" }[alvo.tab];
     if (dep) { navegar("/departamento-cadastro/" + dep); return; }
     // Faturamentos e Demonstrativos moram no Contábil (os nomes antigos dep-* continuam levando para lá)
