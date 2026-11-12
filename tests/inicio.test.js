@@ -148,7 +148,7 @@ describe("Início", () => {
     const r = I.resumir({}, ctx());
     const tudo = I.capa(r);
     assert.equal((tudo.match(/class="capa-card"/g) || []).length, 17);
-    assert.deepEqual(I.SETORES_CAPA.find((x) => x.id === "clientes").ferramentas.map((f) => f.area), ["integracao", "fan-metal"], "Celesp e Fan Metal, cada uma com a sua área");
+    assert.deepEqual(I.SETORES_CAPA.find((x) => x.id === "clientes").ferramentas.map((f) => f.area), ["integracao", "fan-metal"], "Celesp e Fam Metal, cada uma com a sua área");
     const cad = I.SETORES_CAPA.find((x) => x.id === "cadastro").ferramentas.map((f) => f.nome);
     assert.deepEqual(cad, ["Empresas", "Certidões", "Certificados digitais", "Alvarás"], "Cadastro enxuto: faturamento e demonstrativos estão no Contábil");
     const soCadastro = I.capa(r, { pode: (a) => a === "mod-vencimentos" });

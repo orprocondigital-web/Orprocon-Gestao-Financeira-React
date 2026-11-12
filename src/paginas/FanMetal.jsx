@@ -13,7 +13,7 @@ import Janela from "../componentes/Janela.jsx";
 import { BotaoArquivo, Campo, Mensagem, Numero, Segmentado, Selo, Valor, dataBR, formatarValor, numero } from "../componentes/contabil/ui.jsx";
 
 /*
- * Fan Metal · Conciliação bancária (/fan/conciliacao): o trabalho da planilha FAM_Reconciliacao v5 dentro do sistema.
+ * Fam Metal · Conciliação bancária (/fan/conciliacao): o trabalho da planilha FAM_Reconciliacao v5 dentro do sistema.
  *   Mês: os extratos de todos os bancos (e os comprovantes) → cada linha com categoria, participante e contas, pelas
  *        regras da v5 (src/lib/fan/regrasFan.mjs); o que sobra a pessoa decide na linha ou vira regra; gera o TXT do Único.
  *   Conferência: o balancete de fornecedores do Único × o que foi pago no mês.
@@ -217,7 +217,7 @@ function Lancamentos({ mes, r, cfg, mudarMes, setMsg, aviso, confirmar }) {
       texto: numero(r.resumo.revisar) + " linha(s) ficam fora do TXT até serem decididas. Gerar só com as que estão OK?" }))) return;
     const t = txtUnicoFan(r.linhas);
     if (!t.exportadas) { setMsg({ texto: "Nenhuma linha pronta para o TXT.", tipo: "aviso" }); return; }
-    baixarArquivos([{ nome: "Fan_" + mes.competencia + ".txt", conteudo: t.texto }]);
+    baixarArquivos([{ nome: "Fam_" + mes.competencia + ".txt", conteudo: t.texto }]);
     setMsg({ texto: "TXT do Único: " + numero(t.exportadas) + " lançamento(s)." + (t.ignoradas ? " " + t.ignoradas + " sem conta ficaram de fora." : ""), tipo: "info" });
   };
 
@@ -235,7 +235,7 @@ function Lancamentos({ mes, r, cfg, mudarMes, setMsg, aviso, confirmar }) {
   return (
     <div className="space-y-4">
       <section className="cartao p-4 sm:p-5 space-y-3">
-        <p className="text-[13.5px] text-muted max-w-[820px]">Importe o extrato de cada banco do mês (OFX, planilha ou PDF). Cada movimentação recebe a categoria, o participante e as contas pelas regras da planilha da Fan (FAM_Reconciliacao v5). Os comprovantes de pagamento resolvem o fornecedor das linhas que o extrato não identifica.</p>
+        <p className="text-[13.5px] text-muted max-w-[820px]">Importe o extrato de cada banco do mês (OFX, planilha ou PDF). Cada movimentação recebe a categoria, o participante e as contas pelas regras da planilha da Fam (FAM_Reconciliacao v5). Os comprovantes de pagamento resolvem o fornecedor das linhas que o extrato não identifica.</p>
         <div className="flex flex-wrap gap-2">
           <BotaoArquivo multiplo className="btn-primario" aceita=".ofx,.xls,.xlsx,.pdf,.csv,.txt" aoEscolher={lerExtratos}>Importar extratos</BotaoArquivo>
           <BotaoArquivo multiplo aceita=".pdf" aoEscolher={lerComprovantes}>Importar comprovantes (PDF)</BotaoArquivo>
@@ -437,7 +437,7 @@ function Conferencia({ mes, r, cfg, mudarMes, setMsg }) {
     const out = [["Situação", "Classificação", "Fornecedor", "Pagamentos", "Pago no banco", "Débito no balancete", "Diferença"].join(";")];
     c.linhas.forEach((l) => out.push([NOME_STATUS[l.status], l.fornecedor.classif, l.fornecedor.nome, l.pagos.length, formatarValor(l.totalBanco), formatarValor(l.debito), (l.diferenca < 0 ? "-" : "") + formatarValor(l.diferenca)].map(esc).join(";")));
     if (c.semFornecedor.length) { out.push(""); out.push("Pagamentos a fornecedor sem par no balancete;Data;Histórico;Valor"); c.semFornecedor.forEach((l) => out.push(["", dataBR(l.data), l.texto, formatarValor(l.valor)].map(esc).join(";"))); }
-    baixarArquivos([{ nome: "Fan_conferencia_" + mes.competencia + ".csv", conteudo: "﻿" + out.join("\r\n"), tipo: "text/csv;charset=utf-8" }]);
+    baixarArquivos([{ nome: "Fam_conferencia_" + mes.competencia + ".csv", conteudo: "﻿" + out.join("\r\n"), tipo: "text/csv;charset=utf-8" }]);
   };
   return (
     <div className="space-y-4">
@@ -535,7 +535,7 @@ function Cadastros({ cfg, setMsg }) {
       <section className="cartao p-4 sm:p-5 space-y-3">
         <h2 className="text-[15px] font-semibold">Empresa e contas do Único</h2>
         <div className="grid grid-cols-2 gap-3">
-          <Campo rotulo="CNPJ da Fan" id="fan-cnpj-emp" dica="Histórico com ele = transferência entre contas."><input id="fan-cnpj-emp" defaultValue={cfg.cnpjEmpresa} onBlur={(e) => gravar((c) => Object.assign({}, c, { cnpjEmpresa: e.target.value.replace(/\D/g, "") }))} /></Campo>
+          <Campo rotulo="CNPJ da Fam" id="fan-cnpj-emp" dica="Histórico com ele = transferência entre contas."><input id="fan-cnpj-emp" defaultValue={cfg.cnpjEmpresa} onBlur={(e) => gravar((c) => Object.assign({}, c, { cnpjEmpresa: e.target.value.replace(/\D/g, "") }))} /></Campo>
           <Campo rotulo="Nome no extrato" id="fan-nome-emp"><input id="fan-nome-emp" defaultValue={cfg.nomeEmpresa} onBlur={(e) => gravar((c) => Object.assign({}, c, { nomeEmpresa: e.target.value.trim().toUpperCase() }))} /></Campo>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -559,7 +559,7 @@ function Cadastros({ cfg, setMsg }) {
 
       <div className="space-y-4">
         <section className="cartao p-4 sm:p-5 space-y-3">
-          <h2 className="text-[15px] font-semibold">Regras da Fan</h2>
+          <h2 className="text-[15px] font-semibold">Regras da Fam</h2>
           <p className="text-[13px] text-muted">Valem antes das regras da planilha. "banco" na conta = a conta do banco do extrato.</p>
           {cfg.regras.length > 0 && (
             <ul className="divide-y divide-line border border-line rounded-lg text-[13px]">

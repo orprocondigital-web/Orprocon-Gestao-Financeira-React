@@ -455,7 +455,7 @@
     { id: "clientes", nome: "Clientes", texto: "Ferramentas feitas para o jeito de um cliente.", ferramentas: [
       { tab: "master", area: "integracao", icone: "master", nome: "Celesp · Integração contábil", resumo: "A planilha de movimento da Celesp classificada e pronta para o SCI Único.",
         itens: ["Importa a planilha do mês e os extratos (PDF, OFX, TXT, CSV)", "Classifica por categoria, unidade e natureza e gera os TXTs do Único", "Concilia cada conta bancária com o extrato"] },
-      { tab: "fan-conciliacao", area: "fan-metal", icone: "conciliacao", nome: "Fan Metal · Conciliação bancária", resumo: "Os extratos de todos os bancos da Fan prontos para o SCI Único.",
+      { tab: "fan-conciliacao", area: "fan-metal", icone: "conciliacao", nome: "Fam Metal · Conciliação bancária", resumo: "Os extratos de todos os bancos da Fam prontos para o SCI Único.",
         itens: ["Fornecedor, folha, FGTS, empréstimo e transferência pelas regras da planilha v5", "Comprovantes e regras novas resolvem o que sobra", "Gera o TXT e confere com o balancete de fornecedores"] }
     ] },
     { id: "fiscal", nome: "Fiscal", texto: "Prévia da apuração e conferência das notas antes do fechamento.", ferramentas: [
