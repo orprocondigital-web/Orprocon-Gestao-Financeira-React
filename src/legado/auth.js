@@ -30,7 +30,7 @@
   var AREAS = [
     { id: "integracao", nome: "Celesp · Integração contábil", detalhe: "Planilha de movimento da Celesp: bancos, unidades, cadastros, TXTs do Único e a conciliação das contas" },
     { id: "conciliacao", nome: "Conciliação bancária", detalhe: "Extrato × planilha de pagamentos ou recebimentos, salva no servidor" },
-    { id: "fan-metal", nome: "Fan Metal · Conciliação bancária", detalhe: "Extratos de todos os bancos da Fan → categorias, participantes e o TXT do Único, com a conferência do balancete" },
+    { id: "fan-metal", nome: "Fam Metal · Conciliação bancária", detalhe: "Extratos de todos os bancos da Fam → categorias, participantes e o TXT do Único, com a conferência do balancete" },
     { id: "contabil-lucros", nome: "Contábil: fechamento, encerramento, lucros e REINF", detalhe: "Fechamento do mês, encerramento do exercício, sócios, IRRF, saldo de ata, REINF, faturamentos e demonstrativos" },
     { id: "mod-icms", nome: "Apuração de ICMS", detalhe: "" },
     { id: "mod-ibs-cbs", nome: "Auditor IBS/CBS", detalhe: "" },

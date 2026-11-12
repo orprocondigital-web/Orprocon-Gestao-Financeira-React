@@ -275,7 +275,7 @@ export default function ConciliacaoAvulsa() {
   const salvar = () => {
     if (SRV) { salvarNoServidor(); return; }
     if (!r) { aviso("Escolha o extrato e a planilha antes de salvar."); return; }
-    setPedido({ titulo: av.salvaId ? "Salvar alterações" : "Salvar conciliação", botao: "Salvar", rotulo: "Nome", exemplo: "Fan Metal – Julho de 2026",
+    setPedido({ titulo: av.salvaId ? "Salvar alterações" : "Salvar conciliação", botao: "Salvar", rotulo: "Nome", exemplo: "Fam Metal – Julho de 2026",
       inicial: nomeSugerido(av, Importacao.nomeCompetencia),
       texto: "A conciliação fica guardada no sistema, com o extrato, a planilha e o que foi feito à mão, e entra no backup do Master." + (av.salvaId ? " Com outro nome, vira uma conciliação nova." : ""),
       ok: (nome) => {

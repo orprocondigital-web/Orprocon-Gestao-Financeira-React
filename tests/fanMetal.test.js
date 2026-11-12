@@ -1,4 +1,4 @@
-// Fan Metal (src/lib/fan/regrasFan.mjs): as regras da planilha v5 no sistema. Empresas, CNPJs, nomes e valores fictícios.
+// Fam Metal (src/lib/fan/regrasFan.mjs): as regras da planilha v5 no sistema. Empresas, CNPJs, nomes e valores fictícios.
 const { test, describe, before } = require("node:test");
 const assert = require("node:assert/strict");
 

@@ -1,5 +1,5 @@
 /*
- * Fan Metal: extratos do mês → cada linha com categoria, participante, contas e status (OK / Revisar) → TXT do
+ * Fam Metal: extratos do mês → cada linha com categoria, participante, contas e status (OK / Revisar) → TXT do
  * SCI Único. As regras são as da planilha FAM_Reconciliacao v5 (macros "AtualizarParticipantes",
  * "IdentificarTransferencias", "ValidarComprovantes" e "GerarTXTUnico"), na mesma ordem:
  *
@@ -453,13 +453,13 @@ export function mesDoEstado(e, competencia) {
   });
 }
 
-/** Nome do mês: "Fan Metal – 09/2026". */
-export const nomeDoMes = (competencia) => "Fan Metal – " + (competencia ? competencia.slice(5) + "/" + competencia.slice(0, 4) : "sem mês");
+/** Nome do mês: "Fam Metal – 09/2026". */
+export const nomeDoMes = (competencia) => "Fam Metal – " + (competencia ? competencia.slice(5) + "/" + competencia.slice(0, 4) : "sem mês");
 
 /** O pedido para o servidor: o resumo vai nas colunas da lista (OK, a revisar, decididas à mão). */
 export function pedidoDoMes(mes, cfg, resumo) {
   const r = resumo || { ok: 0, revisar: 0 };
-  return { nome: nomeDoMes(mes.competencia), empresaCnpj: digitos(cfg.cnpjEmpresa), empresaNome: "Fan Metal", competencia: mes.competencia || "", tipo: "fan",
+  return { nome: nomeDoMes(mes.competencia), empresaCnpj: digitos(cfg.cnpjEmpresa), empresaNome: "Fam Metal", competencia: mes.competencia || "", tipo: "fan",
     ok: r.ok || 0, soExtrato: r.revisar || 0, soPlanilha: 0, conferidos: Object.keys(mes.decisoes || {}).length, estado: JSON.stringify(mes) };
 }
 
