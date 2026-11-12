@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { configPadrao } from "./regrasFan.mjs";
 
 /*
- * Fan Metal: a configuração (contas, bancos, contratos, listas de fornecedores, funcionários e cheques, regras e o
+ * Fam Metal: a configuração (contas, bancos, contratos, listas de fornecedores, funcionários e cheques, regras e o
  * último balancete) fica em "fan:config:v1", que sobe para o servidor como os outros módulos (área fan-metal).
  * O mês (extratos, comprovantes e decisões) fica em /api/conciliacoes com o tipo "fan" (FanMetal.jsx).
  */

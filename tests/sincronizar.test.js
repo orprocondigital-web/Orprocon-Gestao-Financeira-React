@@ -39,8 +39,8 @@ describe("quais chaves vão para o servidor", () => {
   test("só as dos módulos, e só objetos ou listas em JSON", () => {
     assert.ok(S.chaveDoServidor("painelVencimentos:v1"));
     assert.ok(S.chaveDoServidor("emDia:v2"));
-    assert.ok(S.chaveDoServidor("fan:config:v1"), "a configuração da Fan Metal sobe para o servidor");
-    assert.ok(!S.chaveDoServidor("gf.fan.mes.2026-09"), "o mês da Fan vai por /api/conciliacoes, não pelos módulos");
+    assert.ok(S.chaveDoServidor("fan:config:v1"), "a configuração da Fam Metal sobe para o servidor");
+    assert.ok(!S.chaveDoServidor("gf.fan.mes.2026-09"), "o mês da Fam vai por /api/conciliacoes, não pelos módulos");
     assert.ok(S.chaveDoServidor("icms.aj.12345678000199.2026-08"));
     assert.ok(!S.chaveDoServidor("gf.sessao"));
     assert.ok(!S.chaveDoServidor("auth:usuarios"));

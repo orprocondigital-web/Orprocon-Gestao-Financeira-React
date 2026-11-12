@@ -53,13 +53,13 @@ describe("conciliação avulsa", () => {
     assert.equal(C.trabalhoNaoSalvo(S, av), false);
     av.manuais = [C.grupoManual(["k1"], ["k2"], "")];
     assert.equal(C.trabalhoNaoSalvo(S, av), true);
-    const s1 = C.salvarAvulsa(S, av, "Fan Metal – Julho", new Date("2026-10-26T10:00:00Z"));
+    const s1 = C.salvarAvulsa(S, av, "Fam Metal – Julho", new Date("2026-10-26T10:00:00Z"));
     assert.equal(C.trabalhoNaoSalvo(S, s1), false);
-    const s2 = C.salvarAvulsa(S, s1, "Fan Metal – Julho", new Date("2026-10-26T11:00:00Z"));
+    const s2 = C.salvarAvulsa(S, s1, "Fam Metal – Julho", new Date("2026-10-26T11:00:00Z"));
     assert.equal(s2.salvaId, s1.salvaId);   // mesmo nome atualiza
     const s3 = C.salvarAvulsa(S, s2, "Outra", new Date("2026-10-26T12:00:00Z"));
     assert.notEqual(s3.salvaId, s1.salvaId);
-    assert.deepEqual(C.listarSalvas(S).map((x) => x.nome), ["Outra", "Fan Metal – Julho"]);
+    assert.deepEqual(C.listarSalvas(S).map((x) => x.nome), ["Outra", "Fam Metal – Julho"]);
     s3.manuais = [];
     assert.equal(C.trabalhoNaoSalvo(S, s3), false);
   });
