@@ -8,12 +8,13 @@ import Icone from "./Icone.jsx";
 import Suporte from "./Suporte.jsx";
 import { SeloDados } from "./AvisoSincronizacao.jsx";
 import TrocarSenha from "./TrocarSenha.jsx";
+import BuscaRapida from "./BuscaRapida.jsx";
 import Competencia from "./contabil/Competencia.jsx";
 import { useContabil } from "../lib/useContabil.js";
 import { useDepCadastro } from "../lib/useDepCadastro.js";
 import { instalarApp, usePwa } from "../lib/pwa.js";
 
-const VERSAO = "1.0.0-alpha.51";
+const VERSAO = "1.0.0-alpha.52";
 const FECHADAS_PADRAO = { "Outras movimentações": 1, "Cadastros": 1 };
 
 function iniciais(nome) {
@@ -24,7 +25,7 @@ function iniciais(nome) {
 function Item({ item, recolhido, contador, aoNavegar, extra }) {
   return (
     <NavLink to={item.para} end={item.para === "/"} title={item.title || item.label} onClick={aoNavegar}
-      className={({ isActive }) => "group relative flex items-center gap-3 rounded-lg px-2.5 py-2 text-[14px] transition-colors " +
+      className={({ isActive }) => "group relative flex items-center gap-3 rounded-lg px-2.5 py-[7px] text-[14px] transition-colors " +
         (recolhido ? "justify-center " : "") +
         (isActive ? "bg-brand-soft text-brand font-semibold before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-brand-fill" : "text-ink-2 hover:bg-surface-2 hover:text-ink")}>
       <Icone nome={item.icone} className={recolhido ? "w-5 h-5" : ""} />
@@ -37,7 +38,7 @@ function Item({ item, recolhido, contador, aoNavegar, extra }) {
 
 function Secao({ titulo, aberta, alternar, children, recolhido, pequena }) {
   return (
-    <div className={pequena ? "mt-1.5" : "mt-3.5 first:mt-1"}>
+    <div className={pequena ? "mt-1.5" : "mt-3 first:mt-1"}>
       {!recolhido && (
         <button type="button" onClick={alternar} aria-expanded={aberta}
           className={"w-full flex items-center justify-between px-2.5 py-1.5 font-semibold uppercase tracking-wider text-muted hover:text-ink " + (pequena ? "text-[11px]" : "text-[12px]")}>
@@ -64,6 +65,14 @@ export default function Layout() {
   const [recolhido, setRecolhido] = useState(() => lerLocal("menu:recolhido") === "1");
   const [gaveta, setGaveta] = useState(false);   // menu no celular
   const [trocarSenha, setTrocarSenha] = useState(false);
+  const [busca, setBusca] = useState(false);   // Ctrl+K
+  useEffect(() => {
+    const f = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); setBusca(true); }
+    };
+    window.addEventListener("keydown", f);
+    return () => window.removeEventListener("keydown", f);
+  }, []);
   const { auth } = useAuth();
   const { instalar } = usePwa();
   useEffect(() => {   // sessão: ao voltar para a aba, confere se ainda vale (12 horas sem usar encerram)
@@ -96,6 +105,12 @@ export default function Layout() {
     return local.pathname === "/" ? { sub: "Visão geral", titulo: "Início" } : { sub: "", titulo: "" };
   }, [secoes, local.pathname]);
   useEffect(() => { document.title = (titulo.titulo ? titulo.titulo + " – " : "") + "Central Orprocon"; }, [titulo]);
+  useEffect(() => {   // as últimas telas abertas, para o "Continuar de onde parou" do Início
+    if (local.pathname === "/" || !titulo.titulo) return;
+    const lista = lerJson("menu:recentes", []).filter((x) => x && x.para !== local.pathname);
+    lista.unshift({ para: local.pathname, titulo: titulo.titulo, sub: titulo.sub });
+    gravarLocal("menu:recentes", JSON.stringify(lista.slice(0, 6)));
+  }, [titulo]);   // eslint-disable-line
 
   const ehTeste = usuario && (usuario.teste || usuario.email === AuthCore.TESTE_EMAIL);
   const naModulo = local.pathname.indexOf("/modulo/") === 0;
@@ -108,6 +123,13 @@ export default function Layout() {
         {!recolhido && <div className="flex-1 leading-tight min-w-0"><strong className="block text-[15px] tracking-tight truncate">Central Orprocon</strong><span className="text-[12.5px] text-muted">Empresa Contábil</span></div>}
         <button type="button" onClick={() => setRecolhido(!recolhido)} aria-label={recolhido ? "Abrir o menu" : "Recolher o menu"} title={recolhido ? "Abrir o menu" : "Recolher o menu"}
           className={"hidden lg:inline-flex btn-fantasma h-8 w-8 p-0 border border-line " + (recolhido ? "-scale-x-100" : "")}><Icone nome="recolher" /></button>
+      </div>
+      <div className="px-3 pb-2">
+        <button type="button" onClick={() => setBusca(true)} title="Buscar tela (Ctrl+K)" aria-label="Buscar tela"
+          className={"w-full flex items-center gap-2.5 rounded-lg border border-line bg-surface-2 text-muted hover:text-ink hover:border-line-strong h-9 transition-colors " + (recolhido ? "justify-center px-0" : "px-2.5")}>
+          <Icone nome="busca" className="w-4 h-4" />
+          {!recolhido && <><span className="flex-1 text-left text-[13.5px]">Buscar tela…</span><kbd className="text-[11px] border border-line rounded px-1.5 py-px font-sans">Ctrl K</kbd></>}
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto px-3 pb-4">
         <Item item={{ para: "/", label: "Início", icone: "inicio" }} recolhido={recolhido} />
@@ -178,6 +200,7 @@ export default function Layout() {
         </header>
         <div className={"flex-1 min-w-0 " + (naModulo ? "" : "px-4 sm:px-8 py-6 pb-24")}><Outlet context={{ titulo }} /></div>
       </main>
+      <BuscaRapida aberta={busca} aoFechar={() => setBusca(false)} secoes={secoes} />
       <TrocarSenha aberta={trocarSenha} aoFechar={() => setTrocarSenha(false)} />
       <Suporte compacto={naModulo} contexto={() => ({
         tela: (titulo.sub && titulo.sub !== titulo.titulo ? titulo.sub + " › " : "") + titulo.titulo,

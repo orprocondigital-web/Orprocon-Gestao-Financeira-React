@@ -70,10 +70,13 @@
   --muted: 158 174 200;
   --brand: 252 205 120;
   --brand-hover: 253 220 160;
-  --brand-soft: 72 63 40;
+  --brand-soft: 50 68 102;
   color-scheme: dark;
 }
-:root[data-theme="dark"] .menu-lateral { --surface: 14 18 26; --surface-2: 28 34 46; --line: 36 43 56; --brand-soft: 60 50 28; }
+:root[data-theme="dark"] .menu-lateral { --surface: 14 18 26; --surface-2: 28 34 46; --line: 36 43 56; --brand-soft: 34 42 58; }
+/* tabelas: números alinhados e a linha sob o mouse em destaque, em todas as telas */
+td { font-variant-numeric: tabular-nums; }
+.cartao tbody tr:hover > td { background-color: rgb(var(--surface-2)); }
 .cartao { box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 6px 18px rgb(30 50 90 / .06); }
 :root[data-theme="dark"] .cartao { box-shadow: 0 1px 2px rgb(0 0 0 / .3); }
 
