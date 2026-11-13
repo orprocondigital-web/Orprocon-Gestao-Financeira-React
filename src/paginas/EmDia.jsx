@@ -455,7 +455,10 @@ function Diario({ setorId, eu, setores }) {
   const [quem, setQuem] = useState(eu ? eu.nome : "");
   const [so, setSo] = useState("");
   const [erro, setErro] = useState("");
-  const grupos = useMemo(() => svc.diario({ pessoa: so }), [svc, so, versao]);   // eslint-disable-line
+  // o diário segue o setor escolhido em cima: as pessoas e as anotações são as daquele setor
+  const pessoas = useMemo(() => svc.pessoas(setorId), [svc, setorId, versao]);   // eslint-disable-line
+  const filtro = so && pessoas.includes(so) ? so : "";
+  const grupos = useMemo(() => svc.diario({ pessoa: filtro, setor: setorId }), [svc, filtro, setorId, versao]);   // eslint-disable-line
   const anotar = (ev) => {
     ev.preventDefault();
     try { svc.anotar(quem, setorId, texto); setTexto(""); setErro(""); aviso("Anotado."); } catch (e) { setErro(e.message); }
@@ -474,11 +477,11 @@ function Diario({ setorId, eu, setores }) {
         {erro && <p className="text-debit text-[13px]" role="alert">{erro}</p>}
       </form>
       <div className="flex flex-wrap gap-1.5">
-        {[""].concat(svc.pessoas()).map((p) => (
-          <button key={p || "todos"} type="button" onClick={() => setSo(p)} className={"rounded-full border px-3 py-1 text-[13px] " + (so === p ? "bg-brand-soft border-brand text-brand font-semibold" : "border-line")}>{p || "Todos"}</button>
+        {[""].concat(pessoas).map((p) => (
+          <button key={p || "todos"} type="button" onClick={() => setSo(p)} className={"rounded-full border px-3 py-1 text-[13px] " + (filtro === p ? "bg-brand-soft border-brand text-brand font-semibold" : "border-line")}>{p || "Todos"}</button>
         ))}
       </div>
-      {!grupos.length && <p className="text-[13.5px] text-muted">Nenhuma anotação nos últimos 30 dias.</p>}
+      {!grupos.length && <p className="text-[13.5px] text-muted">Nenhuma anotação de {nomeSetor(setorId) || "este setor"} nos últimos 30 dias.</p>}
       {grupos.map((gr) => (
         <section key={gr.data} className="cartao overflow-hidden">
           <h3 className="px-4 pt-3 pb-1.5 text-[13px] font-semibold text-muted">{Inicio.dataPorExtenso ? Inicio.dataPorExtenso(gr.data) : dataBR(gr.data)}</h3>
@@ -486,7 +489,7 @@ function Diario({ setorId, eu, setores }) {
             {gr.itens.map((n) => (
               <li key={n.id} className="group flex gap-3 px-4 py-2 text-[13.5px]">
                 <strong className="w-[110px] shrink-0 truncate">{n.pessoa}</strong>
-                <span className="flex-1 whitespace-pre-line">{n.texto}{n.setor && <span className="text-[12px] text-muted"> · {nomeSetor(n.setor)}</span>}</span>
+                <span className="flex-1 whitespace-pre-line">{n.texto}</span>
                 <button type="button" onClick={() => svc.excluirAnotacao(n.id)} className="opacity-0 group-hover:opacity-100 focus:opacity-100 btn-fantasma h-7 w-7 p-0" aria-label="Excluir anotação"><Icone nome="fechar" className="w-4 h-4" /></button>
               </li>
             ))}

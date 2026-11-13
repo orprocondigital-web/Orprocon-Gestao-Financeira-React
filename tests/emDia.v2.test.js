@@ -226,6 +226,20 @@ describe("passagem de bastão e diário", () => {
     svc.excluirAnotacao(g[0].itens[0].id);
     assert.equal(svc.diario()[0].itens.length, 1);
   });
+  test("diário de um setor: só as pessoas e as anotações daquele setor", () => {
+    const { svc } = amb();
+    svc.definirResponsavel("dp", "c1", "Ana");
+    svc.definirResponsavel("fiscal", "c1", "Carla");
+    svc.anotar("Ana", "dp", "Folhas conferidas", "2026-10-19");
+    svc.anotar("Bruno", "fiscal", "Parei na letra G", "2026-10-20");
+    assert.deepEqual(svc.pessoas("dp"), ["Ana"]);
+    assert.deepEqual(svc.pessoas("fiscal"), ["Bruno", "Carla"]);
+    assert.deepEqual(svc.pessoas(), ["Ana", "Bruno", "Carla"], "sem setor: todo mundo, como antes");
+    const so = (setor) => svc.diario({ setor }).flatMap((x) => x.itens.map((i) => i.pessoa));
+    assert.deepEqual(so("dp"), ["Ana"]);
+    assert.deepEqual(so("fiscal"), ["Bruno"]);
+    assert.deepEqual(so("contabil"), []);
+  });
 });
 
 describe("importar", () => {
