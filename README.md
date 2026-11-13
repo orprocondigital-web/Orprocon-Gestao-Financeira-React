@@ -95,7 +95,7 @@ Esta é a versão em **React + Tailwind**, que substitui a versão anterior em H
 
 ### 6. 📅 Em Dia e Controle de horas (`/em-dia`, `/horas`)
 - **Em Dia:** grade empresas × obrigações por setor e mês, responsáveis com histórico, passagem de bastão e visão do ano por pessoa.
-- **Controle de horas** do Departamento Pessoal.
+- **Controle de horas** do Departamento Pessoal: gera a folha de presença para o cliente, importa a preenchida, calcula horas extras, noturno e atrasos, e imprime o **espelho de ponto** (uma página por funcionário, com totais e assinaturas; salva em PDF pelo navegador).
 
 ### 7. 🏠 Início, acesso e experiência
 - **Vencimentos para cuidar:** o que venceu ou vence na semana, com link direto para resolver.
