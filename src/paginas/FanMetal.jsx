@@ -73,7 +73,7 @@ export default function FanMetal() {
   };
   useEffect(() => { if (!mes || mes.competencia !== competencia) abrirMes(competencia); }, [competencia]);   // eslint-disable-line
 
-  const r = useMemo(() => (mes ? montarMes(mes.extratos, cfg, mes.decisoes, mes.comprovantes) : null), [mes, cfg]);
+  const r = useMemo(() => (mes ? montarMes(mes.extratos, cfg, mes.decisoes, mes.comprovantes, mes.competencia) : null), [mes, cfg]);
   const rRef = useRef(r); rRef.current = r;
 
   // salvamento automático, um instante depois de cada mudança
@@ -169,7 +169,7 @@ function Lancamentos({ mes, r, cfg, mudarMes, setMsg, aviso, confirmar }) {
       const linhas = linhasDoExtrato(l.itens, bancoId);
       const fora = linhas.filter((x) => x.data.slice(0, 7) !== mes.competencia).length;
       if (!bancoId) avisos.push(l.arquivo + ": não reconheci o banco" + (l.numeroConta ? " (conta " + l.numeroConta + ")" : "") + ". Escolha na lista.");
-      if (fora) avisos.push(l.arquivo + ": " + fora + " movimentação(ões) fora de " + mes.competencia.slice(5) + "/" + mes.competencia.slice(0, 4) + ".");
+      if (fora) avisos.push(l.arquivo + ": " + fora + " movimentação(ões) fora de " + mes.competencia.slice(5) + "/" + mes.competencia.slice(0, 4) + " (ficam de fora do TXT).");
       novos.push({ id: l.arquivo, arquivo: l.arquivo, formato: l.formato, numeroConta: l.numeroConta || "", bancoId, linhas });
     });
     if (novos.length) mudarMes((m) => Object.assign({}, m, { extratos: m.extratos.filter((e) => !novos.some((n) => n.id === e.id)).concat(novos) }));
@@ -224,7 +224,7 @@ function Lancamentos({ mes, r, cfg, mudarMes, setMsg, aviso, confirmar }) {
   const visiveis = useMemo(() => {
     if (!r) return [];
     const b = filtro.busca.trim().toUpperCase();
-    return r.linhas.filter((l) => (!filtro.status || (filtro.status === "OK" ? l.status === "OK" : l.status !== "OK"))
+    return r.linhas.filter((l) => (!filtro.status || (filtro.status === "REVISAR" ? l.status !== "OK" && !l.foraDoMes : l.status === filtro.status))
       && (!filtro.banco || l.bancoId === filtro.banco)
       && (!filtro.categoria || (filtro.categoria === "-" ? !l.categoria : l.categoria === filtro.categoria))
       && (!b || (l.texto + " " + (l.participante || "") + " " + (l.cnpj || "") + " " + formatarValor(l.valor)).toUpperCase().indexOf(b) > -1));
@@ -264,11 +264,12 @@ function Lancamentos({ mes, r, cfg, mudarMes, setMsg, aviso, confirmar }) {
           <Numero rotulo="Movimentações">{numero(r.resumo.total)}</Numero>
           <Numero rotulo="Prontas (OK)"><span className="text-credit">{numero(r.resumo.ok)}</span></Numero>
           <Numero rotulo="A revisar"><span className={r.resumo.revisar ? "text-warn" : ""}>{numero(r.resumo.revisar)}</span></Numero>
+          {r.resumo.fora > 0 && <Numero rotulo="Fora do mês (não entram)"><span className="text-muted">{numero(r.resumo.fora)}</span></Numero>}
           <Numero rotulo="Resolvido">{String(r.resumo.pct).replace(".", ",")}%</Numero>
           {Object.entries(r.resumo.porBanco).map(([id, b]) => <Numero key={id} rotulo={nomesBanco[id] || id || "Sem banco"}>{numero(b.ok)} / {numero(b.total)}</Numero>)}
         </section>
         <div className="flex flex-wrap items-center gap-2">
-          <Segmentado pequeno rotulo="Situação" valor={filtro.status} aoMudar={(v) => mudarFiltro("status", v)} opcoes={[["REVISAR", "A revisar"], ["OK", "OK"], ["", "Todas"]]} />
+          <Segmentado pequeno rotulo="Situação" valor={filtro.status} aoMudar={(v) => mudarFiltro("status", v)} opcoes={[["REVISAR", "A revisar"], ["OK", "OK"]].concat(r.resumo.fora ? [["FORA", "Fora do mês"]] : [], [["", "Todas"]])} />
           <select aria-label="Banco" value={filtro.banco} onChange={(e) => mudarFiltro("banco", e.target.value)} className="h-9 w-[160px]">
             <option value="">Todos os bancos</option>{cfg.bancos.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
           </select>
@@ -313,7 +314,7 @@ function TabelaLinhas({ linhas, nomesBanco, aoAbrir }) {
                   <span className="block text-[12px] text-muted">{[l.participante || l.nomeSugerido, l.cnpj].filter(Boolean).join(" · ")}</span></td>
                 <td className="px-3 py-2 whitespace-nowrap tabular-nums text-[12.5px]">{l.soNoOutroBanco ? <span className="text-muted">pela saída</span> : l.d ? l.d + " / " + l.c : "—"}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
-                  {l.status === "OK" ? <Selo tipo="ok" title={l.regra}>OK</Selo> : <Selo tipo="pendente">{l.motivo || "Revisar"}</Selo>}
+                  {l.status === "OK" ? <Selo tipo="ok" title={l.regra}>OK</Selo> : l.foraDoMes ? <Selo tipo="neutro" title="Não entra no TXT">{l.motivo}</Selo> : <Selo tipo="pendente">{l.motivo || "Revisar"}</Selo>}
                   {l.manual && <span className="ml-1"><Selo tipo="novo" title="Decidido à mão">à mão</Selo></span>}
                   {!l.manual && l.regra && <span className="block text-[11.5px] text-muted mt-0.5">{l.regra}</span>}
                 </td>
