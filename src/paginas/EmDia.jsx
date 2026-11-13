@@ -409,7 +409,8 @@ function Bastao({ setorId, mes, setores }) {
   const [f, setF] = useState({ de: "", para: "", motivo: "" });
   const [erro, setErro] = useState("");
   const hist = useMemo(() => svc.historicoBastao(), [svc, versao]);   // eslint-disable-line
-  const pessoas = svc.pessoas();
+  const pessoas = useMemo(() => svc.pessoas(setorId), [svc, setorId, versao]);   // eslint-disable-line   só as do setor escolhido
+  useEffect(() => { setF({ de: "", para: "", motivo: "" }); setErro(""); }, [setorId]);   // trocou o setor: começa de novo
   const passar = () => {
     try { const r = svc.passarBastao(mes, setorId, f.de, f.para, f.motivo); aviso(r.qtd + " empresa(s) passaram para " + f.para + ".", { desfazer: r.desfazer }); setF({ de: "", para: "", motivo: "" }); setErro(""); }
     catch (e) { setErro(e.message); }
@@ -458,6 +459,7 @@ function Diario({ setorId, eu, setores }) {
   // o diário segue o setor escolhido em cima: as pessoas e as anotações são as daquele setor
   const pessoas = useMemo(() => svc.pessoas(setorId), [svc, setorId, versao]);   // eslint-disable-line
   const filtro = so && pessoas.includes(so) ? so : "";
+  useEffect(() => { setSo(""); setQuem(eu ? eu.nome : ""); }, [setorId]);   // eslint-disable-line   trocou o setor: volta para todos e para quem está logado
   const grupos = useMemo(() => svc.diario({ pessoa: filtro, setor: setorId }), [svc, filtro, setorId, versao]);   // eslint-disable-line
   const anotar = (ev) => {
     ev.preventDefault();
@@ -478,7 +480,7 @@ function Diario({ setorId, eu, setores }) {
       </form>
       <div className="flex flex-wrap gap-1.5">
         {[""].concat(pessoas).map((p) => (
-          <button key={p || "todos"} type="button" onClick={() => setSo(p)} className={"rounded-full border px-3 py-1 text-[13px] " + (filtro === p ? "bg-brand-soft border-brand text-brand font-semibold" : "border-line")}>{p || "Todos"}</button>
+          <button key={p || "todos"} type="button" onClick={() => { setSo(p); setQuem(p || (eu ? eu.nome : "")); }} className={"rounded-full border px-3 py-1 text-[13px] " + (filtro === p ? "bg-brand-soft border-brand text-brand font-semibold" : "border-line")}>{p || "Todos"}</button>
         ))}
       </div>
       {!grupos.length && <p className="text-[13.5px] text-muted">Nenhuma anotação de {nomeSetor(setorId) || "este setor"} nos últimos 30 dias.</p>}
