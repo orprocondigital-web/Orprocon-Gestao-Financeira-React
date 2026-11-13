@@ -347,12 +347,16 @@ export function criarEmDia(deps) {
       ocultas: empresas().filter((c) => ocultas.has(c.id))
     };
   }
-  /** Pessoas que aparecem como responsáveis (para as listas de escolha). */
-  function pessoas() {
+  /**
+   * Pessoas que aparecem como responsáveis (para as listas de escolha). Com setorId, só as daquele setor:
+   * responsáveis de empresas do setor (agora ou no histórico) e quem anotou no diário do setor.
+   */
+  function pessoas(setorId) {
     const d = dados(), s = new Set();
-    Object.values(d.responsaveis).forEach((r) => Object.values(r).forEach((n) => s.add(n)));
-    Object.values(d.histResp).forEach((r) => Object.values(r).forEach((h) => h.forEach((x) => s.add(x.nome))));
-    d.diario.forEach((x) => s.add(x.pessoa));
+    const doSetor = (obj) => (setorId ? [obj[setorId] || {}] : Object.values(obj));
+    doSetor(d.responsaveis).forEach((r) => Object.values(r).forEach((n) => s.add(n)));
+    doSetor(d.histResp).forEach((r) => Object.values(r).forEach((h) => h.forEach((x) => s.add(x.nome))));
+    d.diario.forEach((x) => { if (!setorId || x.setor === setorId) s.add(x.pessoa); });
     return Array.from(s).filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }
   /**
@@ -518,7 +522,7 @@ export function criarEmDia(deps) {
     const f = filtro || {};
     const lim = new Date(agora().getTime() - dias * 86400000).toISOString().slice(0, 10);
     const grupos = [];
-    dados().diario.filter((x) => x.data >= lim && (!f.pessoa || chaveNome(x.pessoa) === chaveNome(f.pessoa)) && (!f.setor || x.setor === f.setor))
+    dados().diario.filter((x) => x.data >= lim && (!f.pessoa || chaveNome(x.pessoa) === chaveNome(f.pessoa)) && (!f.setor || !x.setor || x.setor === f.setor))
       .sort((a, b) => b.data.localeCompare(a.data))
       .forEach((x) => { let g = grupos[grupos.length - 1]; if (!g || g.data !== x.data) grupos.push(g = { data: x.data, itens: [] }); g.itens.push(x); });
     return grupos;
