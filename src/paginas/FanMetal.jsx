@@ -11,6 +11,7 @@ import { baixarArquivos, lerArquivoExtrato, lerPlanilha, textoDoPdf } from "../l
 import { useAvisos } from "../componentes/Avisos.jsx";
 import Janela from "../componentes/Janela.jsx";
 import { BotaoArquivo, Campo, Mensagem, Numero, Segmentado, Selo, Valor, dataBR, formatarValor, numero } from "../componentes/contabil/ui.jsx";
+import Icone from "../componentes/Icone.jsx";
 
 /*
  * Fam Metal · Conciliação bancária (/fan/conciliacao): o trabalho da planilha FAM_Reconciliacao v5 dentro do sistema.
@@ -25,6 +26,27 @@ const POR_PAGINA = 300;
 const ESPERA_SALVAR = 2500;
 const ROTULO = { "Transferencia Bancaria": "Transferência", "Conciliacao Manual": "Conta fixa", Consorcio: "Consórcio", Emprestimo: "Empréstimo" };
 const rotulo = (c) => ROTULO[c] || c || "—";
+/** As três etapas do mês, com a que falta em destaque. */
+function Etapas({ passos }) {
+  const atual = passos.findIndex((p) => !p.feito);
+  return (
+    <ol className="grid gap-2 sm:grid-cols-3">
+      {passos.map((p, i) => {
+        const estado = p.feito ? "feito" : i === atual ? "atual" : "depois";
+        return (
+          <li key={p.titulo} className={"flex items-center gap-3 rounded-xl border px-3.5 py-2.5 " +
+            (estado === "atual" ? "border-brand-fill bg-brand-soft/60" : estado === "feito" ? "border-line bg-surface" : "border-line bg-surface opacity-70")}>
+            <span className={"h-7 w-7 shrink-0 rounded-full inline-flex items-center justify-center text-[13px] font-bold " +
+              (estado === "feito" ? "bg-ok-soft text-credit" : estado === "atual" ? "bg-brand-fill text-on-fill" : "bg-surface-2 text-muted border border-line")}>
+              {estado === "feito" ? <Icone nome="ok" className="w-4 h-4" /> : i + 1}</span>
+            <span className="min-w-0 leading-tight"><strong className="block text-[13.5px]">{p.titulo}</strong><span className="block truncate text-[12px] text-muted">{p.sub}</span></span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function mesAnterior() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
 const lerLocal = (k) => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
 const gravarLocal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
@@ -234,6 +256,11 @@ function Lancamentos({ mes, r, cfg, mudarMes, setMsg, aviso, confirmar }) {
 
   return (
     <div className="space-y-4">
+      <Etapas passos={[
+        { titulo: "Importar extratos", sub: mes.extratos.length ? mes.extratos.length + " arquivo(s), " + numero(r ? r.resumo.total : 0) + " linhas" : "OFX, planilha ou PDF", feito: mes.extratos.length > 0 },
+        { titulo: "Revisar", sub: !r || !r.resumo.total ? "as linhas que a regra não resolveu" : r.resumo.revisar ? numero(r.resumo.revisar) + " a revisar" : "tudo resolvido", feito: !!(r && r.resumo.total && !r.resumo.revisar) },
+        { titulo: "Gerar TXT do Único", sub: "só com as linhas OK do mês", feito: false }
+      ]} />
       <section className="cartao p-4 sm:p-5 space-y-3">
         <p className="text-[13.5px] text-muted max-w-[820px]">Importe o extrato de cada banco do mês (OFX, planilha ou PDF). Cada movimentação recebe a categoria, o participante e as contas pelas regras da planilha da Fam (FAM_Reconciliacao v5). Os comprovantes de pagamento resolvem o fornecedor das linhas que o extrato não identifica.</p>
         <div className="flex flex-wrap gap-2">

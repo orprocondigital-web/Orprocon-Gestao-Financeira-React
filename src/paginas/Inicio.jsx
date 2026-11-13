@@ -116,6 +116,7 @@ export default function Inicio() {
   const [msg, setMsg] = useState("");
   const ehTeste = usuario && (usuario.teste || usuario.email === AuthCore.TESTE_EMAIL);
   const C = I.CHAVES;
+  const recentes = useMemo(() => lerJson("menu:recentes", []).filter((x) => x && x.para && x.titulo).slice(0, 5), []);
   const algumVazio = [C.iss, C.horas, C.venc].some((k) => !lerLocal(k)) || !lerLocal("emDia:v2");
 
   const ir = (alvo) => {
@@ -166,6 +167,20 @@ export default function Inicio() {
         </div>
       </header>
 
+      {recentes.length > 0 && (
+        <section className="flex flex-wrap items-center gap-2" aria-label="Continuar de onde parou">
+          <span className="text-[13px] font-semibold text-muted mr-1">Continuar de onde parou</span>
+          {recentes.map((x) => (
+            <button key={x.para} type="button" onClick={() => navegar(x.para)} title={x.sub ? x.sub + " › " + x.titulo : x.titulo}
+              className="cartao inline-flex items-center gap-2 rounded-full pl-3 pr-2.5 h-9 text-[13.5px] hover:border-brand-fill transition-colors">
+              <span className="max-w-[220px] truncate"><strong className="font-medium">{x.titulo}</strong>{x.sub ? <span className="text-muted"> · {x.sub}</span> : null}</span>
+              <Icone nome="direita" className="w-4 h-4 text-muted" />
+            </button>
+          ))}
+          <span className="hidden md:inline text-[12.5px] text-muted ml-auto">Dica: <kbd className="border border-line rounded px-1.5 py-px text-[11px]">Ctrl K</kbd> abre qualquer tela pelo nome</span>
+        </section>
+      )}
+
       {!r.vazio && (
         <div className={"grid grid-cols-2 gap-2.5 " + (r.numeros.length > 4 ? "md:grid-cols-3 2xl:grid-cols-6" : "xl:grid-cols-4")}>
           {r.numeros.map((x) => (
@@ -199,7 +214,7 @@ export default function Inicio() {
           </div>
           <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
             {s.ferramentas.map((f) => (
-              <article key={f.tab} className="cartao p-[18px] flex flex-col gap-3">
+              <article key={f.tab} className="cartao p-[18px] flex flex-col gap-3 transition-[border-color,box-shadow,transform] hover:border-brand-fill/60 hover:-translate-y-px">
                 <div className="flex gap-3 items-start">
                   <span className={"h-10 w-10 shrink-0 rounded-[11px] inline-flex items-center justify-center " + ICO_SETOR[s.id]}><Icone nome={f.icone} className="w-5 h-5" /></span>
                   <div><h4 className="text-[15px] font-semibold">{f.nome}</h4><p className="text-[13px] leading-snug text-ink-2">{f.resumo}</p></div>
