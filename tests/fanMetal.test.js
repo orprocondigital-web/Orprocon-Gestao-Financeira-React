@@ -130,6 +130,23 @@ describe("o mês: bancos, transferências, comprovantes e decisões", () => {
     assert.equal(aprendeu.fornecedores["55444333000122"], "NOVA LTDA");
     assert.equal(R.classificar({ texto: "LIQUIDACAO BOLETO 55444333000122 NOVA", valor: -1, banco: SIC }, aprendeu).categoria, "Fornecedor", "no mês seguinte já vem resolvido");
   });
+  test("linha de outro mês fica FORA: não conta no resumo, não vai para o TXT nem para o balancete", () => {
+    const e = ext();
+    e[0].linhas = e[0].linhas.concat(R.linhasDoExtrato([
+      { data: "2026-08-29", desc: "LIQUIDACAO BOLETO 44555666000177 ACO EXEMP", valorNum: 700, sign: "D", doc: "9" },
+      { data: "2026-10-01", desc: "LIQUIDACAO BOLETO 44555666000177 ACO EXEMP", valorNum: 300, sign: "D", doc: "8" }
+    ], "SICREDI"));
+    const sem = R.montarMes(e, cfg);
+    assert.equal(R.txtUnicoFan(sem.linhas).exportadas, 4, "sem competência, como antes: tudo entra");
+    const m = R.montarMes(e, cfg, {}, [], "2026-09");
+    assert.deepEqual([m.resumo.total, m.resumo.fora], [5, 2]);
+    const f = m.linhas.filter((l) => l.foraDoMes);
+    assert.deepEqual(f.map((l) => [l.status, l.motivo]), [["FORA", "fora de 09/2026"], ["FORA", "fora de 09/2026"]]);
+    assert.equal(R.txtUnicoFan(m.linhas).exportadas, 2);
+    const bal = { fornecedores: [{ classif: "1", nome: "ACO EXEMPLO LTDA", cnpj: "44555666000177", debito: 1000 }] };
+    const c = R.conferirBalancete(m.linhas, bal);
+    assert.equal(c.linhas[0].totalBanco, 1000, "só o pagamento de setembro");
+  });
   test("comprovante pelo nome do arquivo quando o PDF não tem texto", () => {
     const c = R.lerComprovante("", "05-09-2026 - FERRAGENS MODELO LTDA - PAGO SICREDI - 1.234,56.pdf");
     assert.deepEqual([c.data, c.valor, c.nome], ["2026-09-05", 1234.56, "FERRAGENS MODELO LTDA"]);

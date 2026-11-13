@@ -101,6 +101,37 @@ describe("estilo Unicred: histórico acima e abaixo da linha da data, '- R$'", (
   });
 });
 
+describe("estilo Caixa: data numa linha acima do lançamento, 'TED CAIXA PARA SICREDI' no histórico", () => {
+  const r = P.lerExtratoPdf([pagina([
+    [474, [49, "Agência: 01234 Conta: 000500000001-2"], [686, "01/10/2026 07:38:01"]],
+    [446, [54, "Saldo anterior ao período solicitado"], [723, "R$ 1.000,00 D"]],
+    [416, [49, "Extrato no período de 01/09/2026 à 30/09/2026"]],
+    [383, [151, "Documento"], [211, "Histórico"], [579, "Valor"], [763, "Saldo"]],
+    [358, [211, "CRED PIX CHAVE"]],
+    [350, [54, "01/09/2026"]],
+    [345, [151, "011752"], [211, "EMPRESA EXEMPLO LTDA 11.222.333/0001-44"], [546, "R$ 5.000,00"], [728, "R$ 4.000,00 C"]],
+    [339, [54, "01/09 17:52"]],
+    [314, [54, "01/09/2026"]],
+    [308, [151, "000000"], [211, "DEBITO DE IOF"], [553, "- R$ 10,00"], [728, "R$ 3.990,00 C"]],
+    [302, [54, "02/09 03:09"]],
+    [255, [54, "01/09/2026"], [211, "SALDO DIA"], [728, "R$ 3.990,00 C"]],
+    [236, [211, "TED CAIXA PARA SICREDI"]],
+    [229, [54, "04/09/2026"]],
+    [224, [151, "041057"], [211, "EMPRESA EXEMPLO LTDA 11.222.333/0001-44"], [534, "- R$ 990,00"], [723, "R$ 3.000,00 C"]],
+    [218, [54, "04/09 10:57"]],
+    [200, [54, "04/09/2026"], [211, "SALDO DIA"], [723, "R$ 3.000,00 C"]],
+    [100, [49, "SAC CAIXA Ouvidoria"]]
+  ])]);
+  test("é Caixa, não Sicredi, e lê o primeiro dia", () => {
+    assert.deepEqual([r.banco.id, r.numeroConta], ["caixa", "000500000001-2"]);
+    assert.deepEqual(r.itens.map((i) => [i.data, i.sign, i.valorNum]), [["2026-09-01", "C", 5000], ["2026-09-01", "D", 10], ["2026-09-04", "D", 990]]);
+    assert.match(r.itens[2].desc, /^TED CAIXA PARA SICREDI /);
+  });
+  test("os saldos do dia fecham", () => {
+    assert.deepEqual([r.conferencia.conferidos, r.conferencia.total], [2, 2]);
+  });
+});
+
 describe("conferência aponta lançamento faltando", () => {
   test("saldo que não fecha vira divergência", () => {
     const c = P.conferirSaldos([{ data: "2026-01-02", valorNum: 10, sign: "C", saldoLinha: 15 }], [{ data: "2026-01-01", saldo: 0, tipo: "inicio" }]);

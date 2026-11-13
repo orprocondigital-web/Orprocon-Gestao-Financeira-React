@@ -254,9 +254,11 @@ export function lerComprovante(texto, arquivo) {
  * O mês inteiro: linhas de todos os bancos com a regra, as decisões da pessoa por cima, as transferências casadas
  * entre bancos e os comprovantes. Devolve { linhas, resumo }.
  * linha = { chave, bancoId, banco, data, valor, texto, documento, categoria, cnpj, participante, status, regra,
- *           contaDestino, comprovante, d, c, ladoCnpj, manual, motivo }.
+ *           contaDestino, comprovante, d, c, ladoCnpj, manual, motivo, foraDoMes }.
+ * competencia ("AAAA-MM"): a linha de outro mês (extrato tirado com dias a mais) fica com status FORA, não conta no
+ * resumo e não vai para o TXT nem para a conferência com o balancete.
  */
-export function montarMes(extratos, cfg, decisoes = {}, comprovantes = []) {
+export function montarMes(extratos, cfg, decisoes = {}, comprovantes = [], competencia = "") {
   const bancos = Object.fromEntries(cfg.bancos.map((b) => [b.id, b]));
   const todas = [];
   (extratos || []).forEach((e) => (e.linhas || []).forEach((l) => todas.push(Object.assign({}, l, { banco: bancos[l.bancoId] || { id: l.bancoId, conta: "" } }))));
@@ -268,8 +270,11 @@ export function montarMes(extratos, cfg, decisoes = {}, comprovantes = []) {
   const compPorChave = {};
   (comprovantes || []).forEach((c) => { const k = c.data + "|" + c.valor.toFixed(2); (compPorChave[k] = compPorChave[k] || []).push(c); });
 
+  const foraDe = competencia ? "fora de " + competencia.slice(5) + "/" + competencia.slice(0, 4) : "";
   const linhas = todas.map((l) => {
     const auto = classificar({ texto: l.texto, valor: l.valor, banco: l.banco }, cfg);
+    if (competencia && String(l.data || "").slice(0, 7) !== competencia)
+      return Object.assign({}, l, auto, { manual: false, status: "FORA", foraDoMes: true, motivo: foraDe });
     const dec = decisoes[l.chave];
     const x = Object.assign({}, l, auto, { manual: false, motivo: "" });
     const comps = compPorChave[l.data + "|" + Math.abs(l.valor).toFixed(2)];
@@ -303,8 +308,10 @@ export function montarMes(extratos, cfg, decisoes = {}, comprovantes = []) {
     return x;
   });
 
-  const resumo = { total: linhas.length, ok: 0, revisar: 0, porBanco: {}, porCategoria: {} };
+  const resumo = { total: 0, ok: 0, revisar: 0, fora: 0, porBanco: {}, porCategoria: {} };
   linhas.forEach((l) => {
+    if (l.foraDoMes) { resumo.fora++; return; }
+    resumo.total++;
     if (l.status === "OK") resumo.ok++; else resumo.revisar++;
     const b = resumo.porBanco[l.bancoId] = resumo.porBanco[l.bancoId] || { total: 0, ok: 0 };
     b.total++; if (l.status === "OK") b.ok++;
@@ -399,7 +406,7 @@ export function listasDaV5(abas) {
 export function conferirBalancete(linhas, balancete) {
   const lista = (balancete && balancete.fornecedores) || [];
   const porClassif = {}, semFornecedor = [];
-  (linhas || []).filter((l) => l.categoria === "Fornecedor" && l.valor < 0).forEach((l) => {
+  (linhas || []).filter((l) => !l.foraDoMes && l.categoria === "Fornecedor" && l.valor < 0).forEach((l) => {
     // pelo nome da lista ou pelo nome que o próprio extrato traz depois do documento
     const doc = extrairCnpj(l.texto) || extrairCpf(l.texto);
     const doExtrato = doc ? nomeAposDoc(l.texto, doc) : nomeAposMarcador(l.texto);

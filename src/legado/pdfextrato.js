@@ -55,12 +55,12 @@
 
   var BANCOS = [
     ["banrisul", "Banrisul", /B\s?A\s?N\s?R\s?I\s?S\s?U\s?L/],
+    ["caixa", "Caixa", /SAC CAIXA|Al[oô] CAIXA|GERENCIADOR CAIXA/i],   // antes das cooperativas: "TED CAIXA PARA SICREDI" no histórico
     ["sicoob", "Sicoob", /SICOOB|SISBR/],
     ["sicredi", "Sicredi", /Sicredi/i],
     ["unicred", "Unicred", /UNICRED|0800 940 0602/i],
     ["ailos", "Ailos", /AILOS|Banco: 085/i],
     ["bb", "Banco do Brasil", /Ouvidoria BB|Dt\. balancete/i],
-    ["caixa", "Caixa", /SAC CAIXA|Al[oô] CAIXA|GERENCIADOR CAIXA/i],
     ["itau", "Itaú", /ita[uú]\.com\.br|Aplic Aut Mais|Ita[uú] Empresas/i],
     ["nubank", "Nubank", /nubank|Nu Pagamentos/i],
     ["inter", "Inter", /Banco Inter/i],
@@ -211,6 +211,8 @@
       var resto = d && d.iso ? limpa(texto.slice(d.tam)) : texto;
       if (d && d.iso && valoresDaLinha(resto).length) dataAtual = d.iso;
       else if (d && d.iso && comecou) dataAtual = d.iso;
+      // linha só com a data completa (Caixa: a data fica numa linha acima do lançamento), vale mesmo antes do primeiro
+      else if (d && d.iso && !resto && /^\d{2}\/\d{2}\/\d{4}$/.test(texto)) dataAtual = d.iso;
 
       if (RE_RUIDO.test(texto) && !(d && d.iso && valoresDaLinha(resto).length)) return;
 
