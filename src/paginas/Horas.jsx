@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import R from "../lib/horas/regras.mjs";
 import H from "../lib/horas/dados.mjs";
 import P from "../lib/horas/planilha.mjs";
+import { espelhoHtml } from "../lib/horas/espelho.mjs";
 import { useHoras } from "../lib/useHoras.js";
 import { useAuth } from "../lib/auth.jsx";
 import { carregarExcelJs, carregarXlsx } from "../lib/leitores.js";
@@ -28,6 +29,24 @@ function baixar(nome, buf) {
   a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
   a.download = nome; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+/** Imprime o espelho de ponto num iframe escondido (o diálogo do navegador também salva em PDF). */
+function imprimirEspelho(resumo, opcoes) {
+  const { html, quantos } = espelhoHtml(resumo, opcoes);
+  if (!quantos) return 0;
+  const fr = document.createElement("iframe");
+  fr.setAttribute("aria-hidden", "true");
+  fr.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  fr.onload = () => {
+    const w = fr.contentWindow;
+    const tirar = () => setTimeout(() => fr.remove(), 500);
+    w.addEventListener("afterprint", tirar);
+    setTimeout(() => fr.isConnected && fr.remove(), 10 * 60 * 1000);
+    w.focus(); w.print();
+  };
+  fr.srcdoc = html;
+  document.body.appendChild(fr);
+  return quantos;
 }
 function resumoCarga(c) {
   const t = R.textosDeCarga(c), grupos = [];
@@ -282,6 +301,8 @@ function TelaMes({ emp, mes, abrir, irPara }) {
           <button type="button" className="btn-primario btn-sm" onClick={() => setGerar(true)}>Gerar planilha para o cliente</button>
           <button type="button" className="btn-contorno btn-sm" disabled={fechado} onClick={() => entrada.current.click()}>Importar planilha preenchida</button>
           <div className="flex-1" />
+          <button type="button" className="btn-contorno btn-sm" disabled={!g.comFolha} title="Uma página por funcionário com folha, para conferir e assinar (dá para salvar em PDF)"
+            onClick={() => { const n = imprimirEspelho(r); aviso(n ? "Espelho de ponto de " + n + " funcionário(s) aberto para imprimir." : "Nenhuma folha recebida neste mês."); }}>Imprimir espelho de ponto</button>
           <button type="button" className="btn-contorno btn-sm" disabled={!g.comFolha} onClick={exportar}>Exportar resumo (Excel)</button>
           {!fechado && <button type="button" className="btn-contorno btn-sm" disabled={!g.comFolha} onClick={fechar}>Fechar mês</button>}
         </div>
@@ -373,6 +394,7 @@ function Folha({ emp, mes, funcId, abrir, voltar }) {
           {i > 0 && <button type="button" className="btn-fantasma btn-sm" onClick={() => abrir(lista[i - 1])}>‹ Anterior</button>}
           {i < lista.length - 1 && <button type="button" className="btn-fantasma btn-sm" onClick={() => abrir(lista[i + 1])}>Próximo ›</button>}
           <button type="button" className="btn-contorno btn-sm" onClick={() => setEditar(true)}>Carga e cadastro</button>
+          <button type="button" className="btn-contorno btn-sm" onClick={() => imprimirEspelho(H.resumoMes(svc.estado(), emp.id, mes), { ids: [funcId] })}>Imprimir espelho</button>
           {!fechado && (folha.revisada ? <button type="button" className="btn-fantasma btn-sm" onClick={() => revisar(false)}>Desmarcar revisão</button>
             : <button type="button" className="btn-primario btn-sm" onClick={() => revisar(true)}>Marcar como revisada</button>)}
         </div>
