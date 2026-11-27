@@ -1,14 +1,19 @@
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { CSTS, brl, calcular, conferir, csv, itemManual, lerReferencia, lerXml, mesclarReferencias, pct, xmlsDeExemplo } from "../lib/ibsCbs.mjs";
 import { carregarXlsx } from "../lib/leitores.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import { Campo, Selo } from "../componentes/contabil/ui.jsx";
+import { compararComReceita, contextoNota, lerResultado, montarOperacao, textoVersao } from "../lib/receitaRtc.mjs";
+import { RECEITA_NO_SERVIDOR, calcularNaReceita, versaoReceita } from "../lib/receitaServidor.js";
 
 /*
  * Auditor IBS/CBS: confere os itens de NF-e e NFS-e no grupo IBSCBS (CST, cClassTrib, base, alíquotas e valores).
  * Regras em src/lib/ibsCbs.mjs (testadas em tests/ibsCbs.test.js). Os itens ficam só na memória desta aba.
  */
 let itens = [], arquivos = [], versao = 0;
+// calculadora da Receita: dados de cada nota (data, município), resultado por item ("doc#nItem") e versão das regras
+let contextos = {}, receita = {}, versaoRec = null;
+const chaveItem = (r) => r.doc + "#" + r.nItem;
 // tabela de referência da equipe fiscal (NCM → CST, cClassTrib, redução): fica guardada neste navegador
 const CHAVE_REF = "ibscbs:referencia:v1";
 let referencia = (() => { try { return JSON.parse(localStorage.getItem(CHAVE_REF) || "null"); } catch (e) { return null; } })();
@@ -18,11 +23,48 @@ const mudou = () => { versao++; ouvintes.forEach((f) => f()); };
 const usarItens = () => useSyncExternalStore((f) => { ouvintes.add(f); return () => ouvintes.delete(f); }, () => versao);
 function carregarTexto(nome, texto) {
   const r = lerXml(texto, nome);
+  contextos[nome] = contextoNota(texto);
   arquivos = arquivos.concat([{ nome, ok: r.itens.length > 0, texto: r.itens.length ? r.itens.length + " item(ns) encontrados" : r.erro }]);
   itens = itens.concat(r.itens);
   mudou();
 }
 const NIVEL = { ok: ["ok", "OK"], atencao: ["pendente", "Atenção"], erro: ["erro", "Erro"] };
+const NIVEL_RECEITA = { ok: ["ok", "Confere"], erro: ["erro", "Diverge"], sem: ["pendente", "Não calculado"] };
+
+/** Versão das regras da Receita (busca uma vez por sessão). */
+function usarVersaoReceita() {
+  const [, set] = useState(0);
+  useEffect(() => {
+    if (!RECEITA_NO_SERVIDOR || versaoRec) return;
+    versaoReceita().then((v) => { versaoRec = v; set((n) => n + 1); mudou(); }).catch((e) => { versaoRec = { erro: e.message }; set((n) => n + 1); });
+  }, []);
+  return versaoRec;
+}
+
+/** Manda cada nota para a calculadora da Receita e guarda o resultado de cada item. */
+async function conferirComReceita() {
+  const porDoc = new Map();
+  itens.forEach((r) => { if (!porDoc.has(r.doc)) porDoc.set(r.doc, []); porDoc.get(r.doc).push(r); });
+  let notas = 0, falhas = 0;
+  for (const [doc, lista] of porDoc) {
+    const ctx = contextos[doc];
+    const sem = (msg) => lista.forEach((r) => { receita[chaveItem(r)] = { nivel: "sem", msgs: [msg] }; });
+    if (!ctx) { sem("Item sem XML: a calculadora precisa da data e do município da nota."); continue; }
+    const m = montarOperacao(lista, ctx, ctx.chave || doc);
+    if (m.erro) { sem(m.erro); continue; }
+    try {
+      const calc = lerResultado(await calcularNaReceita(m.operacao));
+      notas++;
+      lista.forEach((r) => {
+        const n = Number(r.nItem), fora = m.fora.find((f) => f.nItem === n);
+        receita[chaveItem(r)] = fora ? { nivel: "sem", msgs: [fora.motivo] } : Object.assign(compararComReceita(r, calc[n]), { calc: calc[n] });
+      });
+    } catch (e) { falhas++; sem("A Receita não calculou esta nota: " + e.message); }
+    mudou();
+  }
+  mudou();
+  return { notas, falhas };
+}
 
 function Conferencia() {
   usarItens();
@@ -32,6 +74,8 @@ function Conferencia() {
   const [m, setM] = useState({});
   const [abertos, setAbertos] = useState({});
   const [filtro, setFiltro] = useState("");
+  const [calculando, setCalculando] = useState(false);
+  const vRec = usarVersaoReceita();
   async function importarReferencia(f) {
     try {
       const XLSX = await carregarXlsx();
@@ -131,12 +175,23 @@ function Conferencia() {
         <button type="button" className="btn-fantasma btn-sm" onClick={baixarModelo}>Baixar modelo</button>
         {referencia && <button type="button" className="btn-fantasma btn-sm text-debit" onClick={() => guardarReferencia(null)}>Tirar tabela</button>}
       </section>
+      <section className="cartao p-4 flex flex-wrap items-center gap-3">
+        <div className="flex-1 min-w-[240px]">
+          <strong className="block text-[14px]">Calculadora oficial da Receita Federal</strong>
+          <span className="text-[12.5px] text-muted">{!RECEITA_NO_SERVIDOR ? "Disponível só com o servidor ligado."
+            : !vRec ? "Consultando a versão das regras..." : vRec.erro ? "Receita fora do ar agora: " + vRec.erro
+            : textoVersao(vRec) + ". Recalcula cada item com as regras oficiais e compara com o que veio na nota (tolerância de R$ 0,01)."}</span>
+        </div>
+        <button type="button" className="btn-primario btn-sm" disabled={!RECEITA_NO_SERVIDOR || !itens.length || calculando}
+          onClick={async () => { setCalculando(true); try { const r = await conferirComReceita(); aviso(r.notas + " nota(s) conferidas com a Receita" + (r.falhas ? ", " + r.falhas + " com falha" : "") + "."); } finally { setCalculando(false); } }}>
+          {calculando ? "Conferindo..." : "Conferir com a Receita"}</button>
+      </section>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="btn-contorno btn-sm" onClick={() => setManual(!manual)}>{manual ? "Fechar inclusão manual" : "Incluir item à mão"}</button>
         {!itens.length && <button type="button" className="btn-fantasma btn-sm" onClick={() => xmlsDeExemplo().forEach(([n, t]) => carregarTexto(n, t))}>Usar exemplo</button>}
         <div className="flex-1" />
         {itens.length > 0 && <><button type="button" className="btn-primario btn-sm" onClick={baixar}>Exportar CSV (Excel)</button>
-          <button type="button" className="btn-fantasma btn-sm" onClick={() => { itens = []; arquivos = []; mudou(); }}>Limpar</button></>}
+          <button type="button" className="btn-fantasma btn-sm" onClick={() => { itens = []; arquivos = []; contextos = {}; receita = {}; mudou(); }}>Limpar</button></>}
       </div>
       {manual && (
         <form onSubmit={incluir} className="cartao p-4 space-y-3">
@@ -167,8 +222,8 @@ function Conferencia() {
           <div className="overflow-x-auto relative">
             <table className="w-full text-[12.5px]">
               <thead className="bg-surface-2 text-[11px] uppercase tracking-wide text-muted">
-                <tr>{["#", "Descrição", "NCM", "CFOP", "Valor", "CST", "cClassTrib", "BC", "IBS UF / Mun (nominal)", "IBS efetiva", "IBS", "CBS (nominal)", "CBS efetiva", "CBS", "Situação"].map((h, i) => (
-                  <th key={h} className={"px-2 py-2 font-semibold " + (i === 1 ? "text-left min-w-[200px]" : i >= 4 && i !== 5 && i !== 6 && i !== 14 ? "text-right" : "text-left")}>{h}</th>))}</tr>
+                <tr>{["#", "Descrição", "NCM", "CFOP", "Valor", "CST", "cClassTrib", "BC", "IBS UF / Mun (nominal)", "IBS efetiva", "IBS", "CBS (nominal)", "CBS efetiva", "CBS", "Situação", "Receita"].map((h, i) => (
+                  <th key={h} className={"px-2 py-2 font-semibold " + (i === 1 ? "text-left min-w-[200px]" : i >= 4 && i !== 5 && i !== 6 && i < 14 ? "text-right" : "text-left")}>{h}</th>))}</tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {visiveis.map(([r, c, i]) => [
@@ -187,13 +242,15 @@ function Conferencia() {
                     <td className="px-2 py-1.5 text-right tabular-nums">{pct(r.pAliqEfetCbs ?? r.pCbs)}</td>
                     <Celula valor={brl(r.vCbs)} direita campo={erroDeValor(c.campos, ["CBS"])} />
                     <td className="px-2 py-1.5"><Selo tipo={NIVEL[c.nivel][0]}>{NIVEL[c.nivel][1]}</Selo></td>
+                    <td className="px-2 py-1.5">{receita[chaveItem(r)] ? <Selo tipo={NIVEL_RECEITA[receita[chaveItem(r)].nivel][0]}>{NIVEL_RECEITA[receita[chaveItem(r)].nivel][1]}</Selo> : <span className="text-muted">—</span>}</td>
                   </tr>,
                   abertos[i] && (
                     <tr key={"d" + i} className="bg-surface-2/60"><td />
-                      <td colSpan={14} className="px-2 py-2">
+                      <td colSpan={15} className="px-2 py-2">
                         <PorCampo campos={c.campos} />
                         <ul className="space-y-0.5 text-[12.5px]">
                           {c.msgs.map((x, k) => <li key={k} className={x.nivel === "erro" ? "text-debit" : x.nivel === "atencao" ? "text-warn" : "text-credit"}>{x.nivel === "erro" ? "✕ " : x.nivel === "atencao" ? "! " : "✓ "}{x.texto}</li>)}
+                          {receita[chaveItem(r)] && <DaReceita res={receita[chaveItem(r)]} />}
                           <li className="text-muted">Documento de origem: <b className="text-ink">{r.doc}</b>{r.cClassTrib ? " · cClassTrib " + r.cClassTrib : ""}</li>
                         </ul>
                       </td></tr>
@@ -202,7 +259,7 @@ function Conferencia() {
               </tbody>
             </table>
           </div>
-          <p className="px-4 py-3 text-[12.5px] text-muted">Em vermelho, com o correto embaixo: o campo que não confere. Clique na linha para ver campo por campo. Tolerância de R$ 0,03 por valor. Com redução (gRed), a conta usa a alíquota efetiva. O Excel traz uma coluna de erro e o valor correto para CST, cClassTrib e alíquotas.</p>
+          <p className="px-4 py-3 text-[12.5px] text-muted">Coluna Receita: resultado da calculadora oficial (botão "Conferir com a Receita"). Em vermelho, com o correto embaixo: o campo que não confere. Clique na linha para ver campo por campo. Tolerância de R$ 0,03 por valor. Com redução (gRed), a conta usa a alíquota efetiva. O Excel traz uma coluna de erro e o valor correto para CST, cClassTrib e alíquotas.</p>
         </section>
       )}
     </div>
@@ -270,6 +327,66 @@ function Calculadora() {
   );
 }
 
+/** Linhas do detalhe: o que a calculadora da Receita achou deste item. */
+function DaReceita({ res }) {
+  const c = res.calc;
+  return (
+    <>
+      {res.nivel === "ok" && <li className="text-credit">✓ Confere com a calculadora da Receita.</li>}
+      {res.msgs.map((t, k) => <li key={"r" + k} className={res.nivel === "erro" ? "text-debit" : "text-warn"}>{res.nivel === "erro" ? "✕ Receita · " : "! Receita · "}{t}</li>)}
+      {c && !c.semGrupo && <li className="text-ink-2">Pela Receita: BC R$ {brl(c.vBC)} · IBS-UF {pct(c.redUf ? c.redUf.pAliqEfet : c.pIbsUf)} = R$ {brl(c.vIbsUf)} · IBS-Mun {pct(c.redMun ? c.redMun.pAliqEfet : c.pIbsMun)} = R$ {brl(c.vIbsMun)} · CBS {pct(c.redCbs ? c.redCbs.pAliqEfet : c.pCbs)} = R$ {brl(c.vCbs)}{c.simulado ? " (cálculo simulado)" : ""}</li>}
+      {c && c.memoria && c.memoria.length > 0 && <li className="text-muted text-[11.5px]">Memória de cálculo: {c.memoria.join(" | ")}</li>}
+    </>
+  );
+}
+
+function CalculadoraReceita() {
+  usarItens();
+  const vRec = usarVersaoReceita();
+  const hoje = new Date().toISOString().slice(0, 10);
+  const [f, setF] = useState({ data: hoje, municipio: "4218707", uf: "SC", ncm: "", cst: "000", cClassTrib: "000001", base: "", quantidade: "1" });
+  const [res, setRes] = useState(null);
+  const [erro, setErro] = useState("");
+  const [calculando, setCalculando] = useState(false);
+  const campo = (k, rot, ph, extra) => <Campo rotulo={rot} id={"cr-" + k}><input id={"cr-" + k} value={f[k]} placeholder={ph} onChange={(e) => setF({ ...f, [k]: e.target.value })} {...(extra || {})} /></Campo>;
+  async function calcular(ev) {
+    ev.preventDefault(); setErro(""); setRes(null);
+    const m = montarOperacao([{ nItem: 1, found: true, cst: f.cst, cClassTrib: f.cClassTrib, ncm: f.ncm, bc: f.base, qCom: f.quantidade || 1 }],
+      { dhEmi: f.data, municipio: f.municipio, uf: f.uf.toUpperCase(), modelo: "55" }, "calculadora-avulsa");
+    if (m.erro || !m.operacao) { setErro(m.erro || (m.fora[0] && m.fora[0].motivo) || "Confira os campos."); return; }
+    setCalculando(true);
+    try { setRes(lerResultado(await calcularNaReceita(m.operacao))[1] || null); } catch (e) { setErro(e.message); } finally { setCalculando(false); }
+  }
+  const efet = (red, p) => pct(red ? red.pAliqEfet : p);
+  return (
+    <section className="cartao p-5 space-y-4 max-w-[860px]">
+      <div><h2 className="text-[16px] font-semibold">Calculadora da Receita</h2>
+        <p className="text-[12.5px] text-muted">Calcula um item com a calculadora oficial da Receita Federal (serviço público, em piloto). {vRec && !vRec.erro ? textoVersao(vRec) + "." : ""}</p></div>
+      {!RECEITA_NO_SERVIDOR ? <p className="text-[13px] text-warn">Disponível só com o servidor ligado.</p> : (
+        <form onSubmit={calcular} className="space-y-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {campo("data", "Data do fato gerador", "", { type: "date" })}{campo("municipio", "Município (código IBGE)", "4218707", { inputMode: "numeric" })}{campo("uf", "UF", "SC", { maxLength: 2 })}{campo("ncm", "NCM (opcional)")}
+            {campo("cst", "CST", "000")}{campo("cClassTrib", "cClassTrib", "000001")}{campo("base", "Base de cálculo (R$)", "", { inputMode: "decimal", className: "text-right tabular-nums" })}{campo("quantidade", "Quantidade", "1", { inputMode: "decimal" })}
+          </div>
+          <div className="flex justify-end"><button type="submit" className="btn-primario btn-sm" disabled={calculando}>{calculando ? "Calculando..." : "Calcular na Receita"}</button></div>
+        </form>
+      )}
+      {erro && <p className="rounded-lg px-3 py-2 text-[13px] bg-debit-soft text-debit">✕ {erro}</p>}
+      {res && res.semGrupo && <p className="rounded-lg px-3 py-2 text-[13px] bg-surface-2">A Receita não calcula IBS/CBS para este CST/cClassTrib (CST {res.cst || "—"}).</p>}
+      {res && !res.semGrupo && (<>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {[["IBS-UF", res.vIbsUf, efet(res.redUf, res.pIbsUf)], ["IBS-Município", res.vIbsMun, efet(res.redMun, res.pIbsMun)], ["IBS total", res.vIbs, ""], ["CBS", res.vCbs, efet(res.redCbs, res.pCbs)],
+            ["IBS + CBS", (res.vIbs || 0) + (res.vCbs || 0), ""]].map(([n, v, p], i) => (
+            <div key={n} className={"rounded-lg border px-3 py-2 " + (i === 4 ? "border-brand-fill bg-brand-soft" : "border-line bg-surface-2")}><div className="text-[12px] text-muted">{n}{p ? " · " + p : ""}</div><div className="text-[16px] font-semibold tabular-nums">R$ {brl(v)}</div></div>
+          ))}
+        </div>
+        <p className="text-[12.5px] text-ink-2">Base de cálculo pela Receita: R$ {brl(res.vBC)}{res.simulado ? " · cálculo simulado" : ""}</p>
+        {res.memoria.length > 0 && <div className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-[12px] text-ink-2"><strong className="block text-[12px] text-muted mb-1">Memória de cálculo</strong>{res.memoria.map((t, i) => <div key={i}>{t}</div>)}</div>}
+      </>)}
+    </section>
+  );
+}
+
 function Referencia() {
   return (
     <section className="cartao overflow-hidden">
@@ -291,12 +408,12 @@ export default function IbsCbs() {
   return (
     <div className="space-y-4">
       <div className="inline-flex flex-wrap rounded-lg border border-line bg-surface p-0.5" role="tablist">
-        {[["xml", "Conferência de XML"], ["calc", "Calculadora"], ["ref", "Referência de CST"]].map(([id, nome]) => (
+        {[["xml", "Conferência de XML"], ["receita", "Calculadora da Receita"], ["calc", "Calculadora"], ["ref", "Referência de CST"]].map(([id, nome]) => (
           <button key={id} type="button" role="tab" aria-selected={aba === id} onClick={() => setAba(id)}
             className={"rounded-md px-3 py-1.5 text-[13px] " + (aba === id ? "bg-brand-soft text-brand font-semibold" : "text-ink-2")}>{nome}</button>
         ))}
       </div>
-      {aba === "xml" ? <Conferencia /> : aba === "calc" ? <Calculadora /> : <Referencia />}
+      {aba === "xml" ? <Conferencia /> : aba === "receita" ? <CalculadoraReceita /> : aba === "calc" ? <Calculadora /> : <Referencia />}
     </div>
   );
 }
