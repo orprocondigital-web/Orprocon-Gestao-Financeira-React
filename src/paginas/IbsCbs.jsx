@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { CSTS, brl, calcular, conferir, csv, itemManual, lerReferencia, lerXml, mesclarReferencias, pct, xmlsDeExemplo } from "../lib/ibsCbs.mjs";
+import { CSTS, brl, conferir, csv, itemManual, lerReferencia, lerXml, mesclarReferencias, pct, xmlsDeExemplo } from "../lib/ibsCbs.mjs";
 import { carregarXlsx } from "../lib/leitores.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import { Campo, Selo } from "../componentes/contabil/ui.jsx";
@@ -306,27 +306,6 @@ function PorCampo({ campos }) {
   );
 }
 
-function Calculadora() {
-  const [c, setC] = useState({ bc: "", pIbsUf: "", pIbsMun: "", pCbs: "", vIbs: "", vCbs: "" });
-  const r = calcular(c);
-  const campo = (k, rot) => <Campo rotulo={rot} id={"c-" + k}><input id={"c-" + k} value={c[k]} onChange={(e) => setC({ ...c, [k]: e.target.value })} inputMode="decimal" className="text-right tabular-nums" /></Campo>;
-  return (
-    <section className="cartao p-5 space-y-4 max-w-[860px]">
-      <div><h2 className="text-[16px] font-semibold">Calculadora avulsa</h2><p className="text-[12.5px] text-muted">Base × alíquota, para conferir um item isolado. Informe os valores da nota para comparar.</p></div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {campo("bc", "Base de cálculo (R$)")}{campo("pIbsUf", "Alíquota IBS-UF (%)")}{campo("pIbsMun", "Alíquota IBS-Município (%)")}
-        {campo("pCbs", "Alíquota CBS (%)")}{campo("vIbs", "Valor de IBS na nota (R$)")}{campo("vCbs", "Valor de CBS na nota (R$)")}
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        {[["IBS-UF", r.ibsUf], ["IBS-Município", r.ibsMun], ["IBS total", r.ibs], ["CBS", r.cbs], ["IBS + CBS", r.total]].map(([n, v], i) => (
-          <div key={n} className={"rounded-lg border px-3 py-2 " + (i === 4 ? "border-brand-fill bg-brand-soft" : "border-line bg-surface-2")}><div className="text-[12px] text-muted">{n}</div><div className="text-[16px] font-semibold tabular-nums">R$ {brl(v)}</div></div>
-        ))}
-      </div>
-      {r.msgs.map((m, i) => <p key={i} className={"rounded-lg px-3 py-2 text-[13px] " + (m.nivel === "ok" ? "bg-ok-soft text-credit" : "bg-debit-soft text-debit")}>{m.nivel === "ok" ? "✓ " : "✕ "}{m.texto}</p>)}
-    </section>
-  );
-}
-
 /** Linhas do detalhe: o que a calculadora da Receita achou deste item. */
 function DaReceita({ res }) {
   const c = res.calc;
@@ -348,10 +327,20 @@ function CalculadoraReceita() {
   const [res, setRes] = useState(null);
   const [erro, setErro] = useState("");
   const [calculando, setCalculando] = useState(false);
-  const campo = (k, rot, ph, extra) => <Campo rotulo={rot} id={"cr-" + k}><input id={"cr-" + k} value={f[k]} placeholder={ph} onChange={(e) => setF({ ...f, [k]: e.target.value })} {...(extra || {})} /></Campo>;
+  const campo = (k, rot, ph, dica, extra) => (
+    <Campo rotulo={rot} id={"cr-" + k}>
+      <input id={"cr-" + k} value={f[k]} placeholder={ph} onChange={(e) => setF({ ...f, [k]: e.target.value })} {...(extra || {})} />
+      {dica && <span className="block mt-1 text-[11.5px] text-muted">{dica}</span>}
+    </Campo>
+  );
   async function calcular(ev) {
     ev.preventDefault(); setErro(""); setRes(null);
-    const m = montarOperacao([{ nItem: 1, found: true, cst: f.cst, cClassTrib: f.cClassTrib, ncm: f.ncm, bc: f.base, qCom: f.quantidade || 1 }],
+    // aceita 1.234,56 ou 1234.56
+    const numero = (v) => { const t = String(v || "").trim().replace(/\s|R\$/g, ""); return t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t; };
+    if (!/^\d{3}$/.test(f.cst.trim())) { setErro("CST tem 3 dígitos. Ex.: 000 (integral), 200 (com redução)."); return; }
+    if (!/^\d{6}$/.test(f.cClassTrib.trim())) { setErro("cClassTrib tem 6 dígitos. Ex.: 000001, 200003."); return; }
+    if (!(parseFloat(numero(f.base)) > 0)) { setErro("Informe a base de cálculo só com o valor. Ex.: 1000,00"); return; }
+    const m = montarOperacao([{ nItem: 1, found: true, cst: f.cst.trim(), cClassTrib: f.cClassTrib.trim(), ncm: f.ncm, bc: numero(f.base), qCom: numero(f.quantidade) || 1 }],
       { dhEmi: f.data, municipio: f.municipio, uf: f.uf.toUpperCase(), modelo: "55" }, "calculadora-avulsa");
     if (m.erro || !m.operacao) { setErro(m.erro || (m.fora[0] && m.fora[0].motivo) || "Confira os campos."); return; }
     setCalculando(true);
@@ -365,8 +354,14 @@ function CalculadoraReceita() {
       {!RECEITA_NO_SERVIDOR ? <p className="text-[13px] text-warn">Disponível só com o servidor ligado.</p> : (
         <form onSubmit={calcular} className="space-y-4">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {campo("data", "Data do fato gerador", "", { type: "date" })}{campo("municipio", "Município (código IBGE)", "4218707", { inputMode: "numeric" })}{campo("uf", "UF", "SC", { maxLength: 2 })}{campo("ncm", "NCM (opcional)")}
-            {campo("cst", "CST", "000")}{campo("cClassTrib", "cClassTrib", "000001")}{campo("base", "Base de cálculo (R$)", "", { inputMode: "decimal", className: "text-right tabular-nums" })}{campo("quantidade", "Quantidade", "1", { inputMode: "decimal" })}
+            {campo("data", "Data do fato gerador", "", "Data de emissão da nota (até 31/12/2026).", { type: "date" })}
+            {campo("municipio", "Município (código IBGE)", "4218707", "7 dígitos. Tubarão = 4218707.", { inputMode: "numeric", maxLength: 7 })}
+            {campo("uf", "UF", "SC", "Sigla do estado.", { maxLength: 2 })}
+            {campo("ncm", "NCM (opcional)", "84713012", "8 dígitos, sem pontos.", { inputMode: "numeric", maxLength: 10 })}
+            {campo("cst", "CST", "000", "3 dígitos. Ex.: 000, 200, 410.", { inputMode: "numeric", maxLength: 3 })}
+            {campo("cClassTrib", "cClassTrib", "000001", "6 dígitos. Ex.: 000001, 200003.", { inputMode: "numeric", maxLength: 6 })}
+            {campo("base", "Base de cálculo (R$)", "1000,00", "Só o valor. Ex.: 1000,00", { inputMode: "decimal", className: "text-right tabular-nums" })}
+            {campo("quantidade", "Quantidade", "1", "Padrão 1.", { inputMode: "decimal" })}
           </div>
           <div className="flex justify-end"><button type="submit" className="btn-primario btn-sm" disabled={calculando}>{calculando ? "Calculando..." : "Calcular na Receita"}</button></div>
         </form>
@@ -408,12 +403,12 @@ export default function IbsCbs() {
   return (
     <div className="space-y-4">
       <div className="inline-flex flex-wrap rounded-lg border border-line bg-surface p-0.5" role="tablist">
-        {[["xml", "Conferência de XML"], ["receita", "Calculadora da Receita"], ["calc", "Calculadora"], ["ref", "Referência de CST"]].map(([id, nome]) => (
+        {[["xml", "Conferência de XML"], ["receita", "Calculadora da Receita"], ["ref", "Referência de CST"]].map(([id, nome]) => (
           <button key={id} type="button" role="tab" aria-selected={aba === id} onClick={() => setAba(id)}
             className={"rounded-md px-3 py-1.5 text-[13px] " + (aba === id ? "bg-brand-soft text-brand font-semibold" : "text-ink-2")}>{nome}</button>
         ))}
       </div>
-      {aba === "xml" ? <Conferencia /> : aba === "receita" ? <CalculadoraReceita /> : aba === "calc" ? <Calculadora /> : <Referencia />}
+      {aba === "xml" ? <Conferencia /> : aba === "receita" ? <CalculadoraReceita /> : <Referencia />}
     </div>
   );
 }
